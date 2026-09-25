@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Ata de Vistoria - V7.2 Web Teste</title>
+<style>
+:root{--bg:#f3f6f9;--card:#fff;--text:#17212b;--muted:#6b7785;--line:#dce4ea;--primary:#2492bd;--primary-dark:#176d91;--ok:#2b835d;--danger:#a64b4b}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+.app{max-width:620px;margin:auto;min-height:100vh;background:#f9fbfc}
+header{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--line);padding:14px 16px}
+.head{display:flex;justify-content:space-between;align-items:center;gap:10px}h1{font-size:20px;margin:0}.badge{font-size:12px;background:#eaf5fa;color:var(--primary-dark);padding:6px 10px;border-radius:999px}
+.progress{display:grid;grid-template-columns:repeat(8,1fr);gap:5px;margin-top:12px}.progress span{height:6px;background:#dfe6eb;border-radius:999px}.progress span.on{background:var(--primary)}
+main{padding:16px 16px 100px}.screen{display:none}.screen.active{display:block}
+.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px;box-shadow:0 2px 12px rgba(0,0,0,.04)}
+h2{font-size:20px;margin:0 0 6px}h3{font-size:15px;margin:16px 0 8px}.helper{font-size:13px;line-height:1.45;color:var(--muted);margin:0 0 15px}
+label.field{display:block;font-size:13px;font-weight:700;margin:13px 0 6px}
+input,select,textarea{width:100%;font-size:16px;padding:13px 14px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--text)}textarea{min-height:115px;resize:vertical}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.item{border:1px solid var(--line);background:#fbfcfd;border-radius:14px;padding:12px;margin-top:10px}
+.item-head{display:flex;justify-content:space-between;align-items:center;gap:8px}.item-head strong{font-size:14px}
+.btn{border:0;border-radius:14px;padding:13px 14px;font-size:15px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.primary{background:var(--primary);color:#fff}.secondary{background:#edf2f5;color:var(--text)}.ok{background:var(--ok);color:#fff}.danger{background:#fff1f1;color:var(--danger);border:1px solid #f0cccc}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.actions .btn{flex:1}
+footer{padding:16px;color:var(--muted);font-size:12px;text-align:center}
+.preview{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;overflow:auto}.preview h4{margin:0 0 8px}.kv{display:grid;grid-template-columns:140px 1fr;gap:7px 10px;font-size:13px;line-height:1.35}.kv b{color:#33414d}.mini-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}.mini-table th,.mini-table td{border:1px solid #dce4ea;padding:7px;text-align:left;vertical-align:top}
+@media(max-width:480px){.grid2{grid-template-columns:1fr}.kv{grid-template-columns:1fr}.head{align-items:flex-start;flex-direction:column}.actions{flex-direction:column}.actions .btn{width:100%}}
+@media print{header,.no-print,footer{display:none!important}.app{max-width:none}.screen{display:block!important}body{background:#fff}main{padding:0}.card{box-shadow:none;border:0;padding:0}.preview{border:0;padding:0}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+<div class="head"><div><h1>Ata de Vistoria</h1><div class="helper" style="margin:3px 0 0">HS — protótipo web integrado</div></div><span class="badge">V7.2</span></div>
+<div class="progress" id="progress"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+</header>
+<main>
+<section class="screen active" data-step="1">
+<div class="card"><h2>1. Identificação</h2><p class="helper">Preencha os dados básicos do segurado e do evento.</p>
+<label class="field">Segurado / Cooperado</label><input id="segurado" data-save>
+<label class="field">CPF / CNPJ</label><input id="cpfCnpj" data-save>
+<label class="field">Número do sinistro</label><input id="sinistro" data-save>
+<div class="grid2"><div><label class="field">Data do sinistro</label><input id="dataSinistro" type="date" data-save></div><div><label class="field">Hora aproximada</label><input id="horaSinistro" type="time" data-save></div></div>
+<label class="field">Endereço / Local</label><input id="endereco" data-save>
+<label class="field">Coordenadas</label><input id="coords" data-save>
+<div class="actions no-print"><button class="btn secondary" onclick="loadExample()">Carregar exemplo</button><button class="btn primary" onclick="go(2)">Continuar</button></div>
+</div></section>
+<section class="screen" data-step="2"><div class="card"><h2>2. Instalações</h2><p class="helper">Adicione as instalações vistoriadas.</p><div id="instList"></div><button class="btn secondary no-print" onclick="addInst()">+ Adicionar instalação</button><div class="actions no-print"><button class="btn secondary" onclick="go(1)">Voltar</button><button class="btn primary" onclick="go(3)">Continuar</button></div></div></section>
+<section class="screen" data-step="3"><div class="card"><h2>3. Relação de danos</h2><p class="helper">Registre cada item constatado em vistoria.</p><div id="damageList"></div><button class="btn secondary no-print" onclick="addDamage()">+ Adicionar item de dano</button><div class="actions no-print"><button class="btn secondary" onclick="go(2)">Voltar</button><button class="btn primary" onclick="go(4)">Continuar</button></div></div></section>
+<section class="screen" data-step="4"><div class="card"><h2>4. Relato e constatações</h2>
+<label class="field">Quem prestou o relato?</label><input id="relator" data-save>
+<label class="field">Relato do evento</label><textarea id="relato" data-save></textarea>
+<label class="field">Constatações de vistoria</label><textarea id="constatacoes" data-save></textarea>
+<label class="field">Documentos coletados</label><textarea id="documentos" data-save></textarea>
+<label class="field">Existe outro seguro?</label><select id="outroSeguro" data-save><option value="">Selecione</option><option value="nao">Não</option><option value="sim">Sim</option></select>
+<div class="actions no-print"><button class="btn secondary" onclick="go(3)">Voltar</button><button class="btn primary" onclick="go(5)">Continuar</button></div></div></section>
+<section class="screen" data-step="5"><div class="card"><h2>5. Cronologia</h2><p class="helper">Informe as cinco datas do fluxo do sinistro.</p>
+<label class="field">1. Data do sinistro</label><input id="c1" type="date" data-save>
+<label class="field">2. Data do aviso / comunicação</label><input id="c2" type="date" data-save>
+<label class="field">3. Data da nomeação</label><input id="c3" type="date" data-save>
+<label class="field">4. Data do contato / agendamento</label><input id="c4" type="date" data-save>
+<label class="field">5. Data da vistoria</label><input id="c5" type="date" data-save>
+<div class="actions no-print"><button class="btn secondary" onclick="go(4)">Voltar</button><button class="btn primary" onclick="go(6)">Continuar</button></div></div></section>
+<section class="screen" data-step="6"><div class="card"><h2>6. Responsáveis</h2>
+<label class="field">Cidade de emissão</label><input id="cidadeEmissao" data-save>
+<label class="field">Regulador</label><input id="regulador" data-save>
+<label class="field">CPF do regulador</label><input id="cpfReg" data-save>
+<label class="field">Representante / Cooperado</label><input id="representante" data-save>
+<label class="field">CPF do representante</label><input id="cpfRep" data-save>
+<div class="actions no-print"><button class="btn secondary" onclick="go(5)">Voltar</button><button class="btn primary" onclick="go(7)">Revisar</button></div></div></section>
+<section class="screen" data-step="7"><div class="card"><h2>7. Revisão</h2><p class="helper">Confira os dados antes da emissão.</p><div id="review" class="preview"></div><div class="actions no-print"><button class="btn secondary" onclick="go(6)">Voltar</button><button class="btn primary" onclick="go(8)">Revisar e emitir</button></div></div></section>
+<section class="screen" data-step="8"><div class="card"><h2>8. Ata final</h2><p class="helper no-print">A prévia abaixo recebe automaticamente os dados preenchidos.</p><div id="finalPreview" class="preview"></div><div class="actions no-print"><button class="btn secondary" onclick="go(7)">Voltar</button><button class="btn secondary" onclick="saveDraft()">Salvar rascunho</button><button class="btn ok" onclick="window.print()">Exportar / Salvar PDF</button><button class="btn primary" onclick="exportWord()">Exportar Word editável</button></div></div></section>
+</main>
+<footer>Protótipo HS — V7.2 Web Teste</footer>
+</div>
+<script>
+const $=id=>document.getElementById(id);let instN=0,dmgN=0;
+function progress(){const n=+document.querySelector('.screen.active').dataset.step;document.querySelectorAll('#progress span').forEach((s,i)=>s.classList.toggle('on',i<n));}
+function go(n){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.querySelector(`[data-step="${n}"]`).classList.add('active');if(n===7)renderReview();if(n===8)renderFinal();progress();window.scrollTo({top:0,behavior:'smooth'});saveDraft();}
+function esc(v=''){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
+function addInst(v={}){instN++;const d=document.createElement('div');d.className='item';d.innerHTML=`<div class="item-head"><strong>Instalação ${instN}</strong><button class="btn danger no-print" type="button" onclick="this.closest('.item').remove();saveDraft()">Remover</button></div><div class="grid2"><div><label class="field">Nº / Identificação</label><input class="i-num" value="${esc(v.num||'')}"></div><div><label class="field">Ano</label><input class="i-year" value="${esc(v.year||'')}"></div></div><label class="field">Dimensões</label><input class="i-dim" value="${esc(v.dim||'')}"><label class="field">Capacidade / Uso</label><input class="i-cap" value="${esc(v.cap||'')}"><label class="field">Estado de conservação</label><input class="i-state" value="${esc(v.state||'')}">`;document.getElementById('instList').appendChild(d);}
+function addDamage(v={}){dmgN++;const d=document.createElement('div');d.className='item';d.innerHTML=`<div class="item-head"><strong>Item ${dmgN}</strong><button class="btn danger no-print" type="button" onclick="this.closest('.item').remove();saveDraft()">Remover</button></div><label class="field">Descrição</label><input class="d-desc" value="${esc(v.desc||'')}"><div class="grid2"><div><label class="field">Quantidade</label><input class="d-qty" value="${esc(v.qty||'')}"></div><div><label class="field">Unidade</label><input class="d-unit" value="${esc(v.unit||'')}"></div></div><label class="field">Idade / Tempo de uso</label><input class="d-age" value="${esc(v.age||'')}">`;document.getElementById('damageList').appendChild(d);}
+function vals(){const ids=['segurado','cpfCnpj','sinistro','dataSinistro','horaSinistro','endereco','coords','relator','relato','constatacoes','documentos','outroSeguro','c1','c2','c3','c4','c5','cidadeEmissao','regulador','cpfReg','representante','cpfRep'];const o={};ids.forEach(id=>o[id]=$(id)?.value||'');o.inst=[...document.querySelectorAll('#instList .item')].map(x=>({num:x.querySelector('.i-num').value,year:x.querySelector('.i-year').value,dim:x.querySelector('.i-dim').value,cap:x.querySelector('.i-cap').value,state:x.querySelector('.i-state').value}));o.damage=[...document.querySelectorAll('#damageList .item')].map(x=>({desc:x.querySelector('.d-desc').value,qty:x.querySelector('.d-qty').value,unit:x.querySelector('.d-unit').value,age:x.querySelector('.d-age').value}));return o;}
+function fmtDate(v){if(!v)return'';const [y,m,d]=v.split('-');return`${d}/${m}/${y}`;}
+function tableInst(a){return `<table class="mini-table"><thead><tr><th>Instalação</th><th>Ano</th><th>Dimensões</th><th>Capacidade/Uso</th><th>Conservação</th></tr></thead><tbody>${a.map(x=>`<tr><td>${esc(x.num)}</td><td>${esc(x.year)}</td><td>${esc(x.dim)}</td><td>${esc(x.cap)}</td><td>${esc(x.state)}</td></tr>`).join('')}</tbody></table>`;}
+function tableDamage(a){return `<table class="mini-table"><thead><tr><th>Descrição</th><th>Qtd.</th><th>Un.</th><th>Idade/Uso</th></tr></thead><tbody>${a.map(x=>`<tr><td>${esc(x.desc)}</td><td>${esc(x.qty)}</td><td>${esc(x.unit)}</td><td>${esc(x.age)}</td></tr>`).join('')}</tbody></table>`;}
+function renderReview(){const d=vals();$('review').innerHTML=`<h4>Identificação</h4><div class="kv"><b>Segurado</b><span>${esc(d.segurado)}</span><b>CPF/CNPJ</b><span>${esc(d.cpfCnpj)}</span><b>Sinistro</b><span>${esc(d.sinistro)}</span><b>Data/Hora</b><span>${fmtDate(d.dataSinistro)} ${esc(d.horaSinistro)}</span><b>Local</b><span>${esc(d.endereco)}</span><b>Coordenadas</b><span>${esc(d.coords)}</span></div><h4 style="margin-top:18px">Instalações</h4>${tableInst(d.inst)}<h4 style="margin-top:18px">Danos</h4>${tableDamage(d.damage)}<h4 style="margin-top:18px">Relato e constatações</h4><div class="kv"><b>Relator</b><span>${esc(d.relator)}</span><b>Relato</b><span>${esc(d.relato)}</span><b>Constatações</b><span>${esc(d.constatacoes)}</span><b>Documentos</b><span>${esc(d.documentos)}</span></div>`;}
+function renderFinal(){const d=vals();$('finalPreview').innerHTML=`<div style="text-align:center"><h3 style="margin:0">ATA DE VISTORIA</h3><div style="font-size:12px;color:#667">HS / beyond solutions</div></div><hr style="border:0;border-top:1px solid #dce4ea;margin:16px 0"><div class="kv"><b>Segurado / Cooperado</b><span>${esc(d.segurado)}</span><b>CPF/CNPJ</b><span>${esc(d.cpfCnpj)}</span><b>Nº do sinistro</b><span>${esc(d.sinistro)}</span><b>Data do sinistro</b><span>${fmtDate(d.dataSinistro)}</span><b>Hora aproximada</b><span>${esc(d.horaSinistro)}</span><b>Local</b><span>${esc(d.endereco)}</span><b>Coordenadas</b><span>${esc(d.coords)}</span></div><h4 style="margin-top:18px">INSTALAÇÕES VISTORIADAS</h4>${tableInst(d.inst)}<h4 style="margin-top:18px">RELAÇÃO DE DANOS CONSTATADOS EM VISTORIA</h4>${tableDamage(d.damage)}<h4 style="margin-top:18px">RELATO DO EVENTO</h4><p style="font-size:13px;line-height:1.5">${esc(d.relato)}</p><h4>CONSTATAÇÕES DE VISTORIA</h4><p style="font-size:13px;line-height:1.5">${esc(d.constatacoes)}</p><h4>DOCUMENTOS COLETADOS</h4><p style="font-size:13px;line-height:1.5">${esc(d.documentos)}</p><h4>CRONOLOGIA</h4><table class="mini-table"><tbody><tr><th>Sinistro</th><td>${fmtDate(d.c1)}</td></tr><tr><th>Aviso / Comunicação</th><td>${fmtDate(d.c2)}</td></tr><tr><th>Nomeação</th><td>${fmtDate(d.c3)}</td></tr><tr><th>Contato / Agendamento</th><td>${fmtDate(d.c4)}</td></tr><tr><th>Vistoria</th><td>${fmtDate(d.c5)}</td></tr></tbody></table><h4 style="margin-top:18px">RESPONSÁVEIS</h4><div class="kv"><b>Cidade de emissão</b><span>${esc(d.cidadeEmissao)}</span><b>Regulador</b><span>${esc(d.regulador)} — ${esc(d.cpfReg)}</span><b>Representante</b><span>${esc(d.representante)} — ${esc(d.cpfRep)}</span></div>`;}
+function saveDraft(){try{localStorage.setItem('ataV7',JSON.stringify(vals()));}catch(e){}}
+function restore(){try{const d=JSON.parse(localStorage.getItem('ataV7')||'null');if(!d)return false;Object.entries(d).forEach(([k,v])=>{if($(k)&&typeof v==='string')$(k).value=v;});$('instList').innerHTML='';$('damageList').innerHTML='';instN=0;dmgN=0;(d.inst||[]).forEach(addInst);(d.damage||[]).forEach(addDamage);return true;}catch(e){return false;}}
+function exportWord(){renderFinal();const content=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Ata de Vistoria</title><style>body{font-family:Arial,sans-serif;font-size:11pt;color:#111}.mini-table{width:100%;border-collapse:collapse}.mini-table th,.mini-table td{border:1px solid #999;padding:6px}.kv{display:grid;grid-template-columns:160px 1fr;gap:6px}.preview{padding:10px}h3,h4{margin:12px 0 6px}</style></head><body>${$('finalPreview').innerHTML}</body></html>`;const blob=new Blob(['\ufeff',content],{type:'application/msword'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ata_vistoria_v7_2.doc';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);}
+function loadExample(){const d={segurado:'Ricardo Antônio Paludo',cpfCnpj:'825.034.009-49',sinistro:'EXEMPLO-2026-001',dataSinistro:'2026-08-31',horaSinistro:'17:00',endereco:'Propriedade rural - Chapecó/SC',coords:'27°01\'45.2"S 52°19\'38.0"W',relator:'Gabriel Paludo, filho do cooperado',relato:'De acordo com o relato prestado pelo filho do cooperado, no final da tarde de 31 de agosto de 2026, por volta das 17h00, foram percebidas instabilidades no fornecimento de energia elétrica da concessionária que atende à propriedade. Durante o manejo das instalações, constatou que o controlador de ambiência e automação apresentou anomalia de funcionamento, passando a exibir uma tela azul em seu display frontal.',constatacoes:'Em vistoria remota realizada em 21/09/2026, foi apresentado o controlador de ambiência e automação sinistrado, atualmente em funcionamento mediante reparo provisório, com instalação de uma placa de comunicação reserva. Os danos relacionados ao evento reclamado restringiam-se exclusivamente à placa de comunicação do controlador Smaai 5 Inobram.',documentos:'Não foram coletados documentos em vistoria.',outroSeguro:'nao',c1:'2026-08-31',c2:'2026-09-15',c3:'2026-09-15',c4:'2026-09-15',c5:'2026-09-21',cidadeEmissao:'Blumenau (SC)',regulador:'Paulo R. Schlosser',cpfReg:'068.613.739-66',representante:'Ricardo Antônio Paludo',cpfRep:'825.034.009-49'};Object.entries(d).forEach(([k,v])=>{if($(k))$(k).value=v;});$('instList').innerHTML='';$('damageList').innerHTML='';instN=0;dmgN=0;[{num:'1',year:'2025',dim:'110,00 x 19,70m',cap:'216 suínos',state:'Regular'},{num:'2',year:'2025',dim:'70,00 x 19,60m',cap:'900 suínos',state:'Regular'},{num:'3',year:'2010',dim:'100,00 x 9,00m',cap:'109 suínos',state:'Reparos Simples'}].forEach(addInst);addDamage({desc:'Placa CPU PCI controlador Smaai 5 Inobram',qty:'01',unit:'un.',age:'1 ano'});saveDraft();}
+function resetForm(){if(confirm('Iniciar uma nova vistoria e limpar o rascunho?')){localStorage.removeItem('ataV7');location.reload();}}
+document.addEventListener('input',e=>{if(e.target.matches('[data-save],.item input,.item select')){clearTimeout(window.t);window.t=setTimeout(saveDraft,450);}});
+window.addEventListener('load',()=>{if(!restore()){addInst();addDamage();}progress();});
+</script>
+</body></html>
