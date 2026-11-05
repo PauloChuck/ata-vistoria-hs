@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <title>Fast Track — Contingência | HS</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header no-print">
+      <div class="header-row">
+        <div>
+          <p class="eyebrow">Horizon Servitas</p>
+          <h1>Fast Track — Contingência</h1>
+          <p class="header-subtitle">Regulação simplificada, apuração em vistoria e encerramento</p>
+        </div>
+        <div class="header-badges">
+          <span class="badge">Protótipo 0.1</span>
+          <span id="caseIdBadge" class="badge badge-soft">Processo não identificado</span>
+        </div>
+      </div>
+      <div class="progress" id="progress" aria-label="Progresso do preenchimento">
+        <span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span>
+      </div>
+    </header>
+
+    <main>
+      <div id="globalNotice" class="notice notice-info no-print">
+        <strong>Dados locais:</strong> este protótipo salva o rascunho apenas neste navegador. Fotografias permanecem somente na sessão atual e não são enviadas ao GitHub.
+      </div>
+
+      <section class="screen active" data-step="1">
+        <div class="card">
+          <div class="section-heading">
+            <div><span class="step-kicker">Etapa 1 de 8</span><h2>Evento de contingência</h2></div>
+            <button class="btn btn-ghost" type="button" data-action="load-example">Carregar exemplo</button>
+          </div>
+          <p class="helper">Cadastre as informações comuns aos sinistros decorrentes do mesmo evento. Elas poderão ser reaproveitadas nos processos individuais.</p>
+
+          <div class="subcard event-manager">
+            <label class="field" for="savedEventSelect">Eventos salvos neste navegador</label>
+            <div class="inline-actions">
+              <select id="savedEventSelect"><option value="">Selecione um evento salvo</option></select>
+              <button class="btn btn-secondary" type="button" data-action="load-event">Carregar</button>
+              <button class="btn btn-danger-lite" type="button" data-action="delete-event">Excluir</button>
+            </div>
+          </div>
+
+          <label class="field" for="eventName">Nome do evento</label>
+          <input id="eventName" data-save placeholder="Ex.: Granizo de 28/09/2026 — Norte do RS">
+
+          <div class="grid2">
+            <div><label class="field" for="eventDate">Data do evento</label><input id="eventDate" type="date" data-save></div>
+            <div><label class="field" for="eventType">Tipo de evento</label>
+              <select id="eventType" data-save>
+                <option value="">Selecione</option>
+                <option>Granizo</option><option>Vendaval</option><option>Alagamento / Inundação</option>
+                <option>Danos Elétricos</option><option>Incêndio</option><option>Outro</option>
+              </select>
+            </div>
+          </div>
+
+          <label class="field" for="eventRegion">Região / municípios atingidos</label>
+          <input id="eventRegion" data-save placeholder="Ex.: Ciriaco, Marau e região — RS">
+
+          <label class="field" for="insurer">Companhia seguradora</label>
+          <input id="insurer" list="insurerList" data-save autocomplete="off">
+          <datalist id="insurerList"><option value="SOMPO SEGUROS S/A"></option></datalist>
+
+          <label class="field" for="insuredCooperative">Segurado / Cooperativa</label>
+          <input id="insuredCooperative" list="cooperativeList" data-save autocomplete="off">
+          <datalist id="cooperativeList">
+            <option value="COOPERATIVA CENTRAL AURORA ALIMENTOS"></option>
+            <option value="LAR COOPERATIVA AGROINDUSTRIAL"></option>
+            <option value="SOMAVE"></option><option value="JAGUAFRANGOS"></option><option value="BRF S.A."></option>
+          </datalist>
+
+          <div class="grid2">
+            <div><label class="field" for="policyNumber">Apólice</label><input id="policyNumber" data-save></div>
+            <div><label class="field" for="broker">Corretora</label><input id="broker" list="brokerList" data-save autocomplete="off"></div>
+          </div>
+          <datalist id="brokerList"><option value="ALPER CONSULTORIA E CORRETORA DE SEGUROS S/A"></option></datalist>
+
+          <label class="field" for="eventCoverage">Cobertura acionada</label>
+          <input id="eventCoverage" list="coverageList" data-save autocomplete="off">
+          <datalist id="coverageList">
+            <option value="Vendaval — Modalidade B"></option><option value="Danos Elétricos"></option>
+            <option value="Incêndio"></option><option value="Desmoronamento"></option><option value="Alagamento"></option>
+          </datalist>
+
+          <div class="grid2">
+            <div><label class="field" for="insurerAnalyst">Analista da seguradora</label><input id="insurerAnalyst" data-save></div>
+            <div><label class="field" for="fastTrackInstructionDate">Data da orientação Fast Track</label><input id="fastTrackInstructionDate" type="date" data-save></div>
+          </div>
+
+          <label class="field" for="eventBaseNarrative">Descrição-base do evento</label>
+          <textarea id="eventBaseNarrative" data-save placeholder="Texto comum que poderá ser adaptado nos sinistros vinculados."></textarea>
+
+          <label class="field" for="eventEvidence">Evidências gerais / registros meteorológicos / reportagens</label>
+          <textarea id="eventEvidence" data-save placeholder="Registre as fontes comuns do evento e as principais constatações."></textarea>
+
+          <div class="actions">
+            <button class="btn btn-secondary" type="button" data-action="new-event">Novo evento</button>
+            <button class="btn btn-secondary" type="button" data-action="save-event">Salvar evento-base</button>
+            <button class="btn btn-primary" type="button" data-go="2">Continuar</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" data-step="2">
+        <div class="card">
+          <div class="section-heading"><div><span class="step-kicker">Etapa 2 de 8</span><h2>Processo individual</h2></div><button class="btn btn-ghost" type="button" data-action="import-v75">Importar Ata V7.5</button></div>
+          <p class="helper">O número da seguradora tem prioridade. Se ainda não existir, o processo será identificado pelo número HS ou pelo nome do cooperado.</p>
+
+          <div class="identifier-box"><span>Identificador utilizado</span><strong id="resolvedCaseId">Aguardando identificação</strong></div>
+
+          <div class="grid2">
+            <div><label class="field" for="insurerClaim">Sinistro da seguradora</label><input id="insurerClaim" data-save placeholder="Ex.: 1325325"></div>
+            <div><label class="field" for="hsClaim">Sinistro Horizon Servitas</label><input id="hsClaim" data-save placeholder="Ex.: S2609085"></div>
+          </div>
+
+          <label class="field" for="claimantName">Cooperado / Beneficiário</label><input id="claimantName" data-save>
+          <label class="field" for="claimantDocument">CPF / CNPJ</label><input id="claimantDocument" data-save>
+
+          <div class="grid2">
+            <div><label class="field" for="lossDate">Data do sinistro</label><input id="lossDate" type="date" data-save></div>
+            <div><label class="field" for="lossTime">Hora aproximada</label><input id="lossTime" type="time" data-save></div>
+          </div>
+
+          <label class="field" for="riskAddress">Local do risco</label><input id="riskAddress" data-save>
+          <label class="field" for="coordinates">Coordenadas</label><input id="coordinates" data-save>
+
+          <div class="grid2">
+            <div><label class="field" for="contactName">Contato no local</label><input id="contactName" data-save></div>
+            <div><label class="field" for="contactPhone">Telefone</label><input id="contactPhone" data-save inputmode="tel"></div>
+          </div>
+
+          <label class="field" for="inspectionType">Tipo de vistoria</label>
+          <select id="inspectionType" data-save><option value="presencial">Presencial</option><option value="remota">Remota</option><option value="hibrida">Híbrida</option></select>
+
+          <div id="claimNumberNotice" class="notice notice-warn hidden">O número da seguradora ainda não foi informado. O processo continuará pelo número HS ou pelo nome do cooperado.</div>
+
+          <div class="actions"><button class="btn btn-secondary" type="button" data-go="1">Voltar</button><button class="btn btn-primary" type="button" data-go="3">Continuar</button></div>
+        </div>
+      </section>
+
+      <section class="screen" data-step="3">
+        <div class="card">
+          <div class="section-heading"><div><span class="step-kicker">Etapa 3 de 8</span><h2>Conferência do risco</h2></div><button class="btn btn-secondary" type="button" data-action="add-installation">+ Instalação</button></div>
+          <p class="helper">Os dados recebidos são apenas referência. O relatório utilizará os valores confirmados pelo regulador.</p>
+
+          <label class="field" for="riskActivity">Atividade do risco</label><input id="riskActivity" data-save placeholder="Ex.: Criação de frangos de corte">
+          <label class="field" for="riskDataSource">Fonte dos dados recebidos</label><input id="riskDataSource" data-save placeholder="Ex.: Planilha geral da cooperativa / vistoria">
+
+          <div id="riskAlerts" class="notice notice-warn hidden"></div>
+          <div id="installationList"></div>
+
+          <div class="actions"><button class="btn btn-secondary" type="button" data-go="2">Voltar</button><button class="btn btn-primary" type="button" data-go="4">Continuar</button></div>
+        </div>
+      </section>
+
+      <section class="screen" data-step="4">
+        <div class="card">
+          <div class="section-heading"><div><span class="step-kicker">Etapa 4 de 8</span><h2>Ocorrência e vistoria</h2></div><button class="btn btn-ghost" type="button" data-action="copy-event-narrative">Usar texto-base do evento</button></div>
+          <label class="field" for="reporterName">Quem prestou o relato?</label><input id="reporterName" data-save>
+          <label class="field" for="occurrenceNarrative">Relato individual da ocorrência</label><textarea id="occurrenceNarrative" data-save></textarea>
+          <label class="field" for="inspectionFindings">Constatações da vistoria</label><textarea id="inspectionFindings" data-save></textarea>
+          <label class="field" for="documentsPresented">Documentos apresentados</label><textarea id="documentsPresented" data-save></textarea>
+
+          <div class="subsection-title"><h3>Relação de danos</h3><button class="btn btn-secondary" type="button" data-action="add-damage">+ Item</button></div>
+          <div id="damageList"></div>
+
+          <div class="subsection-title"><h3>Fotografias</h3></div>
+          <p class="helper">As imagens são comprimidas e usadas na prévia e na exportação enquanto esta página permanecer aberta. Elas não entram no salvamento automático.</p>
+          <input id="photoInput" type="file" accept="image/*" multiple>
+          <div id="photoGallery" class="photo-gallery"></div>
+
+          <div class="actions"><button class="btn btn-secondary" type="button" data-go="3">Voltar</button><button class="btn btn-primary" type="button" data-go="5">Continuar</button></div>
+        </div>
+      </section>
+
+      <section class="screen" data-step="5">
+        <div class="card">
+          <div class="section-heading"><div><span class="step-kicker">Etapa 5 de 8</span><h2>Cobertura e análise técnica</h2></div></div>
+          <label class="field" for="coverageName">Cobertura reclamada</label><input id="coverageName" data-save>
+
+          <div class="grid2">
+            <div><label class="field" for="eventLimit">LMI por evento</label><input id="eventLimit" type="number" min="0" step="0.01" data-save></div>
+            <div><label class="field" for="unitLimit">Sublimite por unidade</label><input id="unitLimit" type="number" min="0" step="0.01" data-save></div>
+          </div>
+          <div class="grid2">
+            <div><label class="field" for="aggregateLimit">Limite agregado</label><input id="aggregateLimit" type="number" min="0" step="0.01" data-save></div>
+            <div><label class="field" for="customLimit">Outro limite aplicável</label><input id="customLimit" type="number" min="0" step="0.01" data-save></div>
+          </div>
+
+          <label class="field" for="applicableLimitType">Limite a considerar no cálculo</label>
+          <select id="applicableLimitType" data-save>
+            <option value="none">Não limitar automaticamente</option>
+            <option value="event">LMI por evento</option><option value="unit">Sublimite por unidade</option>
+            <option value="aggregate">Limite agregado</option><option value="custom">Outro limite aplicável</option>
+          </select>
+          <p class="field-note">Os limites são transcritos da apólice. A seleção acima deve ser confirmada pelo regulador e não representa divisão do LMI entre cooperados.</p>
+
+          <div class="grid2">
+            <div><label class="field" for="deductiblePct">Franquia percentual (%)</label><input id="deductiblePct" type="number" min="0" step="0.01" data-save></div>
+            <div><label class="field" for="deductibleMin">Franquia mínima (R$)</label><input id="deductibleMin" type="number" min="0" step="0.01" data-save></div>
+          </div>
+
+          <label class="field" for="causeAnalysis">Análise e definição de causa</label><textarea id="causeAnalysis" data-save></textarea>
+          <label class="field" for="contractAnalysis">Análise contratual e enquadramento técnico</label><textarea id="contractAnalysis" data-save></textarea>
+
+          <label class="field" for="coverageDecision">Conclusão sobre o amparo</label>
+          <select id="coverageDecision" data-save><option value="amparado">Amparado</option><option value="parcial">Parcialmente amparado</option><option value="sem_amparo">Sem amparo técnico</option><option value="pendente">Pendente de definição</option></select>
+          <label class="field" for="regulatorOpinion">Parecer do regulador</label><textarea id="regulatorOpinion" data-save></textarea>
+
+          <div class="actions"><button class="btn btn-secondary" type="button" data-go="4">Voltar</button><button class="btn btn-primary" type="button" data-go="6">Continuar</button></div>
+        </div>
+      </section>
+
+      <section class="screen" data-step="6">
+        <div class="card">
+          <div class="section-heading"><div><span class="step-kicker">Etapa 6 de 8</span><h2>Apuração simplificada</h2></div><button class="btn btn-secondary" type="button" data-action="add-assessment-item">+ Item</button></div>
+          <p class="helper">Informe os valores reclamados e os valores tecnicamente acatados. Descontos, glosas, depreciação, salvados e franquia são calculados automaticamente.</p>
+          <div id="assessmentList"></div>
+
+          <div id="financialSummary" class="financial-grid"></div>
+          <div id="limitWarning" class="notice notice-warn hidden"></div>
+
+          <div class="actions"><button class="btn btn-secondary" type="button" data-go="5">Voltar</button><button class="btn btn-primary" type="button" data-go="7">Continuar</button></div>
+        </div>
+      </section>
+
+      <section class="screen" data-step="7">
+        <div class="card">
+          <div class="section-heading"><div><span class="step-kicker">Etapa 7 de 8</span><h2>Encerramento do processo</h2></div></div>
+
+          <div class="grid2">
+            <div><label class="field" for="salvageStatus">Salvados</label><select id="salvageStatus" data-save><option value="nao">Não há salvados</option><option value="sim">Há salvados</option><option value="avaliar">Depende de avaliação</option></select></div>
+            <div><label class="field" for="recoveryStatus">Ressarcimento</label><select id="recoveryStatus" data-save><option value="nao">Sem possibilidade identificada</option><option value="sim">Há possibilidade</option><option value="avaliar">Avaliar posteriormente</option></select></div>
+          </div>
+          <label class="field" for="salvageNotes">Observações sobre salvados</label><textarea id="salvageNotes" data-save></textarea>
+          <div class="grid2"><div><label class="field" for="recoveryAgainst">Possível responsável</label><input id="recoveryAgainst" data-save></div><div><label class="field" for="recoveryProtocol">Protocolo / referência</label><input id="recoveryProtocol" data-save></div></div>
+          <label class="field" for="recoveryNotes">Fundamentação do ressarcimento</label><textarea id="recoveryNotes" data-save></textarea>
+
+          <label class="field" for="otherInsurance">Existe outro seguro?</label><select id="otherInsurance" data-save><option value="nao">Não</option><option value="sim">Sim</option></select>
+          <div class="grid2"><div><label class="field" for="otherInsurer">Outra seguradora</label><input id="otherInsurer" data-save></div><div><label class="field" for="otherPolicy">Outra apólice</label><input id="otherPolicy" data-save></div></div>
+
+          <h3>Dados de pagamento</h3>
+          <label class="field" for="beneficiaryName">Beneficiário</label><input id="beneficiaryName" data-save>
+          <label class="field" for="beneficiaryDocument">CPF / CNPJ do beneficiário</label><input id="beneficiaryDocument" data-save>
+          <div class="grid3"><div><label class="field" for="bankName">Banco</label><input id="bankName" data-save></div><div><label class="field" for="bankAgency">Agência</label><input id="bankAgency" data-save></div><div><label class="field" for="bankAccount">Conta</label><input id="bankAccount" data-save></div></div>
+          <label class="checkline"><input id="includeBankInReport" type="checkbox" data-save> Incluir dados bancários no relatório emitido</label>
+
+          <h3>Cronologia</h3>
+          <div class="grid2"><div><label class="field" for="noticeDate">Data do aviso</label><input id="noticeDate" type="date" data-save></div><div><label class="field" for="appointmentDate">Data da nomeação</label><input id="appointmentDate" type="date" data-save></div></div>
+          <div class="grid2"><div><label class="field" for="contactDate">Contato / agendamento</label><input id="contactDate" type="date" data-save></div><div><label class="field" for="inspectionDate">Data da vistoria</label><input id="inspectionDate" type="date" data-save></div></div>
+          <div class="grid2"><div><label class="field" for="closingDate">Data do encerramento</label><input id="closingDate" type="date" data-save></div><div><label class="field" for="reportDate">Data do relatório</label><input id="reportDate" type="date" data-save></div></div>
+
+          <h3>Responsáveis</h3>
+          <div class="grid2"><div><label class="field" for="emissionCity">Cidade de emissão</label><input id="emissionCity" data-save></div><div><label class="field" for="regulatorName">Regulador</label><input id="regulatorName" data-save></div></div>
+          <label class="field" for="regulatorDocument">CPF do regulador</label><input id="regulatorDocument" data-save>
+          <label class="field" for="finalNotes">Considerações finais</label><textarea id="finalNotes" data-save></textarea>
+
+          <div class="actions"><button class="btn btn-secondary" type="button" data-go="6">Voltar</button><button class="btn btn-primary" type="button" data-go="8">Revisar e emitir</button></div>
+        </div>
+      </section>
+
+      <section class="screen" data-step="8">
+        <div class="card">
+          <div class="section-heading"><div><span class="step-kicker">Etapa 8 de 8</span><h2>Revisão e emissão</h2></div></div>
+          <div id="reviewAlerts"></div>
+          <div id="reviewSummary" class="review-summary"></div>
+          <h3>Prévia do relatório</h3>
+          <div id="reportPreview" class="report-preview"></div>
+
+          <div class="actions no-print">
+            <button class="btn btn-secondary" type="button" data-go="7">Voltar</button>
+            <button class="btn btn-secondary" type="button" data-action="save-draft">Salvar rascunho</button>
+            <button class="btn btn-secondary" type="button" data-action="export-json">Backup do processo</button>
+            <label class="btn btn-secondary file-button">Importar backup<input id="jsonImport" type="file" accept="application/json"></label>
+            <button class="btn btn-ok" type="button" data-action="print-report">Exportar / Salvar PDF</button>
+            <button class="btn btn-primary" type="button" data-action="export-word">Exportar Word editável</button>
+          </div>
+          <div class="actions no-print"><button class="btn btn-danger-lite" type="button" data-action="clear-draft">Iniciar novo processo</button></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer no-print"><span id="saveStatus" role="status" aria-live="polite"></span><span>HS Fast Track — Protótipo 0.1</span></footer>
+  </div>
+
+  <div id="printHost" aria-hidden="true"></div>
+  <script src="app.js"></script>
+</body>
+</html>
