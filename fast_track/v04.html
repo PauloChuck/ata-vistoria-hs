@@ -19,10 +19,10 @@
     (() => {
       const frame = document.getElementById('app');
       const loading = document.getElementById('loading');
-      const nativeScripts = [
-        'v03_parts/g01.js?v=03','v03_parts/g02.js?v=03','v03_parts/g03.js?v=03',
-        'v03_parts/g04.js?v=03','v03_parts/g05.js?v=03','v03_parts/g06.js?v=03',
-        'v03_parts/loader.js?v=03'
+      const templateScripts = [
+        'v04_template/t01.js?v=040','v04_template/t02.js?v=040',
+        'v04_template/t03.js?v=040','v04_template/t04.js?v=040',
+        'v04_template/fetch_shim.js?v=040'
       ];
 
       function loadScript(doc, src) {
@@ -60,17 +60,12 @@
           } catch {
             await loadScript(doc, 'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js');
           }
-          for (const src of nativeScripts) await loadScript(doc, src);
-          await waitFor(
-            frame.contentWindow,
-            (win) => win.FastTrackDocxNativeV03?.generate && win.fastTrackWordV03?.exportNativeWord,
-            'Tempo excedido ao iniciar o gerador Word nativo 0.3.'
-          );
+          for (const src of templateScripts) await loadScript(doc, src);
           await loadScript(doc, 'word_patch_v04.js?v=040');
           await waitFor(
             frame.contentWindow,
-            (win) => win.fastTrackWordV04?.exportWordV04,
-            'Tempo excedido ao iniciar a correção de formatação 0.4.'
+            (win) => Boolean(win.fastTrackWordV04?.exportWordV04),
+            'Tempo excedido ao iniciar o gerador Word 0.4.'
           );
           loading.remove();
         } catch (error) {
