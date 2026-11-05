@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <title>Fast Track — Contingência 0.2 | HS</title>
+  <style>
+    html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#eef3f6;font-family:Arial,sans-serif}
+    #app{width:100%;height:100%;border:0;display:block;background:#fff}
+    #loading{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:#eef3f6;color:#176d91;font-weight:700;text-align:center;padding:24px}
+    #loading.error{color:#8b3131;background:#fff3f3}
+  </style>
+</head>
+<body>
+  <iframe id="app" src="index.html?v=01" title="Fast Track — Contingência"></iframe>
+  <div id="loading">Preparando o Fast Track e o gerador Word formatado…</div>
+  <script>
+    (() => {
+      const frame = document.getElementById('app');
+      const loading = document.getElementById('loading');
+
+      function loadScript(doc,src) {
+        return new Promise((resolve,reject) => {
+          const script = doc.createElement('script');
+          script.src = src;
+          script.onload = () => resolve(script);
+          script.onerror = reject;
+          doc.head.appendChild(script);
+        });
+      }
+
+      frame.addEventListener('load', async () => {
+        try {
+          const doc = frame.contentDocument;
+          try {
+            await loadScript(doc,'https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.js');
+          } catch {
+            await loadScript(doc,'https://unpkg.com/html-docx-js@0.3.1/dist/html-docx.js');
+          }
+          await loadScript(doc,'word_export_v02.js?v=02');
+          loading.remove();
+        } catch (error) {
+          console.error(error);
+          loading.classList.add('error');
+          loading.textContent = 'Não foi possível carregar o gerador Word formatado. Atualize a página e tente novamente.';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
