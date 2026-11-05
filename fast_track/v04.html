@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <title>Fast Track — Contingência 0.4 | HS</title>
+  <style>
+    html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#eef3f6;font-family:Arial,sans-serif}
+    #app{width:100%;height:100%;border:0;display:block;background:#fff}
+    #loading{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:#eef3f6;color:#176d91;font-weight:700;text-align:center;padding:24px}
+    #loading.error{color:#8b3131;background:#fff3f3}
+  </style>
+</head>
+<body>
+  <iframe id="app" src="index.html?v=04" title="Fast Track — Contingência"></iframe>
+  <div id="loading">Preparando o Fast Track e o Word no padrão de contingência…</div>
+  <script>
+    (() => {
+      const frame = document.getElementById('app');
+      const loading = document.getElementById('loading');
+      const nativeScripts = [
+        'v03_parts/g01.js?v=03','v03_parts/g02.js?v=03','v03_parts/g03.js?v=03',
+        'v03_parts/g04.js?v=03','v03_parts/g05.js?v=03','v03_parts/g06.js?v=03',
+        'v03_parts/loader.js?v=03'
+      ];
+
+      function loadScript(doc, src) {
+        return new Promise((resolve, reject) => {
+          const script = doc.createElement('script');
+          script.src = src;
+          script.onload = () => resolve(script);
+          script.onerror = () => reject(new Error(`Falha ao carregar ${src}`));
+          doc.head.appendChild(script);
+        });
+      }
+
+      function waitFor(win, predicate, message, timeout = 15000) {
+        return new Promise((resolve, reject) => {
+          const started = Date.now();
+          const timer = setInterval(() => {
+            if (predicate(win)) {
+              clearInterval(timer);
+              resolve();
+              return;
+            }
+            if (Date.now() - started > timeout) {
+              clearInterval(timer);
+              reject(new Error(message));
+            }
+          }, 80);
+        });
+      }
+
+      frame.addEventListener('load', async () => {
+        try {
+          const doc = frame.contentDocument;
+          try {
+            await loadScript(doc, 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
+          } catch {
+            await loadScript(doc, 'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js');
+          }
+          for (const src of nativeScripts) await loadScript(doc, src);
+          await waitFor(
+            frame.contentWindow,
+            (win) => win.FastTrackDocxNativeV03?.generate && win.fastTrackWordV03?.exportNativeWord,
+            'Tempo excedido ao iniciar o gerador Word nativo 0.3.'
+          );
+          await loadScript(doc, 'word_patch_v04.js?v=040');
+          await waitFor(
+            frame.contentWindow,
+            (win) => win.fastTrackWordV04?.exportWordV04,
+            'Tempo excedido ao iniciar a correção de formatação 0.4.'
+          );
+          loading.remove();
+        } catch (error) {
+          console.error(error);
+          loading.classList.add('error');
+          loading.textContent = 'Não foi possível carregar o gerador Word 0.4. Atualize a página e tente novamente.';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
