@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <title>Fast Track de Contingência V0.6 | HS</title>
+  <style>
+    html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#eef3f6;font-family:Arial,sans-serif}
+    #app{width:100%;height:100%;border:0;display:block;background:#fff}
+    #loading{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#eef3f6;color:#176d91;font-weight:700;text-align:center;padding:24px}
+    #loading.error{color:#8b3131;background:#fff3f3;white-space:pre-wrap}
+  </style>
+</head>
+<body>
+  <iframe id="app" src="index.html?v=060" title="Fast Track de Contingência V0.6"></iframe>
+  <div id="loading">Preparando o Fast Track de Contingência V0.6…</div>
+  <script>
+  (()=>{
+    const frame=document.getElementById('app');
+    const loading=document.getElementById('loading');
+    const parts=Array.from({length:3},(_,i)=>`v06/payload/p${String(i+1).padStart(2,'0')}.js?v=062`);
+    function css(doc,href){return new Promise((resolve,reject)=>{const el=doc.createElement('link');el.rel='stylesheet';el.href=href;el.onload=resolve;el.onerror=()=>reject(new Error(`Falha ao carregar ${href}`));doc.head.appendChild(el);});}
+    function script(doc,src){return new Promise((resolve,reject)=>{const el=doc.createElement('script');el.src=src;el.onload=resolve;el.onerror=()=>reject(new Error(`Falha ao carregar ${src}`));doc.head.appendChild(el);});}
+    frame.addEventListener('load',async()=>{
+      try{
+        const doc=frame.contentDocument;
+        const win=frame.contentWindow;
+        win.V06_BASE='v06/';
+        await css(doc,'v06/v06.css?v=062');
+        try{await script(doc,'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');}catch{await script(doc,'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js');}
+        for(const part of parts) await script(doc,part);
+        await script(doc,'v06/payload/bootstrap.js?v=062');
+        await win.FastTrackV06.ready;
+        loading.remove();
+      }catch(error){
+        console.error(error);
+        loading.classList.add('error');
+        loading.textContent='Não foi possível carregar a V0.6. Atualize a página e tente novamente.\n\n'+(error?.message||error);
+      }
+    });
+  })();
+  </script>
+</body>
+</html>
