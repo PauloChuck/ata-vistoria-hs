@@ -1,0 +1,113 @@
+name: Repair Fast Track V06 package
+
+on:
+  push:
+    branches:
+      - hotfix/v06-package-repair
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reassemble Base64 package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64, re, hashlib, json
+
+          payload_dir = Path('fast_track/v06/payload')
+          parts = sorted(payload_dir.glob('p[0-9][0-9].js'))
+          print('parts:', [p.name for p in parts])
+          chunks = []
+          report = {'parts': [], 'part_count': len(parts)}
+          for path in parts:
+              text = path.read_text(encoding='utf-8')
+              matches = re.findall(r'\+"([A-Za-z0-9+/=]*)"', text)
+              if len(matches) != 1:
+                  raise SystemExit(f'{path}: expected exactly one Base64 chunk, found {len(matches)}')
+              chunk = matches[0]
+              chunks.append(chunk)
+              report['parts'].append({'name': path.name, 'chars': len(chunk), 'sha256': hashlib.sha256(chunk.encode()).hexdigest()})
+          joined = ''.join(chunks)
+          report['base64_chars'] = len(joined)
+          report['base64_mod4'] = len(joined) % 4
+          report['base64_sha256'] = hashlib.sha256(joined.encode()).hexdigest()
+          raw = base64.b64decode(joined, validate=True)
+          Path('v06-truncated.zip').write_bytes(raw)
+          report['decoded_bytes'] = len(raw)
+          report['decoded_sha256'] = hashlib.sha256(raw).hexdigest()
+          report['first_16_hex'] = raw[:16].hex()
+          report['last_32_hex'] = raw[-32:].hex()
+          Path('v06-package-diagnostics.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
+          print(json.dumps(report, indent=2))
+          PY
+
+      - name: Inspect and repair ZIP
+        shell: bash
+        run: |
+          set -u
+          echo '--- Original archive test ---'
+          unzip -t v06-truncated.zip || true
+          echo '--- Original archive listing ---'
+          unzip -l v06-truncated.zip || true
+          echo '--- Repair with zip -FF ---'
+          rm -f v06-repaired.zip
+          printf 'y\n' | zip -FF v06-truncated.zip --out v06-repaired.zip
+          echo '--- Repaired archive test ---'
+          unzip -t v06-repaired.zip
+          echo '--- Repaired archive listing ---'
+          unzip -l v06-repaired.zip
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile, hashlib, json
+          p=Path('v06-repaired.zip')
+          with zipfile.ZipFile(p) as z:
+              names=z.namelist()
+              print('entries:', names)
+              required={'template.docx','report.js','app.js'}
+              missing=required-set(names)
+              if missing:
+                  raise SystemExit(f'Missing required entries after repair: {sorted(missing)}')
+              details={n:{'bytes':len(z.read(n)),'sha256':hashlib.sha256(z.read(n)).hexdigest()} for n in names}
+          Path('v06-repaired-diagnostics.json').write_text(json.dumps({'archive_bytes':p.stat().st_size,'archive_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'entries':details}, indent=2), encoding='utf-8')
+          PY
+
+      - name: Publish repaired package on branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp v06-repaired.zip fast_track/v06/package.zip
+          cp v06-package-diagnostics.json fast_track/v06/package-source-diagnostics.json
+          cp v06-repaired-diagnostics.json fast_track/v06/package-repaired-diagnostics.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add fast_track/v06/package.zip fast_track/v06/package-source-diagnostics.json fast_track/v06/package-repaired-diagnostics.json
+          if git diff --cached --quiet; then
+            echo 'No package changes to commit.'
+          else
+            git commit -m 'fix(v06): publicar pacote ZIP reparado'
+            git push origin HEAD:hotfix/v06-package-repair
+          fi
+
+      - name: Upload diagnostics artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v06-package-diagnostics
+          path: |
+            v06-truncated.zip
+            v06-repaired.zip
+            v06-package-diagnostics.json
+            v06-repaired-diagnostics.json
+          if-no-files-found: warn
