@@ -19,7 +19,7 @@
   (()=>{
     const frame=document.getElementById('app');
     const loading=document.getElementById('loading');
-    const parts=Array.from({length:3},(_,i)=>`v06/payload/p${String(i+1).padStart(2,'0')}.js?v=062`);
+    const parts=Array.from({length:22},(_,i)=>`v06/payload/p${String(i+1).padStart(2,'0')}.js?v=062`);
     function css(doc,href){return new Promise((resolve,reject)=>{const el=doc.createElement('link');el.rel='stylesheet';el.href=href;el.onload=resolve;el.onerror=()=>reject(new Error(`Falha ao carregar ${href}`));doc.head.appendChild(el);});}
     function script(doc,src){return new Promise((resolve,reject)=>{const el=doc.createElement('script');el.src=src;el.onload=resolve;el.onerror=()=>reject(new Error(`Falha ao carregar ${src}`));doc.head.appendChild(el);});}
     frame.addEventListener('load',async()=>{
