@@ -21,4 +21,4 @@ Nova versão independente do relatório Fast Track, implementada sem substituir 
 
 ## Pacote
 
-A carga utiliza 3 partes de payload, contendo o modelo Word sanitizado e o gerador V0.6.
+A carga utiliza 17 segmentos de payload, contendo o modelo Word institucional sanitizado e os geradores da V0.6.
