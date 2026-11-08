@@ -13,24 +13,60 @@
   </style>
 </head>
 <body>
-  <iframe id="app" src="index.html?v=063" title="Fast Track de Contingência V0.6"></iframe>
+  <iframe id="app" src="index.html?v=064" title="Fast Track de Contingência V0.6"></iframe>
   <div id="loading">Preparando o Fast Track de Contingência V0.6…</div>
   <script>
   (()=>{
     const frame=document.getElementById('app');
     const loading=document.getElementById('loading');
-    const parts=Array.from({length:17},(_,i)=>`v06/payload/p${String(i+1).padStart(2,'0')}.js?v=063`);
-    function css(doc,href){return new Promise((resolve,reject)=>{const el=doc.createElement('link');el.rel='stylesheet';el.href=href;el.onload=resolve;el.onerror=()=>reject(new Error(`Falha ao carregar ${href}`));doc.head.appendChild(el);});}
-    function script(doc,src){return new Promise((resolve,reject)=>{const el=doc.createElement('script');el.src=src;el.onload=resolve;el.onerror=()=>reject(new Error(`Falha ao carregar ${src}`));doc.head.appendChild(el);});}
+    const parts=Array.from({length:17},(_,i)=>`v06/payload/p${String(i+1).padStart(2,'0')}.js?v=064`);
+
+    function css(doc,href){
+      return new Promise((resolve,reject)=>{
+        const el=doc.createElement('link');
+        el.rel='stylesheet';
+        el.href=href;
+        el.onload=resolve;
+        el.onerror=()=>reject(new Error(`Falha ao carregar ${href}`));
+        doc.head.appendChild(el);
+      });
+    }
+
+    function script(doc,src){
+      return new Promise((resolve,reject)=>{
+        const el=doc.createElement('script');
+        el.src=src;
+        el.onload=resolve;
+        el.onerror=()=>reject(new Error(`Falha ao carregar ${src}`));
+        doc.head.appendChild(el);
+      });
+    }
+
     frame.addEventListener('load',async()=>{
       try{
         const doc=frame.contentDocument;
         const win=frame.contentWindow;
         win.V06_BASE='v06/';
-        await css(doc,'v06/v06.css?v=063');
-        try{await script(doc,'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');}catch{await script(doc,'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js');}
+
+        await css(doc,'v06/v06.css?v=064');
+        try{
+          await script(doc,'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
+        }catch{
+          await script(doc,'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js');
+        }
+
         for(const part of parts) await script(doc,part);
-        await script(doc,'v06/payload/bootstrap.js?v=063');
+        await script(doc,'v06/payload/bootstrap.js?v=064');
+
+        const bootstrapReady=win.__V06_BOOTSTRAP_READY;
+        if(!bootstrapReady||typeof bootstrapReady.then!=='function'){
+          throw new Error('O inicializador da V0.6 não foi disponibilizado pelo navegador.');
+        }
+
+        await bootstrapReady;
+        if(!win.FastTrackV06||!win.FastTrackV06.ready){
+          throw new Error('O aplicativo V0.6 não concluiu a inicialização.');
+        }
         await win.FastTrackV06.ready;
         loading.remove();
       }catch(error){
@@ -38,7 +74,7 @@
         loading.classList.add('error');
         loading.textContent='Não foi possível carregar a V0.6. Atualize a página e tente novamente.\n\n'+(error?.message||error);
       }
-    });
+    },{once:true});
   })();
   </script>
 </body>
