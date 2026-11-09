@@ -25,11 +25,18 @@ jobs:
           node --check fast_track/v06/direct-report.js
           node --check fast_track/v06/direct-word.js
           node --check fast_track/v06/direct-app.js
-      - name: Install Playwright
+      - name: Prepare browser test
+        shell: bash
         run: |
           npm init -y >/dev/null 2>&1
           npm install --no-save playwright@1.56.1
-          npx playwright install --with-deps chromium
+          CHROME_PATH="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || command -v microsoft-edge-stable || true)"
+          if [ -z "$CHROME_PATH" ]; then
+            echo 'Nenhum navegador Chromium pré-instalado foi encontrado.' >&2
+            exit 1
+          fi
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          "$CHROME_PATH" --version
       - name: Run browser and export tests
         shell: bash
         run: |
@@ -46,7 +53,7 @@ jobs:
 
           (async () => {
             const out = '/tmp/v062-test';
-            const browser = await chromium.launch({headless:true});
+            const browser = await chromium.launch({headless:true, executablePath:process.env.CHROME_PATH, args:['--no-sandbox','--disable-dev-shm-usage']});
             const page = await browser.newPage({acceptDownloads:true, viewport:{width:1440,height:1000}});
             const pageErrors = [];
             const consoleErrors = [];
