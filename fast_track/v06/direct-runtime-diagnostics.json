@@ -1,0 +1,52 @@
+{
+  "app_parts": [
+    {
+      "name": "app01.js",
+      "segments": 1,
+      "chars": 9000
+    },
+    {
+      "name": "app02.js",
+      "segments": 1,
+      "chars": 9000
+    },
+    {
+      "name": "app03.js",
+      "segments": 1,
+      "chars": 9000
+    },
+    {
+      "name": "app04.js",
+      "segments": 1,
+      "chars": 14756
+    },
+    {
+      "name": "app05_01.js",
+      "segments": 1,
+      "chars": 4500
+    },
+    {
+      "name": "app05_02.js",
+      "segments": 1,
+      "chars": 4500
+    },
+    {
+      "name": "app06.js",
+      "segments": 1,
+      "chars": 4580
+    }
+  ],
+  "app_chars": 55336,
+  "app_bytes": 41502,
+  "app_sha256": "8955e31ccb5d59a1181d712f4025f8323080594d4874670697ee474dc47f179c",
+  "word_parts": [
+    {
+      "name": "word01.js",
+      "segments": 1,
+      "chars": 4392
+    }
+  ],
+  "word_chars": 4392,
+  "word_bytes": 3294,
+  "word_sha256": "b40fba6169aea1f797e89390fecfe359544d1a4e635a25fe52912a6325ec2364"
+}
