@@ -1,0 +1,48 @@
+name: Promote V062 clean files
+
+on:
+  push:
+    branches:
+      - release/fast-track-v062
+    paths:
+      - .github/workflows/promote-v062.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Copy validated V062 files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin hotfix/v06-working-direct
+          mkdir -p fast_track/v06
+          for path in \
+            fast_track/v06.html \
+            fast_track/v062.html \
+            fast_track/v06/direct.css \
+            fast_track/v06/direct-report.js \
+            fast_track/v06/direct-app.js \
+            fast_track/v06/direct-word.js
+          do
+            git show origin/hotfix/v06-working-direct:"$path" > "$path"
+          done
+          node --check fast_track/v06/direct-report.js
+          node --check fast_track/v06/direct-app.js
+          node --check fast_track/v06/direct-word.js
+      - name: Commit promoted files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add fast_track/v06.html fast_track/v062.html fast_track/v06/direct.css fast_track/v06/direct-report.js fast_track/v06/direct-app.js fast_track/v06/direct-word.js
+          git commit -m 'fix(v06): publicar runtime direto validado da V0.6.2'
+          git push origin HEAD:release/fast-track-v062
