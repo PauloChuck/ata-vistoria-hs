@@ -33,12 +33,13 @@ jobs:
               for name in names:
                   p=root/name
                   text=p.read_text(encoding='utf-8')
-                  matches=re.findall(r"\+\s*(['\"])([A-Za-z0-9+/=]*)\1", text)
+                  matches=re.findall(r'[A-Za-z0-9+/=]{1000,}', text)
                   if not matches:
-                      raise SystemExit(f'No Base64 chunk found in {p}')
-                  file_chunk=''.join(value for _,value in matches)
+                      raise SystemExit(f'No Base64 chunk found in {p}; head={text[:120]!r}; tail={text[-120:]!r}')
+                  file_chunk=''.join(matches)
                   out.append(file_chunk)
                   meta.append({'name':name,'segments':len(matches),'chars':len(file_chunk)})
+                  print('PART',name,'segments=',len(matches),'chars=',len(file_chunk),'tail=',repr(file_chunk[-24:]))
               joined=''.join(out)
               raw=base64.b64decode(joined,validate=True)
               return joined,raw,meta
