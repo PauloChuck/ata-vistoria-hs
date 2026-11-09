@@ -679,47 +679,11 @@
     f.inspectionDate=data.c5 || f.inspectionDate;
     f.noticeDate=data.c2 || f.noticeDate;
     f.scheduleDate=data.c4 || f.scheduleDate;
-    if (Array.isArray(data.damage)) state.damages=data.damages.map(newDamage);
+    if (Array.isArray(data.damage)) state.damages=data.damage.map(newDamage);
+    else if (Array.isArray(data.damages)) state.damages=data.damages.map(newDamage);
     applyStateToDom();
     scheduleSave();
     status('Dados da Ata V7.5 importados para conferência.');
-  }
-
-  function loadExample() {
-    const today = new Date().toISOString().slice(0,10);
-    state = createDefaultState();
-    Object.assign(state.fields, {
-      insurerClaim:'1325000',hsClaim:'S2609000',insurer:'SOMPO SEGUROS S/A',
-      insured:'COOPERATIVA CENTRAL AURORA ALIMENTOS',claimantName:'Cooperado Exemplo',
-      claimantCpf':'000.000.000-00',riskAddress:'Linha Exemplo, Município/SC',
-      policyNumber:'9600131927',productName:'RISCOS NOMEADOS',broker:'ALPER CONSULTORIA E CORRETORA DE SEGUROS S/A',
-      lossDate:'2026-11-04',coverageName:'Vendaval / Granizo',inspectionDate:'2026-11-10',
-      regulatorOpinion:'Diante do exposto, o sinistro está amparado pela cobertura de Vendaval/Granizo da apólice.',
-      otherInsurance:'nao',bankName:'CRESOL',bankAgency:'2508',bankAccount:'1.801-5',noticeDate:'2026-11-05',scheduleDate:'2026-11-06',
-      reportCity:'Blumenau (SC)',reportDate:today,regulatorName:'Paulo R. Schlosser',regulatorCpf:'068.613.739-66'
-    });
-    state.damages = [
-      newDamage({description:'Telhas de fibrocimento de 6 mm',{}),
-    newDamage({description:'Cumeeiras de fibrocimento 6 mm',{}),
-    newDamage({description:'Parafusos telheiros completos 5/16',{})
-    ];
-    const values = [
-      [120,'un.',2,'anos',7800,7800],
-      [8,'un.',2,'anos',640,640],
-      [350,'un.',1,'ano',770,770]
-    ];
-    state.damages.forEach((item,i)=>{
-      const [q,u.,age,ageUnit,claimed,assessed]=values[i];
-      Object.assign(item,{quantity:q,unit:u,age,ageUnit,claimedTotal:claimed,aistro;
-    }
-    if (Array.isArray(data.damage) && data.damage.length) {
-      state.damages=data.damage.map((d)=>newDamage({
-        description:d.desc,quantity:d.qty,unit:d.unit,age:String(d.age || '').replace(/[^\d,.]/g,''),ageUnit:String(d.age || '').toLowerCase().includes('mes')?'meses':'anos'
-      }));
-    }
-    applyStateToDom();
-    scheduleSave();
-    status('Dados disponíveis da Ata V7.5 importados para conferência.');
   }
 
   function loadExample() {
