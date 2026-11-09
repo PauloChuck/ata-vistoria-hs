@@ -43,6 +43,7 @@ jobs:
           PY
           bash /tmp/apply-patch.sh
           bash /tmp/prepare-tests.sh
+          export CHROME_PATH="${CHROME_PATH:-$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser)}"
           bash /tmp/run-browser-tests.sh
 
       - name: Validate Word flow, margins and footer clearance
