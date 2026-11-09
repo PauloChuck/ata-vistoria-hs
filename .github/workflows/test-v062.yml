@@ -1,0 +1,129 @@
+name: Test Fast Track V062
+
+on:
+  push:
+    branches:
+      - hotfix/v06-working-direct
+    paths:
+      - fast_track/v062.html
+      - fast_track/v06/direct-*.js
+      - fast_track/v06/direct.css
+      - .github/workflows/test-v062.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static syntax checks
+        run: |
+          node --check fast_track/v06/direct-report.js
+          node --check fast_track/v06/direct-word.js
+          node --check fast_track/v06/direct-app.js
+      - name: Install Playwright
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Run browser and export tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/v062-test
+          python3 -m http.server 8000 --bind 127.0.0.1 >/tmp/v062-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          sleep 2
+          cat > /tmp/v062-test/test.js <<'NODE'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+          const path = require('path');
+
+          (async () => {
+            const out = '/tmp/v062-test';
+            const browser = await chromium.launch({headless:true});
+            const page = await browser.newPage({acceptDownloads:true, viewport:{width:1440,height:1000}});
+            const pageErrors = [];
+            const consoleErrors = [];
+            const alerts = [];
+            page.on('pageerror', error => pageErrors.push(String(error)));
+            page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
+            page.on('dialog', async dialog => {
+              alerts.push(`${dialog.type()}: ${dialog.message()}`);
+              await dialog.accept();
+            });
+
+            await page.goto('http://127.0.0.1:8000/fast_track/v062.html?v=ci', {waitUntil:'networkidle', timeout:120000});
+            await page.waitForSelector('.app-shell', {state:'visible', timeout:30000});
+            await page.waitForTimeout(1500);
+
+            const globals = await page.evaluate(() => ({
+              report: Boolean(window.FastTrackV06Report),
+              word: Boolean(window.FastTrackV06Word),
+              docx: Boolean(window.docx),
+              screens: document.querySelectorAll('.screen').length,
+              steps: document.querySelectorAll('#progress span').length
+            }));
+            if (!globals.report || !globals.word || !globals.docx) throw new Error(`APIs incompletas: ${JSON.stringify(globals)}`);
+            if (globals.screens !== 7 || globals.steps !== 7) throw new Error(`Fluxo incompleto: ${JSON.stringify(globals)}`);
+
+            await page.click('[data-action="load-example"]');
+            await page.waitForFunction(() => document.querySelector('#claimantName')?.value === 'Cooperado Exemplo', null, {timeout:10000});
+            const damageCount = await page.locator('#damageList .damage-card').count();
+            if (damageCount !== 3) throw new Error(`Esperados 3 itens de exemplo; encontrados ${damageCount}`);
+
+            for (const step of [2,3,4,5,6,7]) {
+              await page.click(`[data-go="${step}"]`);
+              await page.waitForSelector(`.screen[data-step="${step}"].active`);
+            }
+            await page.waitForSelector('#reportPreview .report-page', {timeout:20000});
+            const previewPages = await page.locator('#reportPreview .report-page').count();
+            if (previewPages < 4) throw new Error(`Prévia gerou poucas páginas: ${previewPages}`);
+            await page.screenshot({path:path.join(out,'v062-review.png'),fullPage:true});
+
+            const downloadPromise = page.waitForEvent('download', {timeout:120000});
+            await page.click('[data-action="export-word"]');
+            const download = await downloadPromise;
+            const wordPath = path.join(out, download.suggestedFilename());
+            await download.saveAs(wordPath);
+            if (!fs.existsSync(wordPath) || fs.statSync(wordPath).size < 10000) throw new Error(`DOCX inválido ou pequeno: ${wordPath}`);
+
+            await page.click('[data-action="export-pdf"]');
+            await page.waitForSelector('#printHost .report-page', {timeout:10000});
+            const printPages = await page.locator('#printHost .report-page').count();
+            if (printPages !== previewPages) throw new Error(`Prévia (${previewPages}) e impressão (${printPages}) divergentes`);
+            await page.pdf({path:path.join(out,'Relatorio_Fast_Track_V062_teste.pdf'),format:'A4',printBackground:true,preferCSSPageSize:true,margin:{top:'0',right:'0',bottom:'0',left:'0'}});
+
+            const result = {globals,damageCount,previewPages,printPages,pageErrors,consoleErrors,alerts,wordPath};
+            fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(result,null,2));
+            if (pageErrors.length) throw new Error(`Erros de página: ${pageErrors.join(' | ')}`);
+            const relevantConsole = consoleErrors.filter(x => !/favicon/i.test(x));
+            if (relevantConsole.length) throw new Error(`Erros de console: ${relevantConsole.join(' | ')}`);
+            await browser.close();
+          })().catch(error => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+          node /tmp/v062-test/test.js
+      - name: Validate DOCX package and PDF
+        shell: bash
+        run: |
+          set -euo pipefail
+          DOCX=$(find /tmp/v062-test -maxdepth 1 -name '*.docx' -print -quit)
+          test -n "$DOCX"
+          unzip -t "$DOCX"
+          unzip -p "$DOCX" word/document.xml | grep -q 'RELATÓRIO FAST TRACK DE CONTINGÊNCIA'
+          test -s /tmp/v062-test/Relatorio_Fast_Track_V062_teste.pdf
+          cat /tmp/v062-test/result.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fast-track-v062-test
+          path: /tmp/v062-test
+          if-no-files-found: warn
