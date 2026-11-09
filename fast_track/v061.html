@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>Fast Track de Contingência V0.6.1 | HS</title>
+
+<style id="loaderStyle">html,body{min-height:100%;margin:0;background:#eef3f6}.app-shell{visibility:hidden}body.v06-ready .app-shell{visibility:visible}#loading{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;background:#eef3f6;color:#176d91;font:700 16px Arial,sans-serif;white-space:pre-wrap}#loading.error{background:#fff3f3;color:#8b3131}</style></head>
+<body><div id="loading">Preparando o Fast Track de Contingência V0.6.1…</div>
+<div class="app-shell">
+<header class="app-header">
+  <div class="header-row">
+    <div>
+      <h1>Fast Track de Contingência</h1>
+      <p>Regulação simplificada e encerramento em vistoria</p>
+    </div>
+    <span class="version">V0.6.1</span>
+  </div>
+  <div class="progress" id="progress" aria-label="Etapas do formulário"></div>
+</header>
+
+<main class="app-main">
+  <section class="screen active" data-step="1">
+    <div class="card">
+      <h2>1. Identificação do sinistro</h2>
+      <p class="helper">Os campos marcados com <span class="required-star">*</span> são obrigatórios para a finalização. O rascunho pode ser salvo com pendências.</p>
+      <div class="toolbar compact">
+        <button class="btn secondary" type="button" data-action="import-ata">Importar dados da Ata V7.5</button>
+        <button class="btn secondary" type="button" data-action="load-example">Carregar exemplo de teste</button>
+      </div>
+      <div class="grid2">
+        <div><label for="insurer">Companhia seguradora <span class="required-star">*</span></label><input id="insurer" data-field data-required></div>
+        <div><label for="insured">Segurado / Cooperativa <span class="required-star">*</span></label><input id="insured" data-field data-required></div>
+      </div>
+      <div class="grid2">
+        <div><label for="cooperado">Cooperado <span class="required-star">*</span></label><input id="cooperado" data-field data-required></div>
+        <div><label for="cooperadoCpf">CPF do cooperado <span class="required-star">*</span></label><input id="cooperadoCpf" data-field data-required inputmode="numeric" placeholder="000.000.000-00"></div>
+      </div>
+      <label for="lossLocation">Local do sinistro <span class="required-star">*</span></label><textarea id="lossLocation" data-field data-required placeholder="Endereço completo, localidade, município e UF"></textarea>
+      <div class="grid2">
+        <div><label for="policy">Apólice de seguros <span class="required-star">*</span></label><input id="policy" data-field data-required></div>
+        <div><label for="product">Produto <span class="required-star">*</span></label><input id="product" data-field data-required value="RISCOS NOMEADOS"></div>
+      </div>
+      <label for="broker">Corretor <span class="required-star">*</span></label><input id="broker" data-field data-required>
+      <div class="grid2">
+        <div><label for="lossDate">Data do sinistro <span class="required-star">*</span></label><input id="lossDate" type="date" data-field data-required></div>
+        <div><label for="coverage">Cobertura <span class="required-star">*</span></label><input id="coverage" data-field data-required value="Vendaval / Granizo"></div>
+      </div>
+      <div class="grid2">
+        <div><label for="insurerClaim">Sinistro da seguradora</label><input id="insurerClaim" data-field placeholder="A informar, quando ainda não aberto"></div>
+        <div><label for="hsClaim">Sinistro Horizon Servitas</label><input id="hsClaim" data-field placeholder="Ex.: S2609000"></div>
+      </div>
+      <div id="dateContingencyWarning" class="alert warning hidden"></div>
+      <div class="nav-actions"><span></span><button class="btn primary" type="button" data-go="2">Continuar</button></div>
+    </div>
+  </section>
+
+  <section class="screen" data-step="2">
+    <div class="card">
+      <h2>2. Local, ocorrência e cobertura</h2>
+      <h3>Instalações</h3>
+      <p class="helper">Os dados abaixo alimentam a tabela do local do risco. Adicione somente as instalações pertinentes ao caso.</p>
+      <div id="installations"></div>
+      <button class="btn secondary" type="button" data-action="add-installation">+ Adicionar instalação</button>
+
+      <h3>Imagem de localização <span class="required-star">*</span></h3>
+      <p class="helper">Insira ou cole uma captura do Google Maps. A imagem será preservada proporcionalmente e não entra na contagem das fotografias dos danos.</p>
+      <div class="upload-box" id="mapDrop" tabindex="0">
+        <input id="mapInput" type="file" accept="image/*" hidden>
+        <button class="btn secondary" type="button" data-action="pick-map">Selecionar imagem</button>
+        <span>ou cole uma imagem aqui com Ctrl+V</span>
+      </div>
+      <div id="mapPreview" class="asset-preview empty">Nenhuma imagem de localização inserida.</div>
+
+      <h3>Textos automáticos</h3>
+      <div class="readonly-block"><strong>Descrição da ocorrência</strong><p id="occurrencePreview"></p></div>
+      <div class="readonly-block"><strong>Cobertura da contingência</strong><p>Vendaval / Granizo — Limite de Indenização de R$ 35.000.000,00 — franquia de 15% com mínimo de R$ 3.000,00.</p></div>
+      <div class="nav-actions"><button class="btn secondary" type="button" data-go="1">Voltar</button><button class="btn primary" type="button" data-go="3">Continuar</button></div>
+    </div>
+  </section>
+
+  <section class="screen" data-step="3">
+    <div class="card">
+      <h2>3. Vistoria e relação de danos</h2>
+      <div class="grid2">
+        <div><label for="visitDate">Data da vistoria <span class="required-star">*</span></label><input id="visitDate" type="date" data-field data-required value="2026-11-10"></div>
+        <div><label for="visitMode">Modalidade da vistoria <span class="required-star">*</span></label><select id="visitMode" data-field data-required><option value="presencial">Presencial</option><option value="remota">Remota</option></select></div>
+      </div>
+      <div class="readonly-block"><strong>Texto de vistoria</strong><p id="visitTextPreview"></p></div>
+      <label for="visitNotes">Constatações complementares do regulador</label><textarea id="visitNotes" data-field placeholder="Complementos específicos do caso, quando necessários"></textarea>
+
+      <h3>Relação de danos</h3>
+      <p class="helper">O valor reclamado deve corresponder ao valor total do item. O valor apurado não será preenchido automaticamente.</p>
+      <div id="damages"></div>
+      <button class="btn secondary" type="button" data-action="add-damage">+ Adicionar item de dano</button>
+      <div class="nav-actions"><button class="btn secondary" type="button" data-go="2">Voltar</button><button class="btn primary" type="button" data-go="4">Continuar</button></div>
+    </div>
+  </section>
+
+  <section class="screen" data-step="4">
+    <div class="card">
+      <h2>4. Fotografias e documentos</h2>
+      <h3>Registro fotográfico</h3>
+      <p class="helper">O relatório organiza até quatro fotografias por página, em grade 2 × 2. Cada fotografia precisa de legenda para a finalização.</p>
+      <input id="photosInput" type="file" accept="image/*" multiple hidden>
+      <button class="btn secondary" type="button" data-action="pick-photos">+ Adicionar fotografias</button>
+      <div id="photos" class="asset-list"></div>
+
+      <h3>Levantamentos documentais</h3>
+      <p class="helper">Anexe os documentos do processo e descreva sua finalidade. Os arquivos permanecem no navegador e no backup completo.</p>
+      <input id="documentsInput" type="file" multiple hidden>
+      <button class="btn secondary" type="button" data-action="pick-documents">+ Adicionar documentos</button>
+      <div id="documents" class="asset-list"></div>
+      <label class="checkline"><input id="noDocuments" type="checkbox" data-field> Documentos não apresentados até o momento</label>
+      <div class="nav-actions"><button class="btn secondary" type="button" data-go="3">Voltar</button><button class="btn primary" type="button" data-go="5">Continuar</button></div>
+    </div>
+  </section>
+
+  <section class="screen" data-step="5">
+    <div class="card">
+      <h2>5. Parecer e demonstrativo</h2>
+      <label for="opinion">Parecer do regulador <span class="required-star">*</span></label>
+      <textarea id="opinion" data-field data-required>Diante do exposto, o sinistro está amparado pela cobertura de Vendaval/Granizo da apólice.</textarea>
+      <label for="assessmentIntro">Texto introdutório do demonstrativo</label>
+      <textarea id="assessmentIntro" data-field>Conforme alinhado com a seguradora, fixamos os prejuízos juntamente com o cooperado durante a vistoria de acordo com preços médios de mercado e/ou orçamentos apresentados.</textarea>
+      <label for="assessmentSummary">Síntese de apuração</label>
+      <textarea id="assessmentSummary" data-field placeholder="Fundamente os valores acatados, ajustes e eventuais glosas."></textarea>
+      <label for="previousClaims">Sinistros anteriores</label>
+      <textarea id="previousClaims" data-field placeholder="Informe a existência ou inexistência de sinistros anteriores."></textarea>
+      <div id="financialSummary" class="financial-summary"></div>
+      <div class="nav-actions"><button class="btn secondary" type="button" data-go="4">Voltar</button><button class="btn primary" type="button" data-go="6">Continuar</button></div>
+    </div>
+  </section>
+
+  <section class="screen" data-step="6">
+    <div class="card">
+      <h2>6. Outros seguros, cadastro e cronologia</h2>
+      <label for="otherInsurance">Existem outros seguros contratados para os bens sinistrados? <span class="required-star">*</span></label>
+      <select id="otherInsurance" data-field data-required><option value="">Selecione</option><option value="nao">NÃO</option><option value="sim">SIM</option></select>
+      <div id="otherInsuranceDetailsWrap" class="hidden"><label for="otherInsuranceDetails">Seguradora, apólice e esclarecimentos <span class="required-star">*</span></label><textarea id="otherInsuranceDetails" data-field></textarea></div>
+
+      <h3>Dados cadastrais</h3>
+      <div class="grid2"><div><label for="bankName">Banco <span class="required-star">*</span></label><input id="bankName" data-field data-required></div><div><label for="bankAgency">Agência <span class="required-star">*</span></label><input id="bankAgency" data-field data-required></div></div>
+      <label for="bankAccount">Conta, incluindo dígito <span class="required-star">*</span></label><input id="bankAccount" data-field data-required>
+
+      <h3>Cronologia</h3>
+      <div class="grid2"><div><label for="noticeDate">Data do aviso <span class="required-star">*</span></label><input id="noticeDate" type="date" data-field data-required></div><div><label for="scheduleDate">Data do agendamento da vistoria <span class="required-star">*</span></label><input id="scheduleDate" type="date" data-field data-required></div></div>
+      <div class="grid2"><div><label for="reportCity">Cidade de emissão <span class="required-star">*</span></label><input id="reportCity" data-field data-required value="Blumenau (SC)"></div><div><label for="reportDate">Data do relatório <span class="required-star">*</span></label><input id="reportDate" type="date" data-field data-required></div></div>
+      <div id="chronologyWarning" class="alert warning hidden"></div>
+      <div class="nav-actions"><button class="btn secondary" type="button" data-go="5">Voltar</button><button class="btn primary" type="button" data-go="7">Continuar</button></div>
+    </div>
+  </section>
+
+  <section class="screen" data-step="7">
+    <div class="card">
+      <h2>7. Assinaturas</h2>
+      <p class="helper">O rascunho pode permanecer sem assinatura. As duas assinaturas são exigidas apenas para concluir a versão assinada.</p>
+      <div class="signature-panels">
+        <div class="signature-panel">
+          <h3>Assinatura do regulador</h3>
+          <label for="regulatorName">Nome do regulador <span class="required-star">*</span></label><input id="regulatorName" data-field data-required>
+          <label for="regulatorCpf">CPF do regulador <span class="required-star">*</span></label><input id="regulatorCpf" data-field data-required>
+          <div id="regulatorSignaturePreview" class="signature-preview">Sem assinatura.</div>
+          <button class="btn secondary" type="button" data-action="sign-regulator">Assinar como regulador</button>
+        </div>
+        <div class="signature-panel">
+          <h3>Assinatura do cooperado</h3>
+          <p><strong>Nome:</strong> <span id="cooperadoSignatureName">—</span></p>
+          <p><strong>CPF:</strong> <span id="cooperadoSignatureCpf">—</span></p>
+          <div id="cooperadoSignaturePreview" class="signature-preview">Sem assinatura.</div>
+          <button class="btn secondary" type="button" data-action="sign-cooperado">Assinar como cooperado</button>
+        </div>
+      </div>
+      <div id="signatureWarning" class="alert warning hidden"></div>
+      <div class="nav-actions"><button class="btn secondary" type="button" data-go="6">Voltar</button><button class="btn primary" type="button" data-go="8">Revisar e emitir</button></div>
+    </div>
+  </section>
+
+  <section class="screen" data-step="8">
+    <div class="card wide">
+      <h2>8. Revisão e emissão</h2>
+      <div id="validationSummary"></div>
+      <div class="toolbar">
+        <button class="btn secondary" type="button" data-action="save">Salvar rascunho</button>
+        <button class="btn secondary" type="button" data-action="backup">Backup completo</button>
+        <label class="btn secondary file-btn">Importar backup<input id="backupInput" type="file" accept="application/json,.json" hidden></label>
+        <button class="btn primary" type="button" data-action="word">Exportar Word (.docx)</button>
+        <button class="btn ok" type="button" data-action="pdf">Imprimir / Salvar PDF</button>
+        <button class="btn signed" type="button" data-action="finalize-signed">Concluir versão assinada</button>
+      </div>
+      <div id="reportPreview" class="report-preview"></div>
+      <div class="nav-actions"><button class="btn secondary" type="button" data-go="7">Voltar</button><span></span></div>
+    </div>
+  </section>
+</main>
+<footer class="app-footer"><span id="saveStatus" role="status" aria-live="polite"></span>Horizon Servitas — Fast Track de Contingência V0.6.1</footer>
+</div>
+
+<div id="signatureModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="signatureModalTitle">
+  <div class="modal-card">
+    <h2 id="signatureModalTitle">Assinatura</h2>
+    <p class="helper">Assine com o mouse, dedo ou caneta.</p>
+    <canvas id="signatureCanvas" width="900" height="320"></canvas>
+    <div class="toolbar"><button class="btn secondary" type="button" data-action="clear-signature">Limpar</button><button class="btn secondary" type="button" data-action="cancel-signature">Cancelar</button><button class="btn primary" type="button" data-action="confirm-signature">Confirmar assinatura</button></div>
+  </div>
+</div>
+
+<div id="printHost" aria-hidden="true"></div>
+
+<script src="v061/runtime/q01.js?v=061"></script>
+<script src="v061/runtime/q02.js?v=061"></script>
+<script src="v061/runtime/q03.js?v=061"></script>
+<script src="v061/runtime/q04.js?v=061"></script>
+<script src="v061/runtime/bootstrap.js?v=061"></script>
+</body>
+</html>
