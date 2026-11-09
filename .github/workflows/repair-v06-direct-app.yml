@@ -1,0 +1,48 @@
+name: Repair V06 direct app
+
+on:
+  push:
+    branches:
+      - hotfix/v06-working-direct
+    paths:
+      - .github/workflows/repair-v06-direct-app.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove duplicated corrupted block and validate
+        shell: python
+        run: |
+          from pathlib import Path
+          import re, json
+          path=Path('fast_track/v06/direct-app.js')
+          text=path.read_text(encoding='utf-8')
+          marker='  function loadExample() {'
+          positions=[m.start() for m in re.finditer(re.escape(marker),text)]
+          print('loadExample positions',positions)
+          if len(positions)>=2:
+              text=text[:positions[0]]+text[positions[1]:]
+          text=text.replace("if (Array.isArray(data.damage)) state.damages=data.damages.map(newDamage);",
+                            "if (Array.isArray(data.damage)) state.damages=data.damage.map(newDamage);\n    else if (Array.isArray(data.damages)) state.damages=data.damages.map(newDamage);")
+          path.write_text(text,encoding='utf-8')
+
+          ids=sorted(set(re.findall(r"\$\('([^']+)'\)",text)))
+          Path('fast_track/v06/direct-app-ids.json').write_text(json.dumps(ids,indent=2,ensure_ascii=False),encoding='utf-8')
+          print('IDs',len(ids),ids)
+      - name: Check syntax
+        run: node --check fast_track/v06/direct-app.js
+      - name: Commit repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add fast_track/v06/direct-app.js fast_track/v06/direct-app-ids.json
+          git commit -m 'fix(v06): remover bloco duplicado e corrigir importação da Ata'
+          git push origin HEAD:hotfix/v06-working-direct
