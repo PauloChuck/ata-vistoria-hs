@@ -1,0 +1,159 @@
+name: Fix V062 damage pagination V2
+
+on:
+  push:
+    branches:
+      - fix/v062-damage-table-pagination
+    paths:
+      - .github/workflows/fix-v062-damage-pagination-v2.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reuse validated patch recipe
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          source = Path('.github/workflows/fix-v062-damage-pagination.yml').read_text(encoding='utf-8')
+
+          def extract(start_marker, end_marker, destination):
+              start = source.index(start_marker)
+              run = source.index('        run: |\n', start) + len('        run: |\n')
+              end = source.index(end_marker, run)
+              block = textwrap.dedent(source[run:end])
+              Path(destination).write_text('#!/usr/bin/env bash\n' + block, encoding='utf-8')
+
+          extract('      - name: Patch damage relation pagination only', '\n      - name: Prepare browser and document tests', '/tmp/apply-patch.sh')
+          extract('      - name: Prepare browser and document tests', '\n      - name: Test four-item case and stress pagination', '/tmp/prepare-tests.sh')
+          extract('      - name: Test four-item case and stress pagination', '\n      - name: Validate Word package and rendered pagination', '/tmp/run-browser-tests.sh')
+          PY
+          bash /tmp/apply-patch.sh
+          bash /tmp/prepare-tests.sh
+          bash /tmp/run-browser-tests.sh
+
+      - name: Validate Word flow, margins and footer clearance
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/v062-pagination-test
+          DOCX=$(find "$OUT" -maxdepth 1 -name '*.docx' -print -quit)
+          test -n "$DOCX"
+          unzip -t "$DOCX"
+          unzip -p "$DOCX" word/document.xml > "$OUT/document.xml"
+          grep -q 'Item de dano 24' "$OUT/document.xml"
+          grep -q 'w:tblHeader' "$OUT/document.xml"
+          grep -q 'w:cantSplit' "$OUT/document.xml"
+          ! grep -q 'LEVANTAMENTOS EM VISTORIA — CONTINUAÇÃO' "$OUT/document.xml"
+
+          OFFICE=$(command -v libreoffice || command -v soffice)
+          mkdir -p "$OUT/lo-profile" "$OUT/docx-render"
+          "$OFFICE" -env:UserInstallation="file://$OUT/lo-profile" --headless --convert-to pdf --outdir "$OUT/docx-render" "$DOCX"
+          PDF=$(find "$OUT/docx-render" -maxdepth 1 -name '*.pdf' -print -quit)
+          test -s "$PDF"
+          pdfinfo "$PDF" > "$OUT/docx-render/pdfinfo.txt"
+          pdftotext -layout "$PDF" "$OUT/docx-render/document.txt"
+          pdftotext -bbox-layout "$PDF" "$OUT/docx-render/document-bbox.html"
+          mkdir -p "$OUT/docx-render/pages"
+          pdftoppm -png -r 115 "$PDF" "$OUT/docx-render/pages/page" >/dev/null 2>&1
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          import xml.etree.ElementTree as ET
+
+          out = Path('/tmp/v062-pagination-test/docx-render')
+          text = (out / 'document.txt').read_text(encoding='utf-8', errors='ignore')
+          pages = text.split('\f')
+
+          active = False
+          counts = []
+          collected = []
+          for page in pages:
+              if '4. APURAÇÕES DA REGULAÇÃO' in page:
+                  active = True
+              if not active:
+                  continue
+              if '4.2. LEVANTAMENTOS DOCUMENTAIS' in page:
+                  break
+              numbers = [int(value) for value in re.findall(r'(?m)^\s*(\d{1,2})\s{2,}', page)]
+              numbers = sorted(set(value for value in numbers if 1 <= value <= 24))
+              if numbers:
+                  counts.append(len(numbers))
+                  collected.extend(numbers)
+
+          if sorted(set(collected)) != list(range(1, 25)):
+              raise SystemExit(f'Itens no PDF do Word: {sorted(set(collected))}')
+          if not counts or max(counts) <= 3:
+              raise SystemExit(f'A tabela do Word continua limitada a três itens por página: {counts}')
+          if counts[0] <= 3:
+              raise SystemExit(f'A primeira página da relação continua limitada a três itens: {counts}')
+
+          root = ET.parse(out / 'document-bbox.html').getroot()
+          ns = {'x': 'http://www.w3.org/1999/xhtml'}
+          relation_pages = 0
+          gaps = []
+          body_tokens = {'vistoria', 'célula', 'material', 'apurado', 'controlada', 'dentro'}
+          for page in root.findall('.//x:page', ns):
+              words = page.findall('.//x:word', ns)
+              values = [(word.text or '').strip() for word in words]
+              if 'Material' not in values or 'danificado' not in values:
+                  continue
+              footer_words = [word for word in words if (word.text or '').strip() == 'Matriz']
+              if not footer_words:
+                  raise SystemExit('Rodapé não localizado em página da relação de danos')
+              footer_y = min(float(word.attrib['yMin']) for word in footer_words)
+              damage_words = [word for word in words if (word.text or '').strip().lower() in body_tokens]
+              if not damage_words:
+                  raise SystemExit('Conteúdo da tabela não localizado para conferência vertical')
+              body_bottom = max(float(word.attrib['yMax']) for word in damage_words)
+              gap = footer_y - body_bottom
+              if gap < 8:
+                  raise SystemExit(f'Tabela aproximou-se excessivamente do rodapé: folga de {gap:.2f} pt')
+              gaps.append(round(gap, 2))
+              relation_pages += 1
+
+          if relation_pages < 2:
+              raise SystemExit(f'Quantidade inesperada de páginas da relação: {relation_pages}')
+
+          summary = (
+              f'Distribuição de itens por página: {counts}\n'
+              f'Itens conferidos: {sorted(set(collected))}\n'
+              f'Folgas até o rodapé (pt): {gaps}\n'
+          )
+          (out / 'pagination-summary.txt').write_text(summary, encoding='utf-8')
+          PY
+
+          cat "$OUT/browser-result.json"
+          cat "$OUT/docx-render/pagination-summary.txt"
+          cat "$OUT/docx-render/pdfinfo.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v062-damage-pagination-validation-v2
+          path: /tmp/v062-pagination-test
+          if-no-files-found: warn
+
+      - name: Commit validated adjustment
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add fast_track/v06/direct-report.js fast_track/v06/direct-word.js fast_track/v06/direct.css fast_track/v062.html fast_track/v06.html
+          git commit -m 'fix(v06): preencher páginas da relação de danos'
+          git push origin HEAD:fix/v062-damage-table-pagination
