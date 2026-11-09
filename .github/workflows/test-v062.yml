@@ -117,7 +117,7 @@ jobs:
             process.exit(1);
           });
           NODE
-          node /tmp/v062-test/test.js
+          NODE_PATH="$PWD/node_modules" node /tmp/v062-test/test.js
       - name: Validate DOCX package and PDF
         shell: bash
         run: |
