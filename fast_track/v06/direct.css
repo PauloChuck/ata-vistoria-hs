@@ -140,6 +140,8 @@ textarea{resize:vertical;line-height:1.45}
 .doc-table th.left,.doc-table td.left{text-align:left}
 .coverage-table th,.coverage-table td{border-left:0;border-right:0;padding:2.8mm 2mm;font-size:10pt}
 .damage-table{font-size:9pt}
+.damage-table th,.damage-table td{padding:1.25mm 1mm}
+.damage-table tr{break-inside:avoid;page-break-inside:avoid}
 .damage-table th:nth-child(1){width:7%}.damage-table th:nth-child(2){width:39%}.damage-table th:nth-child(3){width:12%}.damage-table th:nth-child(4){width:10%}.damage-table th:nth-child(5){width:14%}.damage-table th:nth-child(6){width:18%}
 .photo-grid-report{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:5mm;height:218mm}
 .photo-cell-report{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-height:0}
