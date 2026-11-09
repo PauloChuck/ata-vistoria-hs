@@ -150,23 +150,15 @@
       new TableRow({children:[tcell(f.coverageName || 'Vendaval / Granizo',{width:44,align:AlignmentType.LEFT}),tcell(REPORT().money(35000000),{width:28}),tcell('15% com mínimo\nde R$ 3.000,00',{width:28})]})
     ]}));
     technical.push(heading('4. APURAÇÕES DA REGULAÇÃO'),subheading('4.1. LEVANTAMENTOS EM VISTORIA'),para(REPORT().inspectionText(f.inspectionDate)),subheading('RELAÇÃO DE DANOS:'));
-    const firstDamages=(state.damages||[]).slice(0,3);
-    if(firstDamages.length){
-      technical.push(new Table({width:{size:100,type:WidthType.PERCENTAGE},rows:[
-        new TableRow({children:[tcell('Item',{width:7,bold:true}),tcell('Material danificado',{width:36,bold:true,align:AlignmentType.LEFT}),tcell('Quantidade',{width:12,bold:true}),tcell('Unidade',{width:10,bold:true}),tcell('Idade',{width:15,bold:true}),tcell('Valor reclamado',{width:20,bold:true})]}),
-        ...firstDamages.map((item,index)=>new TableRow({children:[tcell(String(index+1),{width:7}),tcell(item.description,{width:36,align:AlignmentType.LEFT}),tcell(item.quantity,{width:12}),tcell(item.unit,{width:10}),tcell(`${item.age || ''} ${item.ageUnit || ''}`,{width:15}),tcell(REPORT().money(item.claimedTotal),{width:20})]}))
-      ]}));
+    const damageItems=state.damages||[];
+    if(damageItems.length){
+      const damageHeader=new TableRow({tableHeader:true,cantSplit:true,children:[tcell('Item',{width:7,bold:true}),tcell('Material danificado',{width:36,bold:true,align:AlignmentType.LEFT}),tcell('Quantidade',{width:12,bold:true}),tcell('Unidade',{width:10,bold:true}),tcell('Idade',{width:15,bold:true}),tcell('Valor reclamado',{width:20,bold:true})]});
+      const damageDataRows=damageItems.map((item,index)=>new TableRow({cantSplit:true,children:[tcell(String(index+1),{width:7}),tcell(item.description,{width:36,align:AlignmentType.LEFT}),tcell(item.quantity,{width:12}),tcell(item.unit,{width:10}),tcell(`${item.age || ''} ${item.ageUnit || ''}`,{width:15}),tcell(REPORT().money(item.claimedTotal),{width:20})]}));
+      technical.push(new Table({width:{size:100,type:WidthType.PERCENTAGE},rows:[damageHeader,...damageDataRows]}));
+    } else {
+      technical.push(para('Nenhum item cadastrado.',{alignment:AlignmentType.LEFT}));
     }
     addPage(technical);
-
-    // Continuação dos danos
-    for(let start=3;start<(state.damages||[]).length;start+=9){
-      const slice=state.damages.slice(start,start+9);
-      addPage([heading('4.1. LEVANTAMENTOS EM VISTORIA — CONTINUAÇÃO'),subheading('RELAÇÃO DE DANOS:'),new Table({width:{size:100,type:WidthType.PERCENTAGE},rows:[
-        new TableRow({children:[tcell('Item',{width:7,bold:true}),tcell('Material danificado',{width:36,bold:true,align:AlignmentType.LEFT}),tcell('Quantidade',{width:12,bold:true}),tcell('Unidade',{width:10,bold:true}),tcell('Idade',{width:15,bold:true}),tcell('Valor reclamado',{width:20,bold:true})]}),
-        ...slice.map((item,i)=>new TableRow({children:[tcell(String(start+i+1),{width:7}),tcell(item.description,{width:36,align:AlignmentType.LEFT}),tcell(item.quantity,{width:12}),tcell(item.unit,{width:10}),tcell(`${item.age || ''} ${item.ageUnit || ''}`,{width:15}),tcell(REPORT().money(item.claimedTotal),{width:20})]}))
-      ]})]);
-    }
 
     // Fotografias — quatro por página
     const photos=(state.photos||[]).filter(p=>p.dataUrl);

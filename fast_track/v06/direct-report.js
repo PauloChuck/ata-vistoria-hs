@@ -132,30 +132,70 @@
       </tbody></table>`;
   }
 
-  function technicalStartContent(state, firstDamages) {
-    const f = state.fields || {};
-    const map = state.map || {};
-    return `
-      <div class="doc-section">1. LOCAL DO SINISTRO</div>
-      <p class="doc-text">Trata-se de propriedade rural destinada a engorda de animais (matérias-primas) do segurado.</p>
-      <div class="map-report">${map.dataUrl ? `<img src="${attr(map.dataUrl)}" style="object-fit:${map.fit || 'contain'};object-position:${Number(map.posX ?? 50)}% ${Number(map.posY ?? 50)}%">` : '<span>Imagem de localização não informada.</span>'}</div>
-      <p class="doc-caption">Localização da propriedade sinistrada.</p>
+  function technicalStartContent(state) {
+  const f = state.fields || {};
+  const map = state.map || {};
+  return `
+    <div class="doc-section">1. LOCAL DO SINISTRO</div>
+    <p class="doc-text">Trata-se de propriedade rural destinada a engorda de animais (matérias-primas) do segurado.</p>
+    <div class="map-report">${map.dataUrl ? `<img src="${attr(map.dataUrl)}" style="object-fit:${map.fit || 'contain'};object-position:${Number(map.posX ?? 50)}% ${Number(map.posY ?? 50)}%">` : '<span>Imagem de localização não informada.</span>'}</div>
+    <p class="doc-caption">Localização da propriedade sinistrada.</p>
 
-      <div class="doc-section">2. DESCRIÇÃO DA OCORRÊNCIA</div>
-      <p class="doc-text">${esc(occurrenceText(f.lossDate))}</p>
+    <div class="doc-section">2. DESCRIÇÃO DA OCORRÊNCIA</div>
+    <p class="doc-text">${esc(occurrenceText(f.lossDate))}</p>
 
-      <div class="doc-section">3. COBERTURA RECLAMADA</div>
-      <table class="doc-table coverage-table"><thead><tr><th class="left">Cobertura</th><th>Limite de Indenização</th><th>Franquia</th></tr></thead>
-      <tbody><tr><td class="left">${esc(f.coverageName || 'Vendaval / Granizo')}</td><td>${money(35000000)}</td><td>15% com mínimo<br>de ${money(3000)}</td></tr></tbody></table>
+    <div class="doc-section">3. COBERTURA RECLAMADA</div>
+    <table class="doc-table coverage-table"><thead><tr><th class="left">Cobertura</th><th>Limite de Indenização</th><th>Franquia</th></tr></thead>
+    <tbody><tr><td class="left">${esc(f.coverageName || 'Vendaval / Granizo')}</td><td>${money(35000000)}</td><td>15% com mínimo<br>de ${money(3000)}</td></tr></tbody></table>`;
+}
 
-      <div class="doc-section">4. APURAÇÕES DA REGULAÇÃO</div>
-      <div class="doc-subsection">4.1. LEVANTAMENTOS EM VISTORIA</div>
-      <p class="doc-text">${esc(inspectionText(f.inspectionDate))}</p>
-      <div class="doc-subsection"><u>RELAÇÃO DE DANOS:</u></div>
-      ${firstDamages.length ? `<table class="doc-table damage-table"><thead><tr><th>Item</th><th class="left">Material danificado</th><th>Quantidade</th><th>Unidade</th><th>Idade</th><th>Valor reclamado</th></tr></thead><tbody>${damageRows(firstDamages,0)}</tbody></table>` : '<p class="doc-text">Nenhum item cadastrado.</p>'}`;
+function estimateDamageRowHeight(item) {
+  const ageText = `${item?.age || ''} ${item?.ageUnit || ''}`.trim();
+  const cells = [
+    [String(item?.description || ''), 31],
+    [String(item?.quantity || ''), 8],
+    [String(item?.unit || ''), 7],
+    [ageText, 11],
+    [money(item?.claimedTotal), 14]
+  ];
+  const lines = Math.max(1, ...cells.map(([value, chars]) => Math.ceil(Math.max(1, value.length) / chars)));
+  return 3 + (lines * 4.6);
+}
+
+function paginateDamageItems(items) {
+  const source = Array.isArray(items) ? items : [];
+  if (!source.length) return [{items:[], start:0}];
+  const pages = [];
+  let start = 0;
+  while (start < source.length) {
+    const available = pages.length ? 184 : 146;
+    let used = 0;
+    let end = start;
+    while (end < source.length) {
+      const height = estimateDamageRowHeight(source[end]);
+      if (end > start && used + height > available) break;
+      used += height;
+      end += 1;
+      if (used >= available) break;
+    }
+    pages.push({items:source.slice(start,end), start});
+    start = end;
   }
+  return pages;
+}
 
-  function damageContinuationContent(items, start) {
+function damageStartContent(state, items, start = 0) {
+  const f = state.fields || {};
+  const table = items.length ? `<table class="doc-table damage-table"><thead><tr><th>Item</th><th class="left">Material danificado</th><th>Quantidade</th><th>Unidade</th><th>Idade</th><th>Valor reclamado</th></tr></thead><tbody>${damageRows(items,start)}</tbody></table>` : '<p class="doc-text">Nenhum item cadastrado.</p>';
+  return `
+    <div class="doc-section">4. APURAÇÕES DA REGULAÇÃO</div>
+    <div class="doc-subsection">4.1. LEVANTAMENTOS EM VISTORIA</div>
+    <p class="doc-text">${esc(inspectionText(f.inspectionDate))}</p>
+    <div class="doc-subsection"><u>RELAÇÃO DE DANOS:</u></div>
+    ${table}`;
+}
+
+function damageContinuationContent(items, start) {
     return `
       <div class="doc-section">4.1. LEVANTAMENTOS EM VISTORIA — CONTINUAÇÃO</div>
       <div class="doc-subsection"><u>RELAÇÃO DE DANOS:</u></div>
@@ -241,12 +281,14 @@
     const contents = [];
 
     contents.push({html:coverContent(state), first:true});
-    const firstDamageCount = Math.min(3, damages.length);
-    contents.push({html:technicalStartContent(state, damages.slice(0, firstDamageCount))});
+    contents.push({html:technicalStartContent(state)});
 
-    for (let start = firstDamageCount; start < damages.length; start += 9) {
-      contents.push({html:damageContinuationContent(damages.slice(start,start+9),start)});
-    }
+    const damagePages = paginateDamageItems(damages);
+    damagePages.forEach((page,index) => {
+      contents.push({html:index === 0
+        ? damageStartContent(state,page.items,page.start)
+        : damageContinuationContent(page.items,page.start)});
+    });
 
     for (let start = 0; start < photos.length; start += 4) {
       contents.push({html:photoPageContent(photos.slice(start,start+4),start)});
@@ -281,6 +323,6 @@
 
   window.FastTrackV06Report = {
     ASSETS, esc, attr, money, plainMoney, formatDate, longDate, occurrenceText, inspectionText,
-    calculate, buildContents, buildHTML
+    calculate, paginateDamageItems, buildContents, buildHTML
   };
 })();
