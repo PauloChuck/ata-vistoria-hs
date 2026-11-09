@@ -1,0 +1,119 @@
+name: Verify V062 public deployment
+
+on:
+  push:
+    branches:
+      - verification/v062-public
+    paths:
+      - .github/workflows/verify-v062-public.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare Chrome test
+        shell: bash
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.56.1
+          CHROME_PATH="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          "$CHROME_PATH" --version
+      - name: Test public old and new links
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/v062-public
+          cat > /tmp/v062-public/test.js <<'NODE'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+          const path = require('path');
+
+          (async () => {
+            const browser = await chromium.launch({headless:true, executablePath:process.env.CHROME_PATH, args:['--no-sandbox','--disable-dev-shm-usage']});
+            const context = await browser.newContext({acceptDownloads:true, viewport:{width:1440,height:1000}});
+            const results = [];
+            const urls = [
+              'https://paulochuck.github.io/ata-vistoria-hs/fast_track/v062.html?v=public-ci',
+              'https://paulochuck.github.io/ata-vistoria-hs/fast_track/v06.html?v=public-ci'
+            ];
+
+            for (const requestedUrl of urls) {
+              const page = await context.newPage();
+              const pageErrors=[];
+              const httpErrors=[];
+              const consoleErrors=[];
+              page.on('pageerror', error => pageErrors.push(String(error)));
+              page.on('response', response => {
+                if (response.status() >= 400 && !/favicon\.ico/i.test(response.url())) httpErrors.push({status:response.status(),url:response.url()});
+              });
+              page.on('console', message => {
+                if (message.type()==='error' && !/favicon\.ico/i.test(message.location()?.url || '')) consoleErrors.push({text:message.text(),url:message.location()?.url || ''});
+              });
+              page.on('dialog', async dialog => await dialog.accept());
+
+              await page.goto(requestedUrl,{waitUntil:'networkidle',timeout:120000});
+              await page.waitForSelector('.app-shell',{state:'visible',timeout:30000});
+              const finalUrl=page.url();
+              const globals=await page.evaluate(()=>({
+                report:Boolean(window.FastTrackV06Report),
+                word:Boolean(window.FastTrackV06Word),
+                docx:Boolean(window.docx),
+                screens:document.querySelectorAll('.screen').length,
+                steps:document.querySelectorAll('#progress span').length,
+                title:document.title
+              }));
+              if(!globals.report||!globals.word||!globals.docx||globals.screens!==7||globals.steps!==7){
+                throw new Error(`Falha de inicialização em ${requestedUrl}: ${JSON.stringify(globals)}`);
+              }
+              if(pageErrors.length||httpErrors.length){
+                throw new Error(`Erros públicos em ${requestedUrl}: ${JSON.stringify({pageErrors,httpErrors,consoleErrors})}`);
+              }
+              results.push({requestedUrl,finalUrl,globals,pageErrors,httpErrors,consoleErrors});
+              await page.close();
+            }
+
+            const page=await context.newPage();
+            page.on('dialog',async dialog=>await dialog.accept());
+            await page.goto(urls[0],{waitUntil:'networkidle',timeout:120000});
+            await page.click('[data-action="load-example"]');
+            await page.waitForFunction(()=>document.querySelector('#claimantName')?.value==='Cooperado Exemplo',null,{timeout:10000});
+            for(const step of [2,3,4,5,6,7]){
+              await page.click(`[data-go="${step}"]`);
+              await page.waitForSelector(`.screen[data-step="${step}"].active`);
+            }
+            const previewPages=await page.locator('#reportPreview .report-page').count();
+            const downloadPromise=page.waitForEvent('download',{timeout:120000});
+            await page.click('[data-action="export-word"]');
+            const download=await downloadPromise;
+            const wordPath=path.join('/tmp/v062-public',download.suggestedFilename());
+            await download.saveAs(wordPath);
+            if(!fs.existsSync(wordPath)||fs.statSync(wordPath).size<10000) throw new Error(`DOCX público inválido: ${wordPath}`);
+            await page.screenshot({path:'/tmp/v062-public/public-review.png',fullPage:true});
+            results.push({workflow:'example-to-word',previewPages,wordPath,wordBytes:fs.statSync(wordPath).size});
+            fs.writeFileSync('/tmp/v062-public/result.json',JSON.stringify(results,null,2));
+            await browser.close();
+          })().catch(error=>{console.error(error);process.exit(1);});
+          NODE
+          NODE_PATH="$PWD/node_modules" node /tmp/v062-public/test.js
+      - name: Validate downloaded DOCX
+        shell: bash
+        run: |
+          set -euo pipefail
+          DOCX=$(find /tmp/v062-public -maxdepth 1 -name '*.docx' -print -quit)
+          test -n "$DOCX"
+          unzip -t "$DOCX"
+          cat /tmp/v062-public/result.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fast-track-v062-public-verification
+          path: /tmp/v062-public
+          if-no-files-found: warn
