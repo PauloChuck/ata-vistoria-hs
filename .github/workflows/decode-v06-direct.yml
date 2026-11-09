@@ -1,0 +1,87 @@
+name: Decode V06 direct runtime
+
+on:
+  push:
+    branches:
+      - hotfix/v06-working-direct
+    paths:
+      - .github/workflows/decode-v06-direct.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  decode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Decode direct app and inspect Word payload
+        shell: python
+        run: |
+          from pathlib import Path
+          import base64, re, json, hashlib, subprocess
+
+          root = Path('fast_track/v06/direct_payload')
+          app_names = ['app01.js','app02.js','app03.js','app04.js','app05_01.js','app05_02.js','app06.js']
+          def chunks(names, variable):
+              out=[]
+              meta=[]
+              for name in names:
+                  p=root/name
+                  text=p.read_text(encoding='utf-8')
+                  m=re.search(r"\+\s*'([A-Za-z0-9+/=]*)'", text)
+                  if not m:
+                      raise SystemExit(f'No Base64 chunk found in {p}')
+                  out.append(m.group(1))
+                  meta.append({'name':name,'chars':len(m.group(1))})
+              joined=''.join(out)
+              raw=base64.b64decode(joined,validate=True)
+              return joined,raw,meta
+
+          app_b64,app_raw,app_meta=chunks(app_names,'__V06_APP_B64')
+          app_text=app_raw.decode('utf-8')
+          Path('fast_track/v06/direct-app.js').write_text(app_text,encoding='utf-8')
+          print('APP',len(app_b64),len(app_raw),hashlib.sha256(app_raw).hexdigest())
+          print('APP_HEAD',repr(app_text[:180]))
+          print('APP_TAIL',repr(app_text[-500:]))
+
+          word_names=sorted(p.name for p in root.glob('word*.js'))
+          word_b64,word_raw,word_meta=chunks(word_names,'__V06_WORD_B64')
+          word_text=word_raw.decode('utf-8')
+          Path('fast_track/v06/direct-word.partial.js').write_text(word_text,encoding='utf-8')
+          print('WORD',word_names,len(word_b64),len(word_raw),hashlib.sha256(word_raw).hexdigest())
+          print('WORD_HEAD',repr(word_text[:180]))
+          print('WORD_TAIL',repr(word_text[-500:]))
+
+          diagnostics={
+              'app_parts':app_meta,'app_chars':len(app_b64),'app_bytes':len(app_raw),'app_sha256':hashlib.sha256(app_raw).hexdigest(),
+              'word_parts':word_meta,'word_chars':len(word_b64),'word_bytes':len(word_raw),'word_sha256':hashlib.sha256(word_raw).hexdigest(),
+          }
+          Path('fast_track/v06/direct-runtime-diagnostics.json').write_text(json.dumps(diagnostics,indent=2),encoding='utf-8')
+      - name: Syntax and API checks
+        shell: bash
+        run: |
+          set +e
+          echo '--- node --check direct-app.js ---'
+          node --check fast_track/v06/direct-app.js
+          echo APP_CHECK=$?
+          echo '--- node --check direct-word.partial.js ---'
+          node --check fast_track/v06/direct-word.partial.js
+          echo WORD_CHECK=$?
+          echo '--- relevant app APIs ---'
+          grep -nE 'FastTrackV06|Word|exportWord|data-action|REPORT|ready' fast_track/v06/direct-app.js | tail -n 120 || true
+          echo '--- relevant word APIs ---'
+          grep -nE 'FastTrackV06|export|Document|Packer|ready' fast_track/v06/direct-word.partial.js | tail -n 120 || true
+          exit 0
+      - name: Commit decoded sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add fast_track/v06/direct-app.js fast_track/v06/direct-word.partial.js fast_track/v06/direct-runtime-diagnostics.json
+          git commit -m 'chore(v06): adicionar fontes decodificadas do runtime direto'
+          git push origin HEAD:hotfix/v06-working-direct
