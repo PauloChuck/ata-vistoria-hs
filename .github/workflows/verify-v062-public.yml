@@ -1,4 +1,4 @@
-name: Verify V062 public deployment
+name: Verify V062 public damage pagination
 
 on:
   push:
@@ -20,13 +20,15 @@ jobs:
       - name: Prepare Chrome test
         shell: bash
         run: |
+          set -euo pipefail
           npm init -y >/dev/null 2>&1
           npm install --no-save playwright@1.56.1
           CHROME_PATH="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_PATH"
           echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
           "$CHROME_PATH" --version
-      - name: Test public old and new links
+
+      - name: Test published links and damage pagination
         shell: bash
         run: |
           set -euo pipefail
@@ -36,84 +38,139 @@ jobs:
           const fs = require('fs');
           const path = require('path');
 
-          (async () => {
-            const browser = await chromium.launch({headless:true, executablePath:process.env.CHROME_PATH, args:['--no-sandbox','--disable-dev-shm-usage']});
-            const context = await browser.newContext({acceptDownloads:true, viewport:{width:1440,height:1000}});
-            const results = [];
-            const urls = [
-              'https://paulochuck.github.io/ata-vistoria-hs/fast_track/v062.html?v=public-ci',
-              'https://paulochuck.github.io/ata-vistoria-hs/fast_track/v06.html?v=public-ci'
+          const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700"><rect width="1200" height="700" fill="#e8eef1"/><rect x="80" y="80" width="1040" height="540" fill="#b8d6b1"/><path d="M100 560 L1100 140" stroke="#777" stroke-width="36"/><circle cx="780" cy="310" r="34" fill="#c33"/><text x="110" y="150" font-family="Arial" font-size="52">Mapa de teste público</text></svg>`;
+          const mapDataUrl = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+          const baseFields = {
+            insurerClaim:'1325000',hsClaim:'S2609000',insurer:'SOMPO SEGUROS S/A',insured:'COOPERATIVA CENTRAL AURORA ALIMENTOS',
+            claimantName:'Cooperado Teste Paginação',claimantCpf:'000.000.000-00',riskAddress:'Linha Teste, Município/SC',policyNumber:'9600131927',
+            productName:'RISCOS NOMEADOS',broker:'ALPER CONSULTORIA E CORRETORA DE SEGUROS S/A',lossDate:'2026-11-04',coverageName:'Vendaval / Granizo',
+            inspectionDate:'2026-11-10',regulatorOpinion:'Diante do exposto, o sinistro está amparado pela cobertura de Vendaval/Granizo da apólice.',
+            otherInsurance:'nao',otherInsuranceDetails:'',bankName:'CRESOL',bankAgency:'2508',bankAccount:'1.801-5',noticeDate:'2026-11-05',scheduleDate:'2026-11-06',
+            reportCity:'Blumenau (SC)',reportDate:'2026-11-10',regulatorName:'Paulo R. Schlosser',regulatorCpf:'068.613.739-66',noDocuments:true,
+            mapFit:'contain',mapPosX:'50',mapPosY:'50'
+          };
+          const makeDamage = (i) => ({
+            id:`damage_${i}`,
+            description:i % 4 === 0 ? `Item de dano ${String(i).padStart(2,'0')} - descrição técnica mais extensa para validar a quebra controlada dentro da célula` : `Item de dano ${String(i).padStart(2,'0')} - material apurado em vistoria`,
+            quantity:String(i * 10),unit:i % 3 === 0 ? 'conjunto' : 'un.',age:String((i % 8) + 1),ageUnit:i % 5 === 0 ? 'meses' : 'anos',
+            claimedTotal:String(1000 + i * 137),assessedTotal:String(1000 + i * 137)
+          });
+          const stateFor = (count) => ({
+            version:'0.6.2',fields:{...baseFields},map:{dataUrl:mapDataUrl,name:'mapa-teste.svg',fit:'contain',posX:'50',posY:'50'},
+            damages:Array.from({length:count},(_,i)=>makeDamage(i+1)),photos:[],documents:[],signatures:{regulator:null,claimant:null},finalizedAt:null
+          });
+
+          async function importState(page,state,name){
+            await page.setInputFiles('#backupInput',{name,mimeType:'application/json',buffer:Buffer.from(JSON.stringify(state))});
+            await page.waitForFunction((expected)=>document.querySelectorAll('#damageList .damage-card').length===expected,state.damages.length,{timeout:20000});
+            await page.evaluate(()=>document.querySelector('.screen[data-step="6"] [data-go="7"]').click());
+            await page.waitForSelector('.screen[data-step="7"].active');
+            await page.waitForSelector('#reportPreview .damage-table');
+          }
+
+          async function inspectRelation(page,expected){
+            return await page.evaluate((expected)=>{
+              const details=[...document.querySelectorAll('#reportPreview .report-page')].map((page,index)=>{
+                const table=page.querySelector('.damage-table');
+                if(!table) return null;
+                const content=page.querySelector('.report-content');
+                const footer=page.querySelector('.report-footer');
+                const tableRect=table.getBoundingClientRect();
+                const footerRect=footer.getBoundingClientRect();
+                return {
+                  index:index+1,
+                  rows:table.querySelectorAll('tbody tr').length,
+                  overflow:content.scrollHeight-content.clientHeight,
+                  tableBottom:tableRect.bottom,
+                  footerTop:footerRect.top
+                };
+              }).filter(Boolean);
+              const total=details.reduce((sum,item)=>sum+item.rows,0);
+              if(total!==expected) throw new Error(`Itens exibidos: ${total}/${expected}`);
+              for(const item of details){
+                if(item.overflow>2) throw new Error(`Overflow na página ${item.index}: ${item.overflow}px`);
+                if(item.tableBottom>item.footerTop-2) throw new Error(`Tabela alcançou o rodapé na página ${item.index}`);
+              }
+              return details;
+            },expected);
+          }
+
+          (async()=>{
+            const out='/tmp/v062-public';
+            const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH,args:['--no-sandbox','--disable-dev-shm-usage']});
+            const context=await browser.newContext({acceptDownloads:true,viewport:{width:1500,height:1100}});
+            const urls=[
+              'https://paulochuck.github.io/ata-vistoria-hs/fast_track/v062.html?v=0623-public-ci',
+              'https://paulochuck.github.io/ata-vistoria-hs/fast_track/v06.html?v=0623-public-ci'
             ];
+            const results=[];
 
-            for (const requestedUrl of urls) {
-              const page = await context.newPage();
-              const pageErrors=[];
-              const httpErrors=[];
-              const consoleErrors=[];
-              page.on('pageerror', error => pageErrors.push(String(error)));
-              page.on('response', response => {
-                if (response.status() >= 400 && !/favicon\.ico/i.test(response.url())) httpErrors.push({status:response.status(),url:response.url()});
-              });
-              page.on('console', message => {
-                if (message.type()==='error' && !/favicon\.ico/i.test(message.location()?.url || '')) consoleErrors.push({text:message.text(),url:message.location()?.url || ''});
-              });
-              page.on('dialog', async dialog => await dialog.accept());
-
+            for(const requestedUrl of urls){
+              const page=await context.newPage();
+              const pageErrors=[]; const httpErrors=[];
+              page.on('pageerror',error=>pageErrors.push(String(error)));
+              page.on('response',response=>{if(response.status()>=400&&!/favicon\.ico/i.test(response.url()))httpErrors.push({status:response.status(),url:response.url()});});
+              page.on('dialog',async dialog=>dialog.accept());
               await page.goto(requestedUrl,{waitUntil:'networkidle',timeout:120000});
               await page.waitForSelector('.app-shell',{state:'visible',timeout:30000});
-              const finalUrl=page.url();
               const globals=await page.evaluate(()=>({
-                report:Boolean(window.FastTrackV06Report),
-                word:Boolean(window.FastTrackV06Word),
-                docx:Boolean(window.docx),
-                screens:document.querySelectorAll('.screen').length,
-                steps:document.querySelectorAll('#progress span').length,
-                title:document.title
+                report:Boolean(window.FastTrackV06Report),word:Boolean(window.FastTrackV06Word),docx:Boolean(window.docx),
+                paginator:typeof window.FastTrackV06Report?.paginateDamageItems==='function',
+                screens:document.querySelectorAll('.screen').length,steps:document.querySelectorAll('#progress span').length
               }));
-              if(!globals.report||!globals.word||!globals.docx||globals.screens!==7||globals.steps!==7){
-                throw new Error(`Falha de inicialização em ${requestedUrl}: ${JSON.stringify(globals)}`);
+              if(!globals.report||!globals.word||!globals.docx||!globals.paginator||globals.screens!==7||globals.steps!==7){
+                throw new Error(`Inicialização pública incompleta: ${JSON.stringify({requestedUrl,globals})}`);
               }
-              if(pageErrors.length||httpErrors.length){
-                throw new Error(`Erros públicos em ${requestedUrl}: ${JSON.stringify({pageErrors,httpErrors,consoleErrors})}`);
-              }
-              results.push({requestedUrl,finalUrl,globals,pageErrors,httpErrors,consoleErrors});
+              if(pageErrors.length||httpErrors.length) throw new Error(`Erros públicos: ${JSON.stringify({requestedUrl,pageErrors,httpErrors})}`);
+              results.push({requestedUrl,finalUrl:page.url(),globals});
               await page.close();
             }
 
             const page=await context.newPage();
-            page.on('dialog',async dialog=>await dialog.accept());
+            page.on('dialog',async dialog=>dialog.accept());
             await page.goto(urls[0],{waitUntil:'networkidle',timeout:120000});
-            await page.click('[data-action="load-example"]');
-            await page.waitForFunction(()=>document.querySelector('#claimantName')?.value==='Cooperado Exemplo',null,{timeout:10000});
-            for(const step of [2,3,4,5,6,7]){
-              await page.click(`[data-go="${step}"]`);
-              await page.waitForSelector(`.screen[data-step="${step}"].active`);
-            }
-            const previewPages=await page.locator('#reportPreview .report-page').count();
+
+            await importState(page,stateFor(4),'quatro-itens.json');
+            const fourDetails=await inspectRelation(page,4);
+            if(fourDetails.length!==1||fourDetails[0].rows!==4) throw new Error(`Quatro itens não permaneceram na mesma página: ${JSON.stringify(fourDetails)}`);
+            await page.locator('#reportPreview .report-page').nth(fourDetails[0].index-1).screenshot({path:path.join(out,'public-quatro-itens.png')});
+
+            await importState(page,stateFor(24),'vinte-quatro-itens.json');
+            const stressDetails=await inspectRelation(page,24);
+            if(stressDetails.length<2||stressDetails[0].rows<=3) throw new Error(`Paginação adaptativa pública inválida: ${JSON.stringify(stressDetails)}`);
+            await page.locator('#reportPreview').screenshot({path:path.join(out,'public-estresse.png')});
+
             const downloadPromise=page.waitForEvent('download',{timeout:120000});
             await page.click('[data-action="export-word"]');
             const download=await downloadPromise;
-            const wordPath=path.join('/tmp/v062-public',download.suggestedFilename());
+            const wordPath=path.join(out,download.suggestedFilename());
             await download.saveAs(wordPath);
-            if(!fs.existsSync(wordPath)||fs.statSync(wordPath).size<10000) throw new Error(`DOCX público inválido: ${wordPath}`);
-            await page.screenshot({path:'/tmp/v062-public/public-review.png',fullPage:true});
-            results.push({workflow:'example-to-word',previewPages,wordPath,wordBytes:fs.statSync(wordPath).size});
-            fs.writeFileSync('/tmp/v062-public/result.json',JSON.stringify(results,null,2));
+            if(!fs.existsSync(wordPath)||fs.statSync(wordPath).size<15000) throw new Error(`DOCX público inválido: ${wordPath}`);
+
+            results.push({workflow:'damage-pagination',fourDetails,stressDetails,wordPath,wordBytes:fs.statSync(wordPath).size});
+            fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(results,null,2));
             await browser.close();
           })().catch(error=>{console.error(error);process.exit(1);});
           NODE
           NODE_PATH="$PWD/node_modules" node /tmp/v062-public/test.js
-      - name: Validate downloaded DOCX
+
+      - name: Validate published Word package
         shell: bash
         run: |
           set -euo pipefail
           DOCX=$(find /tmp/v062-public -maxdepth 1 -name '*.docx' -print -quit)
           test -n "$DOCX"
           unzip -t "$DOCX"
+          unzip -p "$DOCX" word/document.xml > /tmp/v062-public/document.xml
+          grep -q 'Item de dano 24' /tmp/v062-public/document.xml
+          grep -q 'w:tblHeader' /tmp/v062-public/document.xml
+          grep -q 'w:cantSplit' /tmp/v062-public/document.xml
+          ! grep -q 'LEVANTAMENTOS EM VISTORIA — CONTINUAÇÃO' /tmp/v062-public/document.xml
           cat /tmp/v062-public/result.json
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: fast-track-v062-public-verification
+          name: fast-track-v062-public-damage-pagination
           path: /tmp/v062-public
           if-no-files-found: warn
