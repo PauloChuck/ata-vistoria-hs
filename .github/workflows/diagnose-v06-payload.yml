@@ -1,0 +1,109 @@
+name: Diagnose V06 Payload
+
+on:
+  push:
+    branches:
+      - diagnostic/v06-payload
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect segmented package
+        shell: python
+        run: |
+          import base64, pathlib, re, struct, zlib, zipfile, json, hashlib, sys
+
+          root = pathlib.Path('fast_track/v06/payload')
+          parts = sorted(root.glob('p*.js'))
+          print('parts:', [p.name for p in parts])
+          chunks=[]
+          for p in parts:
+              text=p.read_text(encoding='utf-8')
+              m=re.search(r'\+"([A-Za-z0-9+/=]*)";', text)
+              if not m:
+                  print('NO_CHUNK', p)
+                  continue
+              chunk=m.group(1)
+              chunks.append(chunk)
+              print(p.name, 'file_bytes=',p.stat().st_size,'chunk_chars=',len(chunk),'tail=',repr(chunk[-12:]))
+          b64=''.join(chunks)
+          print('total_base64_chars=',len(b64),'mod4=',len(b64)%4,'tail=',repr(b64[-64:]))
+          data=base64.b64decode(b64, validate=True)
+          pathlib.Path('/tmp/v06-package-partial.zip').write_bytes(data)
+          print('decoded_bytes=',len(data),'sha256=',hashlib.sha256(data).hexdigest(),'head=',data[:16].hex(),'tail=',data[-64:].hex())
+          print('EOCD_offset=',data.rfind(b'PK\x05\x06'),'central_offset=',data.rfind(b'PK\x01\x02'))
+
+          try:
+              with zipfile.ZipFile('/tmp/v06-package-partial.zip') as z:
+                  print('ZIP_OK', z.namelist())
+          except Exception as e:
+              print('ZIP_ERROR',type(e).__name__,repr(e))
+
+          # Parse complete local-file records even if central directory is missing.
+          pos=0
+          recovered=[]
+          while True:
+              sig=data.find(b'PK\x03\x04',pos)
+              if sig<0:
+                  break
+              if sig+30>len(data):
+                  print('TRUNCATED_LOCAL_HEADER',sig)
+                  break
+              fields=struct.unpack_from('<IHHHHHIIIHH',data,sig)
+              _,ver,flag,method,mtime,mdate,crc,csize,usize,nlen,xlen=fields
+              name_start=sig+30
+              name_end=name_start+nlen
+              extra_end=name_end+xlen
+              if extra_end>len(data):
+                  print('TRUNCATED_NAME_EXTRA',sig,nlen,xlen)
+                  break
+              name=data[name_start:name_end].decode('utf-8','replace')
+              data_start=extra_end
+              data_end=data_start+csize
+              print('LOCAL',name,'sig=',sig,'flag=',hex(flag),'method=',method,'csize=',csize,'usize=',usize,'data=',data_start,'..',data_end,'complete=',data_end<=len(data))
+              if data_end>len(data):
+                  print('TRUNCATED_ENTRY',name,'missing=',data_end-len(data))
+                  break
+              raw=data[data_start:data_end]
+              try:
+                  if method==0:
+                      content=raw
+                  elif method==8:
+                      content=zlib.decompress(raw,-15)
+                  else:
+                      raise ValueError(f'unsupported method {method}')
+                  ok=(len(content)==usize and (zlib.crc32(content)&0xffffffff)==crc)
+                  print('RECOVERED',name,'bytes=',len(content),'crc_ok=',ok,'head=',content[:32])
+                  out=pathlib.Path('/tmp/recovered')/name
+                  out.parent.mkdir(parents=True,exist_ok=True)
+                  out.write_bytes(content)
+                  recovered.append(name)
+              except Exception as e:
+                  print('RECOVERY_ERROR',name,type(e).__name__,repr(e))
+              pos=data_end
+              if flag & 0x08:
+                  print('DATA_DESCRIPTOR_FLAG_SET; stopping conservative parser')
+                  break
+          print('recovered=',recovered)
+          pathlib.Path('/tmp/diagnostic.json').write_text(json.dumps({
+              'parts':[p.name for p in parts],
+              'base64_chars':len(b64),
+              'decoded_bytes':len(data),
+              'eocd_offset':data.rfind(b'PK\x05\x06'),
+              'central_offset':data.rfind(b'PK\x01\x02'),
+              'recovered':recovered,
+          },indent=2),encoding='utf-8')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v06-payload-diagnostic
+          path: |
+            /tmp/v06-package-partial.zip
+            /tmp/diagnostic.json
+            /tmp/recovered
+          if-no-files-found: warn
