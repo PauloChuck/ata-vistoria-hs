@@ -22,26 +22,28 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
-          import base64, re, json, hashlib, subprocess
+          import base64, re, json, hashlib
 
           root = Path('fast_track/v06/direct_payload')
           app_names = ['app01.js','app02.js','app03.js','app04.js','app05_01.js','app05_02.js','app06.js']
-          def chunks(names, variable):
+
+          def chunks(names):
               out=[]
               meta=[]
               for name in names:
                   p=root/name
                   text=p.read_text(encoding='utf-8')
-                  m=re.search(r"\+\s*'([A-Za-z0-9+/=]*)'", text)
-                  if not m:
+                  matches=re.findall(r"\+\s*(['\"])([A-Za-z0-9+/=]*)\1", text)
+                  if not matches:
                       raise SystemExit(f'No Base64 chunk found in {p}')
-                  out.append(m.group(1))
-                  meta.append({'name':name,'chars':len(m.group(1))})
+                  file_chunk=''.join(value for _,value in matches)
+                  out.append(file_chunk)
+                  meta.append({'name':name,'segments':len(matches),'chars':len(file_chunk)})
               joined=''.join(out)
               raw=base64.b64decode(joined,validate=True)
               return joined,raw,meta
 
-          app_b64,app_raw,app_meta=chunks(app_names,'__V06_APP_B64')
+          app_b64,app_raw,app_meta=chunks(app_names)
           app_text=app_raw.decode('utf-8')
           Path('fast_track/v06/direct-app.js').write_text(app_text,encoding='utf-8')
           print('APP',len(app_b64),len(app_raw),hashlib.sha256(app_raw).hexdigest())
@@ -49,7 +51,7 @@ jobs:
           print('APP_TAIL',repr(app_text[-500:]))
 
           word_names=sorted(p.name for p in root.glob('word*.js'))
-          word_b64,word_raw,word_meta=chunks(word_names,'__V06_WORD_B64')
+          word_b64,word_raw,word_meta=chunks(word_names)
           word_text=word_raw.decode('utf-8')
           Path('fast_track/v06/direct-word.partial.js').write_text(word_text,encoding='utf-8')
           print('WORD',word_names,len(word_b64),len(word_raw),hashlib.sha256(word_raw).hexdigest())
@@ -72,9 +74,9 @@ jobs:
           node --check fast_track/v06/direct-word.partial.js
           echo WORD_CHECK=$?
           echo '--- relevant app APIs ---'
-          grep -nE 'FastTrackV06|Word|exportWord|data-action|REPORT|ready' fast_track/v06/direct-app.js | tail -n 120 || true
+          grep -nE 'FastTrackV06|Word|exportWord|data-action|REPORT|ready' fast_track/v06/direct-app.js | tail -n 160 || true
           echo '--- relevant word APIs ---'
-          grep -nE 'FastTrackV06|export|Document|Packer|ready' fast_track/v06/direct-word.partial.js | tail -n 120 || true
+          grep -nE 'FastTrackV06|export|Document|Packer|ready' fast_track/v06/direct-word.partial.js | tail -n 160 || true
           exit 0
       - name: Commit decoded sources
         shell: bash
