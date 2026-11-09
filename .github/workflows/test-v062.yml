@@ -57,9 +57,15 @@ jobs:
             const page = await browser.newPage({acceptDownloads:true, viewport:{width:1440,height:1000}});
             const pageErrors = [];
             const consoleErrors = [];
+            const httpErrors = [];
             const alerts = [];
             page.on('pageerror', error => pageErrors.push(String(error)));
-            page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
+            page.on('console', message => {
+              if (message.type() === 'error') consoleErrors.push({text:message.text(),url:message.location()?.url || ''});
+            });
+            page.on('response', response => {
+              if (response.status() >= 400) httpErrors.push({status:response.status(),url:response.url()});
+            });
             page.on('dialog', async dialog => {
               alerts.push(`${dialog.type()}: ${dialog.message()}`);
               await dialog.accept();
@@ -107,11 +113,13 @@ jobs:
             await page.emulateMedia({media:'print'});
             await page.pdf({path:path.join(out,'Relatorio_Fast_Track_V062_teste.pdf'),format:'A4',printBackground:true,preferCSSPageSize:true,margin:{top:'0',right:'0',bottom:'0',left:'0'}});
 
-            const result = {globals,damageCount,previewPages,printPages,pageErrors,consoleErrors,alerts,wordPath};
+            const relevantHttp = httpErrors.filter(x => !/\/favicon\.ico(?:\?|$)/i.test(x.url));
+            const relevantConsole = consoleErrors.filter(x => !/\/favicon\.ico(?:\?|$)/i.test(x.url) && !(!x.url && /status of 404/i.test(x.text) && !relevantHttp.length));
+            const result = {globals,damageCount,previewPages,printPages,pageErrors,consoleErrors,httpErrors,alerts,wordPath};
             fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(result,null,2));
             if (pageErrors.length) throw new Error(`Erros de página: ${pageErrors.join(' | ')}`);
-            const relevantConsole = consoleErrors.filter(x => !/favicon/i.test(x));
-            if (relevantConsole.length) throw new Error(`Erros de console: ${relevantConsole.join(' | ')}`);
+            if (relevantHttp.length) throw new Error(`Recursos HTTP com falha: ${JSON.stringify(relevantHttp)}`);
+            if (relevantConsole.length) throw new Error(`Erros de console: ${JSON.stringify(relevantConsole)}`);
             await browser.close();
           })().catch(error => {
             console.error(error);
