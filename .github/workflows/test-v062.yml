@@ -101,9 +101,10 @@ jobs:
             if (!fs.existsSync(wordPath) || fs.statSync(wordPath).size < 10000) throw new Error(`DOCX inválido ou pequeno: ${wordPath}`);
 
             await page.click('[data-action="export-pdf"]');
-            await page.waitForSelector('#printHost .report-page', {timeout:10000});
+            await page.waitForSelector('#printHost .report-page', {state:'attached', timeout:10000});
             const printPages = await page.locator('#printHost .report-page').count();
             if (printPages !== previewPages) throw new Error(`Prévia (${previewPages}) e impressão (${printPages}) divergentes`);
+            await page.emulateMedia({media:'print'});
             await page.pdf({path:path.join(out,'Relatorio_Fast_Track_V062_teste.pdf'),format:'A4',printBackground:true,preferCSSPageSize:true,margin:{top:'0',right:'0',bottom:'0',left:'0'}});
 
             const result = {globals,damageCount,previewPages,printPages,pageErrors,consoleErrors,alerts,wordPath};
