@@ -114,24 +114,38 @@ const ASSETS = {
 
   function coverContent(state) {
     const f = state.fields || {};
+    const compact = (value, fallback = 'A INFORMAR') => {
+      const normalized = String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+      return normalized || fallback;
+    };
+    const standardRow = (label, value) => `<tr class="meta-standard"><th>${esc(label)}</th><td colspan="2">${esc(compact(value))}</td></tr>`;
+    const shiftedRow = (label, value) => `<tr class="meta-shifted"><th colspan="2">${esc(label)}</th><td>${esc(compact(value))}</td></tr>`;
     return `
-      <div class="doc-title">RELATÓRIO FAST TRACK DE CONTINGÊNCIA</div>
-      <div class="doc-subtitle">RISCOS NOMEADOS EMPRESARIAL</div>
-      <table class="claim-table"><tbody>
-        <tr><td>Sinistro Seguradora:</td><td><strong>${esc(f.insurerClaim || 'A INFORMAR')}</strong></td></tr>
-        <tr><td>Sinistro Horizon Servitas:</td><td><strong>${esc(f.hsClaim || 'A INFORMAR')}</strong></td></tr>
-      </tbody></table>
-      <table class="meta-table"><tbody>
-        <tr><th>COMPANHIA SEGURADORA:</th><td>${esc(f.insurer || 'A INFORMAR')}</td></tr>
-        <tr><th>SEGURADO:</th><td>${esc(f.insured || 'A INFORMAR')}</td></tr>
-        <tr><th>COOPERADO:</th><td>${esc(f.claimantName || 'A INFORMAR')}</td></tr>
-        <tr><th>LOCAL DO SINISTRO:</th><td>${esc(f.riskAddress || 'A INFORMAR')}</td></tr>
-        <tr><th>APÓLICE DE SEGUROS:</th><td>${esc(f.policyNumber || 'A INFORMAR')}</td></tr>
-        <tr><th>PRODUTO:</th><td>${esc(f.productName || 'A INFORMAR')}</td></tr>
-        <tr><th>CORRETOR:</th><td>${esc(f.broker || 'A INFORMAR')}</td></tr>
-        <tr><th>DATA DO SINISTRO:</th><td>${esc(longDate(f.lossDate, true) || 'A INFORMAR')}</td></tr>
-        <tr><th>COBERTURA:</th><td>${esc(f.coverageName || 'A INFORMAR')}</td></tr>
-      </tbody></table>`;
+      <div class="cover-layout">
+        <div class="doc-title">RELATÓRIO DE CONTINGÊNCIA</div>
+        <div class="doc-subtitle">RISCOS NOMEADOS EMPRESARIAL</div>
+        <table class="claim-table">
+          <colgroup><col class="claim-label-col"><col class="claim-value-col"></colgroup>
+          <tbody>
+            <tr><td>Sinistro Seguradora:</td><td>${esc(compact(f.insurerClaim))}</td></tr>
+            <tr><td>Sinistro Horizon Servitas:</td><td>${esc(compact(f.hsClaim))}</td></tr>
+          </tbody>
+        </table>
+        <table class="meta-table">
+          <colgroup><col class="meta-label-col"><col class="meta-shift-col"><col class="meta-value-col"></colgroup>
+          <tbody>
+            ${standardRow('COMPANHIA SEGURADORA:', f.insurer)}
+            ${standardRow('SEGURADO:', f.insured)}
+            ${standardRow('COOPERADO:', f.claimantName)}
+            ${standardRow('LOCAL DO SINISTRO:', f.riskAddress)}
+            ${standardRow('APÓLICE DE SEGUROS:', f.policyNumber)}
+            ${standardRow('PRODUTO:', f.productName)}
+            ${standardRow('CORRETOR:', f.broker)}
+            ${shiftedRow('DATA DO SINISTRO:', longDate(f.lossDate, true))}
+            ${shiftedRow('COBERTURA:', f.coverageName)}
+          </tbody>
+        </table>
+      </div>`;
   }
 
   function technicalStartContent(state) {
