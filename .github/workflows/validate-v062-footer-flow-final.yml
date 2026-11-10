@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
@@ -17,6 +17,9 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Prepare tools
         shell: bash
         run: |
@@ -30,7 +33,8 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y libreoffice-writer poppler-utils
           fi
-      - name: Generate Word from current branch
+
+      - name: Generate and validate current branch
         shell: bash
         run: |
           set -euo pipefail
@@ -40,87 +44,210 @@ jobs:
           PID=$!
           trap 'kill $PID || true' EXIT
           sleep 2
+
           cat > "$OUT/test.js" <<'NODE'
           const { chromium } = require('playwright');
           const fs = require('fs');
           const path = require('path');
+
           (async()=>{
             const out=process.env.OUT;
-            const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH,args:['--no-sandbox']});
+            const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH,args:['--no-sandbox','--disable-dev-shm-usage']});
             const page=await browser.newPage({acceptDownloads:true,viewport:{width:1500,height:1100}});
-            page.on('dialog',d=>d.accept());
+            const pageErrors=[];
+            page.on('pageerror',error=>pageErrors.push(String(error)));
+            page.on('dialog',dialog=>dialog.accept());
+
             await page.goto('http://127.0.0.1:8000/fast_track/v062.html?v=0625-final-ci',{waitUntil:'networkidle',timeout:120000});
+            await page.waitForSelector('.app-shell',{state:'visible'});
             await page.click('[data-action="load-example"]');
             for(const step of [2,3,4,5,6,7]){
               await page.click(`[data-go="${step}"]`);
               await page.waitForSelector(`.screen[data-step="${step}"].active`);
             }
-            const preview=await page.evaluate(()=>({pages:document.querySelectorAll('#reportPreview .report-page').length,footers:[...document.querySelectorAll('#reportPreview .report-page')].map(p=>({mark:p.querySelectorAll('.report-footer-mark').length,address:p.querySelector('.report-footer-address')?.textContent,number:p.querySelector('.report-page-number')?.textContent}))}));
-            if(!preview.footers.every(x=>x.mark===1&&x.address?.startsWith('Matriz - Rua XV')&&/^\d+ de \d+$/.test(x.number||'')))throw new Error(JSON.stringify(preview));
+            await page.waitForSelector('#reportPreview .report-page');
+
+            const preview=await page.evaluate(()=>{
+              const mm=px=>px*25.4/96;
+              const pages=[...document.querySelectorAll('#reportPreview .report-page')];
+              return {
+                pages:pages.length,
+                details:pages.map((page,index)=>{
+                  const content=page.querySelector('.report-content');
+                  const footer=page.querySelector('.report-footer');
+                  const mark=page.querySelector('.report-footer-mark');
+                  const address=page.querySelector('.report-footer-address');
+                  const contact=page.querySelector('.report-footer-contact');
+                  const number=page.querySelector('.report-page-number');
+                  const cr=content.getBoundingClientRect();
+                  const fr=footer.getBoundingClientRect();
+                  const mr=mark.getBoundingClientRect();
+                  const nr=number.getBoundingClientRect();
+                  const addressStyle=getComputedStyle(address);
+                  const numberStyle=getComputedStyle(number);
+                  return {
+                    page:index+1,
+                    overflow:content.scrollHeight-content.clientHeight,
+                    contentBottom:mm(cr.bottom-page.getBoundingClientRect().top),
+                    footerTop:mm(fr.top-page.getBoundingClientRect().top),
+                    markCount:page.querySelectorAll('.report-footer-mark').length,
+                    mark:{width:mm(mr.width),height:mm(mr.height)},
+                    address:address.textContent,
+                    contact:contact.textContent,
+                    number:number.textContent,
+                    addressStyle:{font:addressStyle.fontFamily,size:addressStyle.fontSize,color:addressStyle.color,weight:addressStyle.fontWeight,style:addressStyle.fontStyle},
+                    numberStyle:{font:numberStyle.fontFamily,size:numberStyle.fontSize,color:numberStyle.color,style:numberStyle.fontStyle,right:mm(page.getBoundingClientRect().right-nr.right)}
+                  };
+                })
+              };
+            });
+
+            const near=(a,b,t=.35)=>Math.abs(a-b)<=t;
+            for(const item of preview.details){
+              if(item.overflow>2) throw new Error(`Overflow na página ${item.page}: ${item.overflow}px`);
+              if(item.contentBottom>=item.footerTop) throw new Error(`Conteúdo invadiu o rodapé na página ${item.page}`);
+              if(item.markCount!==1||!near(item.mark.width,22.2)||!near(item.mark.height,16.5)) throw new Error(`Símbolo do rodapé inválido: ${JSON.stringify(item)}`);
+              if(item.address!=='Matriz - Rua XV de novembro 1336, salas 34 e 35 – Blumenau – SC – CEP 89010-903') throw new Error(`Endereço inválido na página ${item.page}`);
+              if(item.contact!=='www.horizonservitas.com +55 47 3326-1844') throw new Error(`Contato inválido na página ${item.page}`);
+              if(!new RegExp(`^${item.page} de ${preview.pages}$`).test(item.number)) throw new Error(`Numeração inválida: ${item.number}`);
+              if(!/Calibri/i.test(item.addressStyle.font)||item.addressStyle.size!=='13.3333px'||item.addressStyle.color!=='rgb(41, 168, 224)'||item.addressStyle.weight!=='400'||item.addressStyle.style!=='normal') throw new Error(`Fonte institucional inválida: ${JSON.stringify(item.addressStyle)}`);
+              if(!/Arial/i.test(item.numberStyle.font)||item.numberStyle.size!=='13.3333px'||item.numberStyle.color!=='rgb(0, 0, 0)'||item.numberStyle.style!=='italic') throw new Error(`Paginação inválida: ${JSON.stringify(item.numberStyle)}`);
+            }
+            if(pageErrors.length) throw new Error(pageErrors.join('\n'));
+
             await page.locator('#reportPreview .report-page').first().screenshot({path:path.join(out,'preview-capa.png')});
             await page.locator('#reportPreview .report-page').last().screenshot({path:path.join(out,'preview-final.png')});
+
+            await page.click('[data-action="export-pdf"]');
+            await page.waitForSelector('#printHost .report-page',{state:'attached'});
+            const printCheck=await page.evaluate(()=>[...document.querySelectorAll('#printHost .report-page')].every((page,index)=>
+              page.querySelectorAll('.report-footer-mark').length===1 &&
+              page.querySelector('.report-footer-address')?.textContent.startsWith('Matriz - Rua XV') &&
+              page.querySelector('.report-page-number')?.textContent===`${index+1} de ${document.querySelectorAll('#printHost .report-page').length}`
+            ));
+            if(!printCheck) throw new Error('Estrutura de impressão não preservou o rodapé institucional.');
+            await page.emulateMedia({media:'print'});
+            await page.pdf({path:path.join(out,'Relatorio_Fast_Track_preview.pdf'),format:'A4',printBackground:true,preferCSSPageSize:true,margin:{top:'0',right:'0',bottom:'0',left:'0'}});
+            await page.emulateMedia({media:'screen'});
+
             const pending=page.waitForEvent('download',{timeout:120000});
             await page.click('[data-action="export-word"]');
             const download=await pending;
             const target=path.join(out,download.suggestedFilename());
             await download.saveAs(target);
-            if(!fs.existsSync(target)||fs.statSync(target).size<15000)throw new Error('DOCX inválido');
+            if(!fs.existsSync(target)||fs.statSync(target).size<15000) throw new Error('DOCX inválido');
             fs.writeFileSync(path.join(out,'preview.json'),JSON.stringify(preview,null,2));
             await browser.close();
-          })().catch(e=>{console.error(e);process.exit(1)});
+          })().catch(error=>{console.error(error);process.exit(1)});
           NODE
+
           OUT="$OUT" NODE_PATH="$PWD/node_modules" node "$OUT/test.js"
+
           DOCX=$(find "$OUT" -maxdepth 1 -name '*.docx' -print -quit)
+          test -n "$DOCX"
           unzip -t "$DOCX"
           mkdir -p "$OUT/docx"
           unzip -q "$DOCX" -d "$OUT/docx"
+
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
+
           root=Path('/tmp/v062-final-validation/docx')
           ns={'w':'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
           body=ET.parse(root/'word/document.xml').getroot().find('.//w:body',ns)
           nodes=list(body)
-          def txt(n): return ' '.join((x.text or '') for x in n.findall('.//w:t',ns))
-          i=next(i for i,n in enumerate(nodes) if n.tag.endswith('}tbl') and 'Descrição' in txt(n) and 'Valor apurado' in txt(n))
-          j=next(i for i,n in enumerate(nodes) if i>i and n.tag.endswith('}tbl') and 'Total reclamado' in txt(n))
-          if j!=i+2 or not nodes[i+1].tag.endswith('}p'): raise SystemExit(f'Separador incorreto: {i}, {j}')
+          def txt(node):
+              return ' '.join((item.text or '') for item in node.findall('.//w:t',ns))
+
+          table_index=next(pos for pos,node in enumerate(nodes) if node.tag.endswith('}tbl') and 'Descrição' in txt(node) and 'Valor apurado' in txt(node))
+          totals_index=next(pos for pos,node in enumerate(nodes) if pos>table_index and node.tag.endswith('}tbl') and 'Total reclamado' in txt(node))
+          if totals_index!=table_index+2 or not nodes[table_index+1].tag.endswith('}p'):
+              raise SystemExit(f'Separação das tabelas incorreta: demonstrativo={table_index}, totais={totals_index}')
+
           for name in ['footer1.xml','footer2.xml']:
               xml=(root/'word'/name).read_text(encoding='utf-8')
-              if 'PAGE' not in xml or 'NUMPAGES' not in xml or 'Calibri' not in xml or '29A8E0' not in xml: raise SystemExit(f'Rodapé inválido: {name}')
+              required=['PAGE','NUMPAGES','Calibri','29A8E0','Arial','Matriz - Rua XV de novembro 1336','www.horizonservitas.com +55 47 3326-1844']
+              missing=[value for value in required if value not in xml]
+              if missing:
+                  raise SystemExit(f'Rodapé inválido em {name}: {missing}')
+
+          document_xml=(root/'word/document.xml').read_text(encoding='utf-8')
+          if document_xml.count('w:tblHeader')<2:
+              raise SystemExit('Cabeçalhos repetidos das tabelas não foram preservados.')
+          if document_xml.count('w:cantSplit')<4:
+              raise SystemExit('Linhas indivisíveis insuficientes nas tabelas/fotografias.')
           PY
+
           mkdir -p "$OUT/render" "$OUT/lo-profile"
           libreoffice -env:UserInstallation="file://$OUT/lo-profile" --headless --convert-to pdf --outdir "$OUT/render" "$DOCX"
           PDF=$(find "$OUT/render" -name '*.pdf' -print -quit)
+          test -s "$PDF"
           pdfinfo "$PDF" > "$OUT/render/pdfinfo.txt"
           pdftotext -layout "$PDF" "$OUT/render/document.txt"
           pdftotext -bbox-layout "$PDF" "$OUT/render/document-bbox.html"
           pdftoppm -png -r 120 "$PDF" "$OUT/render/page" >/dev/null 2>&1
+
           python3 - <<'PY'
           from pathlib import Path
-          import re, xml.etree.ElementTree as ET
+          import re
+          import xml.etree.ElementTree as ET
+
           out=Path('/tmp/v062-final-validation/render')
           pages=int(re.search(r'^Pages:\s+(\d+)',(out/'pdfinfo.txt').read_text(),re.M).group(1))
-          if pages>8: raise SystemExit(f'Páginas excessivas no caso exemplo: {pages}')
           text=(out/'document.txt').read_text(encoding='utf-8',errors='ignore')
-          for i,page in enumerate([p for p in text.split('\f') if p.strip()],1):
-              if 'Matriz - Rua XV de novembro 1336' not in page or f'{i} de {pages}' not in page: raise SystemExit(f'Rodapé/numeração ausente: {i}')
-          root=ET.parse(out/'document-bbox.html').getroot(); ns={'x':'http://www.w3.org/1999/xhtml'}
+          rendered=[page for page in text.split('\f') if page.strip()]
+          if len(rendered)!=pages:
+              raise SystemExit(f'Paginação inconsistente: pdfinfo={pages}, texto={len(rendered)}')
+          for index,page in enumerate(rendered,1):
+              if 'Matriz - Rua XV de novembro 1336' not in page or 'www.horizonservitas.com +55 47 3326-1844' not in page or f'{index} de {pages}' not in page:
+                  raise SystemExit(f'Rodapé/numeração ausente na página {index}')
+
+          root=ET.parse(out/'document-bbox.html').getroot()
+          ns={'x':'http://www.w3.org/1999/xhtml'}
+          checked=0
+          gaps=[]
           widths=[]
           for page in root.findall('.//x:page',ns):
               words=page.findall('.//x:word',ns)
-              values=[(w.text or '').strip() for w in words]
-              if 'Descrição' not in values or 'apurado' not in values: continue
-              left=min(float(w.attrib['xMin']) for w in words if (w.text or '').strip()=='Item')
-              right=max(float(w.attrib['xMax']) for w in words if (w.text or '').strip()=='apurado')
-              widths.append(right-left)
-          if not widths or max(widths)<420: raise SystemExit(f'Demonstrativo estreito: {widths}')
-          (out/'validation.txt').write_text(f'Páginas: {pages}\nLargura do demonstrativo (pt): {widths}\n',encoding='utf-8')
+              footer=[word for word in words if (word.text or '').strip()=='Matriz']
+              if footer:
+                  footer_y=min(float(word.attrib['yMin']) for word in footer)
+                  body=[float(word.attrib['yMax']) for word in words if (word.text or '').strip() and float(word.attrib['yMax'])<footer_y-1]
+                  if body:
+                      gap=footer_y-max(body)
+                      if gap<8:
+                          raise SystemExit(f'Conteúdo próximo ou sobreposto ao rodapé: folga {gap:.2f} pt')
+                      gaps.append(round(gap,2))
+                  checked+=1
+              values=[(word.text or '').strip() for word in words]
+              if 'Descrição' in values and 'apurado' in values:
+                  left=min(float(word.attrib['xMin']) for word in words if (word.text or '').strip()=='Item')
+                  right=max(float(word.attrib['xMax']) for word in words if (word.text or '').strip()=='apurado')
+                  widths.append(round(right-left,2))
+          if checked!=pages:
+              raise SystemExit(f'Rodapés localizados: {checked}/{pages}')
+          if not widths or max(widths)<420:
+              raise SystemExit(f'Demonstrativo estreito: {widths}')
+          (out/'validation.txt').write_text(f'Páginas: {pages}\nFolgas corpo/rodapé (pt): {gaps}\nLargura do demonstrativo (pt): {widths}\n',encoding='utf-8')
+          print((out/'validation.txt').read_text())
           PY
-          cat "$OUT/render/validation.txt"
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: v062-footer-flow-final-validation
           path: /tmp/v062-final-validation
           if-no-files-found: warn
+
+      - name: Remove temporary validation workflow
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/validate-v062-footer-flow-final.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/validate-v062-footer-flow-final.yml
+          git commit -m 'chore(v06): remover workflow temporário de validação'
+          git push origin HEAD:fix/v062-footer-fonts-flow
