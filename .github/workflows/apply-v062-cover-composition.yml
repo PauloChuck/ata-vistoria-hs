@@ -24,175 +24,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          report = Path('fast_track/v06/direct-report.js')
-          text = report.read_text(encoding='utf-8')
-          pattern = re.compile(r"  function coverContent\(state\) \{.*?\n  \}\n\n  function technicalStartContent", re.S)
-          replacement = r'''  function coverContent(state) {
-    const f = state.fields || {};
-    const compact = (value, fallback = 'A INFORMAR') => {
-      const normalized = String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
-      return normalized || fallback;
-    };
-    const standardRow = (label, value) => `<tr class="meta-standard"><th>${esc(label)}</th><td colspan="2">${esc(compact(value))}</td></tr>`;
-    const shiftedRow = (label, value) => `<tr class="meta-shifted"><th colspan="2">${esc(label)}</th><td>${esc(compact(value))}</td></tr>`;
-    return `
-      <div class="cover-layout">
-        <div class="doc-title">RELATÓRIO DE CONTINGÊNCIA</div>
-        <div class="doc-subtitle">RISCOS NOMEADOS EMPRESARIAL</div>
-        <table class="claim-table">
-          <colgroup><col class="claim-label-col"><col class="claim-value-col"></colgroup>
-          <tbody>
-            <tr><td>Sinistro Seguradora:</td><td>${esc(compact(f.insurerClaim))}</td></tr>
-            <tr><td>Sinistro Horizon Servitas:</td><td>${esc(compact(f.hsClaim))}</td></tr>
-          </tbody>
-        </table>
-        <table class="meta-table">
-          <colgroup><col class="meta-label-col"><col class="meta-shift-col"><col class="meta-value-col"></colgroup>
-          <tbody>
-            ${standardRow('COMPANHIA SEGURADORA:', f.insurer)}
-            ${standardRow('SEGURADO:', f.insured)}
-            ${standardRow('COOPERADO:', f.claimantName)}
-            ${standardRow('LOCAL DO SINISTRO:', f.riskAddress)}
-            ${standardRow('APÓLICE DE SEGUROS:', f.policyNumber)}
-            ${standardRow('PRODUTO:', f.productName)}
-            ${standardRow('CORRETOR:', f.broker)}
-            ${shiftedRow('DATA DO SINISTRO:', longDate(f.lossDate, true))}
-            ${shiftedRow('COBERTURA:', f.coverageName)}
-          </tbody>
-        </table>
-      </div>`;
-  }
-
-  function technicalStartContent'''
-          text, count = pattern.subn(replacement, text, count=1)
-          if count != 1:
-              raise SystemExit(f'coverContent não localizado: {count}')
-          report.write_text(text, encoding='utf-8')
-
-          css = Path('fast_track/v06/direct.css')
-          text = css.read_text(encoding='utf-8')
-          old = '''.doc-title{font-family:"Arial Black",Arial,sans-serif;font-size:28pt;line-height:1;margin:8mm 0 1mm;font-weight:900}
-.doc-subtitle{font-family:"Arial Black",Arial,sans-serif;font-size:24pt;line-height:1;color:#29a8e0;margin:0 0 12mm;font-weight:900}
-.claim-table{width:95mm;margin:0 0 9mm auto;border-collapse:collapse;font-size:11pt}
-.claim-table td{border:0;padding:1.2mm 0}
-.claim-table td:first-child{width:52mm}
-.meta-table{width:172.6mm;border-collapse:collapse;table-layout:fixed}
-.meta-table th,.meta-table td{border:0;text-align:left;vertical-align:top;padding:3.2mm 0;font-size:12pt}
-.meta-table th{width:68mm;font-weight:800;padding-right:5mm}'''
-          new = '''.cover-layout{width:172.6mm}
-.report-page.first .doc-title{font-family:"Arial Black",Arial,sans-serif;font-size:26pt;line-height:1;margin:13mm 0 3mm;font-weight:900;white-space:nowrap}
-.report-page.first .doc-subtitle{font-family:"Arial Black",Arial,sans-serif;font-size:24pt;line-height:1;color:#29a8e0;margin:0 0 10mm;font-weight:900;letter-spacing:-.5pt;white-space:nowrap}
-.report-page.first .claim-table{width:88mm;margin:0 0 11mm auto;border-collapse:collapse;table-layout:fixed;font-size:11pt}
-.report-page.first .claim-table .claim-label-col{width:58mm}
-.report-page.first .claim-table .claim-value-col{width:30mm}
-.report-page.first .claim-table td{border:0;padding:1mm 0;line-height:1;vertical-align:middle;white-space:nowrap;text-align:left}
-.report-page.first .meta-table{width:172.6mm;border-collapse:collapse;table-layout:fixed}
-.report-page.first .meta-table .meta-label-col{width:65.1mm}
-.report-page.first .meta-table .meta-shift-col{width:12.4mm}
-.report-page.first .meta-table .meta-value-col{width:95.1mm}
-.report-page.first .meta-table tr{height:11.25mm}
-.report-page.first .meta-table th,.report-page.first .meta-table td{border:0;text-align:left;vertical-align:middle;padding:0;font-size:12pt;line-height:1;word-break:normal;overflow-wrap:normal}
-.report-page.first .meta-table th{font-weight:800;padding-right:0}'''
-          if old not in text:
-              raise SystemExit('Bloco CSS da capa não localizado')
-          css.write_text(text.replace(old, new, 1), encoding='utf-8')
-
-          word = Path('fast_track/v06/direct-word.js')
-          text = word.read_text(encoding='utf-8')
-          text = text.replace('HorizontalPositionAlign,VerticalPositionRelativeFrom,\n      VerticalPositionAlign,TextWrappingType,TableLayoutType',
-                              'HorizontalPositionAlign,VerticalPositionRelativeFrom,\n      VerticalPositionAlign,TextWrappingType,TableLayoutType,HeightRule', 1)
-          pattern = re.compile(r"    // Capa\n.*?\n    // Página técnica inicial", re.S)
-          replacement = r'''    // Capa — estrutura isolada do restante do relatório
-    const COVER_TABLE_WIDTH = 9786;
-    const COVER_COLUMNS = [3691,703,5392];
-    const COVER_ROW_HEIGHT = 650;
-    const compactCoverText = (value, fallback = 'A INFORMAR') => {
-      const normalized = text(value).replace(/\s+/g, ' ').trim();
-      return normalized || fallback;
-    };
-    const coverParagraph = (value,{bold=false,size=24}={}) => new Paragraph({
-      children:[new TextRun({text:compactCoverText(value,''),font:'Arial',size,bold,color:BLACK})],
-      alignment:AlignmentType.LEFT,
-      spacing:{before:0,after:0,line:240},
-      indent:{left:0,right:0},
-      keepLines:true
-    });
-    const coverCell = (value,{width,columnSpan=1,bold=false,size=24,left=0,right=0}={}) => new TableCell({
-      children:[coverParagraph(value,{bold,size})],
-      width:{size:width,type:WidthType.DXA},
-      columnSpan,
-      verticalAlign:VerticalAlign.CENTER,
-      borders:noBorder,
-      margins:{top:0,bottom:0,left,right}
-    });
-    const coverRow = (label,value,{shifted=false}={}) => new TableRow({
-      cantSplit:true,
-      height:{value:COVER_ROW_HEIGHT,rule:HeightRule.ATLEAST},
-      children:shifted
-        ? [coverCell(label,{width:COVER_COLUMNS[0]+COVER_COLUMNS[1],columnSpan:2,bold:true,right:40}),coverCell(compactCoverText(value),{width:COVER_COLUMNS[2],left:0})]
-        : [coverCell(label,{width:COVER_COLUMNS[0],bold:true,right:40}),coverCell(compactCoverText(value),{width:COVER_COLUMNS[1]+COVER_COLUMNS[2],columnSpan:2,left:0})]
-    });
-    const claimCell = (value,width) => new TableCell({
-      children:[new Paragraph({children:[new TextRun({text:compactCoverText(value),font:'Arial',size:22,color:BLACK})],alignment:AlignmentType.LEFT,spacing:{before:0,after:0,line:240},keepLines:true})],
-      width:{size:width,type:WidthType.DXA},
-      verticalAlign:VerticalAlign.CENTER,
-      borders:noBorder,
-      margins:{top:60,bottom:60,left:0,right:0}
-    });
-    const claimTable = new Table({
-      width:{size:4989,type:WidthType.DXA},
-      alignment:AlignmentType.RIGHT,
-      layout:TableLayoutType.FIXED,
-      columnWidths:[3288,1701],
-      borders:noBorder,
-      rows:[
-        new TableRow({cantSplit:true,children:[claimCell('Sinistro Seguradora:',3288),claimCell(f.insurerClaim || 'A INFORMAR',1701)]}),
-        new TableRow({cantSplit:true,children:[claimCell('Sinistro Horizon Servitas:',3288),claimCell(f.hsClaim || 'A INFORMAR',1701)]})
-      ]
-    });
-    const metaTable = new Table({
-      width:{size:COVER_TABLE_WIDTH,type:WidthType.DXA},
-      layout:TableLayoutType.FIXED,
-      columnWidths:COVER_COLUMNS,
-      borders:noBorder,
-      rows:[
-        coverRow('COMPANHIA SEGURADORA:',f.insurer),
-        coverRow('SEGURADO:',f.insured),
-        coverRow('COOPERADO:',f.claimantName),
-        coverRow('LOCAL DO SINISTRO:',f.riskAddress),
-        coverRow('APÓLICE DE SEGUROS:',f.policyNumber),
-        coverRow('PRODUTO:',f.productName),
-        coverRow('CORRETOR:',f.broker),
-        coverRow('DATA DO SINISTRO:',REPORT().longDate(f.lossDate,true),{shifted:true}),
-        coverRow('COBERTURA:',f.coverageName,{shifted:true})
-      ]
-    });
-    children.push(
-      new Paragraph({children:[new TextRun({text:'RELATÓRIO DE CONTINGÊNCIA',font:'Arial Black',size:52,bold:true,color:BLACK})],alignment:AlignmentType.LEFT,spacing:{before:340,after:0,line:240},keepLines:true}),
-      new Paragraph({children:[new TextRun({text:'RISCOS NOMEADOS EMPRESARIAL',font:'Arial Black',size:48,bold:true,color:BLUE,characterSpacing:-10})],alignment:AlignmentType.LEFT,spacing:{before:0,after:420,line:240},keepLines:true}),
-      claimTable,
-      new Paragraph({spacing:{after:180,line:20}}),
-      metaTable,
-      pageBreak()
-    );
-
-    // Página técnica inicial'''
-          text, count = pattern.subn(replacement, text, count=1)
-          if count != 1:
-              raise SystemExit(f'Bloco Word da capa não localizado: {count}')
-          word.write_text(text, encoding='utf-8')
-
-          for path in [Path('fast_track/v062.html'),Path('fast_track/v06.html')]:
-              html = path.read_text(encoding='utf-8')
-              if '?v=0625' not in html:
-                  raise SystemExit(f'Cache-buster 0625 não localizado em {path}')
-              path.write_text(html.replace('?v=0625','?v=0626'),encoding='utf-8')
-          PY
-
+          python3 .github/scripts/patch_v062_cover.py
           node --check fast_track/v06/direct-report.js
           node --check fast_track/v06/direct-word.js
           git diff --check
@@ -221,119 +53,14 @@ jobs:
           PID=$!
           trap 'kill $PID || true' EXIT
           sleep 2
-
-          cat > "$OUT/test.js" <<'NODE'
-          const { chromium } = require('playwright');
-          const fs = require('fs');
-          const path = require('path');
-
-          (async()=>{
-            const out=process.env.OUT;
-            const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH,args:['--no-sandbox','--disable-dev-shm-usage']});
-            const page=await browser.newPage({acceptDownloads:true,viewport:{width:1500,height:1100}});
-            const pageErrors=[];
-            page.on('pageerror',error=>pageErrors.push(String(error)));
-            page.on('dialog',dialog=>dialog.accept());
-            await page.goto('http://127.0.0.1:8000/fast_track/v062.html?v=0626-cover-ci',{waitUntil:'networkidle',timeout:120000});
-            await page.waitForSelector('.app-shell',{state:'visible'});
-            await page.click('[data-action="load-example"]');
-            for(const step of [2,3,4,5,6,7]){
-              await page.click(`[data-go="${step}"]`);
-              await page.waitForSelector(`.screen[data-step="${step}"].active`);
-            }
-            await page.waitForSelector('#reportPreview .report-page.first');
-
-            const cover=await page.evaluate(()=>{
-              const mm=px=>px*25.4/96;
-              const report=document.querySelector('#reportPreview .report-page.first');
-              const pr=report.getBoundingClientRect();
-              const rect=selector=>{const el=report.querySelector(selector);const r=el.getBoundingClientRect();return {top:mm(r.top-pr.top),left:mm(r.left-pr.left),width:mm(r.width),height:mm(r.height),text:el.textContent.trim(),bg:getComputedStyle(el).backgroundColor,font:getComputedStyle(el).fontFamily,size:getComputedStyle(el).fontSize};};
-              const lines=selector=>{const el=report.querySelector(selector);const range=document.createRange();range.selectNodeContents(el);return [...range.getClientRects()].filter(r=>r.width>.5&&r.height>.5).length;};
-              const claimRows=[...report.querySelectorAll('.claim-table tr')].map(row=>{const r=row.getBoundingClientRect();return {top:mm(r.top-pr.top),height:mm(r.height),texts:[...row.cells].map(c=>c.textContent.trim())};});
-              const metaRows=[...report.querySelectorAll('.meta-table tr')].map(row=>{const r=row.getBoundingClientRect();return {top:mm(r.top-pr.top),height:mm(r.height),cells:[...row.cells].map(c=>{const cr=c.getBoundingClientRect();return {text:c.textContent.trim(),left:mm(cr.left-pr.left),width:mm(cr.width),colSpan:c.colSpan,lines:(()=>{const range=document.createRange();range.selectNodeContents(c);return [...range.getClientRects()].filter(x=>x.width>.5&&x.height>.5).length;})()};})};});
-              return {
-                title:rect('.doc-title'),subtitle:rect('.doc-subtitle'),claim:rect('.claim-table'),meta:rect('.meta-table'),
-                titleLines:lines('.doc-title'),subtitleLines:lines('.doc-subtitle'),claimRows,metaRows,
-                contentOverflow:report.querySelector('.report-content').scrollHeight-report.querySelector('.report-content').clientHeight,
-                secondPage:{bodyFont:getComputedStyle(document.querySelectorAll('#reportPreview .report-page')[1].querySelector('.doc-text')).fontSize,headingFont:getComputedStyle(document.querySelectorAll('#reportPreview .report-page')[1].querySelector('.doc-section')).fontSize}
-              };
-            });
-            const near=(a,b,t)=>Math.abs(a-b)<=t;
-            if(cover.title.text!=='RELATÓRIO DE CONTINGÊNCIA'||cover.titleLines!==1) throw new Error(`Título inválido: ${JSON.stringify(cover.title)} linhas=${cover.titleLines}`);
-            if(cover.subtitle.text!=='RISCOS NOMEADOS EMPRESARIAL'||cover.subtitleLines!==1) throw new Error(`Subtítulo inválido: ${JSON.stringify(cover.subtitle)} linhas=${cover.subtitleLines}`);
-            if(!near(cover.title.top,49.2,4)||!near(cover.subtitle.top,62.6,4)) throw new Error(`Posição dos títulos: ${JSON.stringify({title:cover.title.top,subtitle:cover.subtitle.top})}`);
-            if(!near(cover.claimRows[0].top,82.7,5)||!near(cover.claimRows[1].top,88.7,5)) throw new Error(`Posição dos sinistros: ${JSON.stringify(cover.claimRows)}`);
-            if(!near(cover.meta.width,172.6,.6)) throw new Error(`Largura cadastral: ${cover.meta.width}`);
-            if(!near(cover.metaRows[0].cells[0].width,65.1,.7)||!near(cover.metaRows[0].cells[1].width,107.5,.8)) throw new Error(`Colunas usuais: ${JSON.stringify(cover.metaRows[0])}`);
-            if(cover.metaRows[7].cells[0].colSpan!==2||!near(cover.metaRows[7].cells[0].width,77.5,.8)||!near(cover.metaRows[7].cells[1].width,95.1,.8)) throw new Error(`Colunas deslocadas: ${JSON.stringify(cover.metaRows[7])}`);
-            if(!near(cover.metaRows[0].top,107.8,5)||cover.metaRows.at(-1).top<195||cover.metaRows.at(-1).top>212) throw new Error(`Distribuição vertical: ${JSON.stringify({first:cover.metaRows[0],last:cover.metaRows.at(-1)})}`);
-            if(cover.metaRows[1].cells[1].lines!==1) throw new Error(`Segurado quebrou linha: ${JSON.stringify(cover.metaRows[1])}`);
-            if(cover.title.bg!=='rgba(0, 0, 0, 0)'||cover.meta.bg!=='rgba(0, 0, 0, 0)') throw new Error(`Preenchimento indevido: ${cover.title.bg} / ${cover.meta.bg}`);
-            if(cover.contentOverflow>2) throw new Error(`Overflow na capa: ${cover.contentOverflow}px`);
-            if(cover.secondPage.bodyFont!=='14.6667px'||cover.secondPage.headingFont!=='18.6667px') throw new Error(`Página interna alterada: ${JSON.stringify(cover.secondPage)}`);
-            if(pageErrors.length) throw new Error(pageErrors.join('\n'));
-
-            await page.locator('#reportPreview .report-page.first').screenshot({path:path.join(out,'preview-capa.png')});
-            await page.locator('#reportPreview .report-page').nth(1).screenshot({path:path.join(out,'preview-pagina-2.png')});
-
-            await page.click('[data-action="export-pdf"]');
-            await page.waitForSelector('#printHost .report-page',{state:'attached'});
-            await page.emulateMedia({media:'print'});
-            await page.pdf({path:path.join(out,'preview.pdf'),format:'A4',printBackground:true,preferCSSPageSize:true,margin:{top:'0',right:'0',bottom:'0',left:'0'}});
-            await page.emulateMedia({media:'screen'});
-
-            const pending=page.waitForEvent('download',{timeout:120000});
-            await page.click('[data-action="export-word"]');
-            const download=await pending;
-            const target=path.join(out,download.suggestedFilename());
-            await download.saveAs(target);
-            if(!fs.existsSync(target)||fs.statSync(target).size<15000) throw new Error('DOCX inválido');
-            fs.writeFileSync(path.join(out,'preview.json'),JSON.stringify(cover,null,2));
-            await browser.close();
-          })().catch(error=>{console.error(error);process.exit(1)});
-          NODE
-          OUT="$OUT" NODE_PATH="$PWD/node_modules" node "$OUT/test.js"
+          OUT="$OUT" NODE_PATH="$PWD/node_modules" node .github/scripts/test_v062_cover.js
 
           DOCX=$(find "$OUT" -maxdepth 1 -name '*.docx' -print -quit)
           test -n "$DOCX"
           unzip -t "$DOCX"
           mkdir -p "$OUT/docx"
           unzip -q "$DOCX" -d "$OUT/docx"
-
-          python3 - <<'PY'
-          from pathlib import Path
-          import xml.etree.ElementTree as ET
-
-          root=Path('/tmp/v062-cover-composition/docx')
-          ns={'w':'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
-          body=ET.parse(root/'word/document.xml').getroot().find('.//w:body',ns)
-          nodes=list(body)
-          def txt(node): return ' '.join((t.text or '') for t in node.findall('.//w:t',ns))
-          title_index=next(i for i,n in enumerate(nodes) if n.tag.endswith('}p') and 'RELATÓRIO DE CONTINGÊNCIA' in txt(n))
-          if 'FAST TRACK' in txt(nodes[title_index]): raise SystemExit('Título da capa manteve FAST TRACK')
-          subtitle=nodes[title_index+1]
-          claim=nodes[title_index+2]
-          meta=nodes[title_index+4]
-          if not claim.tag.endswith('}tbl') or not meta.tag.endswith('}tbl'): raise SystemExit('Ordem estrutural da capa inválida')
-          grid=[int(col.attrib[f'{{{ns["w"]}}}w']) for col in meta.findall('./w:tblGrid/w:gridCol',ns)]
-          if grid!=[3691,703,5392]: raise SystemExit(f'Grade cadastral inválida: {grid}')
-          rows=meta.findall('./w:tr',ns)
-          if len(rows)!=9: raise SystemExit(f'Quantidade de linhas cadastrais: {len(rows)}')
-          for i,row in enumerate(rows):
-              h=row.find('./w:trPr/w:trHeight',ns)
-              if h is None or h.attrib.get(f'{{{ns["w"]}}}val')!='650' or h.attrib.get(f'{{{ns["w"]}}}hRule')!='atLeast':
-                  raise SystemExit(f'Altura mínima inválida na linha {i+1}')
-          spans=[]
-          for row in rows:
-              spans.append([int(cell.find('./w:tcPr/w:gridSpan',ns).attrib[f'{{{ns["w"]}}}val']) if cell.find('./w:tcPr/w:gridSpan',ns) is not None else 1 for cell in row.findall('./w:tc',ns)])
-          if spans[0]!=[1,2] or spans[7]!=[2,1] or spans[8]!=[2,1]: raise SystemExit(f'Mesclagens inválidas: {spans}')
-          if meta.findall('.//w:shd',ns): raise SystemExit('Preenchimento colorido indevido na tabela cadastral')
-          title_size=nodes[title_index].find('.//w:sz',ns).attrib[f'{{{ns["w"]}}}val']
-          subtitle_size=subtitle.find('.//w:sz',ns).attrib[f'{{{ns["w"]}}}val']
-          if title_size!='52' or subtitle_size!='48': raise SystemExit(f'Fontes da capa inválidas: {title_size}/{subtitle_size}')
-          spacing=subtitle.find('.//w:rPr/w:spacing',ns)
-          if spacing is None or spacing.attrib.get(f'{{{ns["w"]}}}val')!='-10': raise SystemExit('Condensação de 0,5 pt ausente no subtítulo')
-          PY
+          python3 .github/scripts/validate_v062_cover.py xml
 
           mkdir -p "$OUT/render" "$OUT/lo-profile"
           libreoffice -env:UserInstallation="file://$OUT/lo-profile" --headless --convert-to pdf --outdir "$OUT/render" "$DOCX"
@@ -343,44 +70,7 @@ jobs:
           pdftotext -bbox-layout "$PDF" "$OUT/render/bbox.html"
           pdftotext -layout "$PDF" "$OUT/render/text.txt"
           pdftoppm -png -r 120 "$PDF" "$OUT/render/page" >/dev/null 2>&1
-
-          python3 - <<'PY'
-          from pathlib import Path
-          import xml.etree.ElementTree as ET
-          import re
-
-          out=Path('/tmp/v062-cover-composition/render')
-          root=ET.parse(out/'bbox.html').getroot(); ns={'x':'http://www.w3.org/1999/xhtml'}
-          page=root.find('.//x:page',ns)
-          words=page.findall('.//x:word',ns)
-          def matches(value): return [w for w in words if (w.text or '').strip()==value]
-          def y(value,index=0): return float(matches(value)[index].attrib['yMin'])
-          title_y=y('RELATÓRIO')
-          cont_y=y('CONTINGÊNCIA')
-          subtitle_y=y('RISCOS')
-          empresarial_y=y('EMPRESARIAL')
-          sinistros=matches('Sinistro')
-          claim_y=[float(w.attrib['yMin']) for w in sinistros[:2]]
-          meta_y=y('COMPANHIA')
-          coverage_y=y('COBERTURA:')
-          if abs(title_y-cont_y)>1.2: raise SystemExit(f'Título quebrou: {title_y}/{cont_y}')
-          if abs(subtitle_y-empresarial_y)>1.2: raise SystemExit(f'Subtítulo quebrou: {subtitle_y}/{empresarial_y}')
-          if not 131<=title_y<=148: raise SystemExit(f'Título fora da posição: {title_y}')
-          if not 169<=subtitle_y<=187: raise SystemExit(f'Subtítulo fora da posição: {subtitle_y}')
-          if len(claim_y)<2 or not 224<=claim_y[0]<=246 or not 243<=claim_y[1]<=265: raise SystemExit(f'Sinistros fora da posição: {claim_y}')
-          if not 296<=meta_y<=316: raise SystemExit(f'Primeiro registro fora da posição: {meta_y}')
-          if not 545<=coverage_y<=590: raise SystemExit(f'Último registro fora da posição: {coverage_y}')
-          coop=matches('COOPERATIVA')[0]; alimentos=matches('ALIMENTOS')[0]
-          if abs(float(coop.attrib['yMin'])-float(alimentos.attrib['yMin']))>1.2: raise SystemExit('Nome do segurado quebrou no Word')
-          pages=int(re.search(r'^Pages:\s+(\d+)',(out/'pdfinfo.txt').read_text(),re.M).group(1))
-          text=(out/'text.txt').read_text(encoding='utf-8',errors='ignore')
-          rendered=[p for p in text.split('\f') if p.strip()]
-          if len(rendered)!=pages: raise SystemExit('Paginação renderizada inconsistente')
-          for i,p in enumerate(rendered,1):
-              if 'Matriz - Rua XV de novembro 1336' not in p or f'{i} de {pages}' not in p: raise SystemExit(f'Rodapé ausente na página {i}')
-          (out/'validation.txt').write_text(f'Páginas: {pages}\nTítulo y: {title_y:.2f} pt\nSubtítulo y: {subtitle_y:.2f} pt\nSinistros y: {claim_y}\nPrimeiro registro y: {meta_y:.2f} pt\nÚltimo registro y: {coverage_y:.2f} pt\n',encoding='utf-8')
-          print((out/'validation.txt').read_text())
-          PY
+          python3 .github/scripts/validate_v062_cover.py render
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -395,8 +85,9 @@ jobs:
         run: |
           set -euo pipefail
           rm -f .github/workflows/apply-v062-cover-composition.yml
+          rm -f .github/scripts/patch_v062_cover.py .github/scripts/test_v062_cover.js .github/scripts/validate_v062_cover.py
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add fast_track/v06/direct-report.js fast_track/v06/direct-word.js fast_track/v06/direct.css fast_track/v062.html fast_track/v06.html .github/workflows/apply-v062-cover-composition.yml
+          git add fast_track/v06/direct-report.js fast_track/v06/direct-word.js fast_track/v06/direct.css fast_track/v062.html fast_track/v06.html .github/workflows/apply-v062-cover-composition.yml .github/scripts
           git commit -m 'fix(v06): corrigir composição isolada da capa'
           git push origin HEAD:fix/v062-cover-composition
