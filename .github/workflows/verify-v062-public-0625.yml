@@ -1,0 +1,169 @@
+name: Verify V062 public revision 0625
+
+on:
+  push:
+    branches:
+      - verification/v062-public
+    paths:
+      - .github/workflows/verify-v062-public-0625.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare Chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.56.1
+          CHROME_PATH="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          "$CHROME_PATH" --version
+
+      - name: Validate public preview PDF and Word
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/v062-public-0625
+          mkdir -p "$OUT"
+          cat > "$OUT/test.js" <<'NODE'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+          const path = require('path');
+
+          const near=(value,expected,tolerance=.08)=>Math.abs(parseFloat(value)-expected)<=tolerance;
+
+          (async()=>{
+            const out='/tmp/v062-public-0625';
+            const url='https://paulochuck.github.io/ata-vistoria-hs/fast_track/v062.html?v=0625-public-final';
+            const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH,args:['--no-sandbox','--disable-dev-shm-usage']});
+            const page=await browser.newPage({acceptDownloads:true,viewport:{width:1500,height:1100}});
+            const pageErrors=[]; const httpErrors=[];
+            page.on('pageerror',error=>pageErrors.push(String(error)));
+            page.on('response',response=>{if(response.status()>=400&&!/favicon\.ico/i.test(response.url()))httpErrors.push({status:response.status(),url:response.url()});});
+            page.on('dialog',dialog=>dialog.accept());
+
+            await page.goto(url,{waitUntil:'networkidle',timeout:120000});
+            await page.waitForSelector('.app-shell',{state:'visible',timeout:30000});
+            const init=await page.evaluate(()=>({
+              report:Boolean(window.FastTrackV06Report),word:Boolean(window.FastTrackV06Word),docx:Boolean(window.docx),branding:Boolean(window.FastTrackV06BrandAssets),
+              screens:document.querySelectorAll('.screen').length,steps:document.querySelectorAll('#progress span').length
+            }));
+            if(!init.report||!init.word||!init.docx||!init.branding||init.screens!==7||init.steps!==7) throw new Error(`Inicialização incompleta: ${JSON.stringify(init)}`);
+
+            await page.click('[data-action="load-example"]');
+            for(const step of [2,3,4,5,6,7]){
+              await page.click(`[data-go="${step}"]`);
+              await page.waitForSelector(`.screen[data-step="${step}"].active`);
+            }
+            await page.waitForSelector('#reportPreview .report-page');
+
+            const result=await page.evaluate(()=>{
+              const mm=px=>px*25.4/96;
+              const pages=[...document.querySelectorAll('#reportPreview .report-page')];
+              const style=(element)=>{const s=getComputedStyle(element);return {font:s.fontFamily,size:parseFloat(s.fontSize),color:s.color,weight:s.fontWeight,style:s.fontStyle,textAlign:s.textAlign}};
+              const first=pages[0];
+              const body=pages.find(p=>p.querySelector('.doc-section'));
+              return {
+                count:pages.length,
+                fonts:{
+                  title:style(first.querySelector('.doc-title')),
+                  subtitle:style(first.querySelector('.doc-subtitle')),
+                  meta:style(first.querySelector('.meta-table td')),
+                  claim:style(first.querySelector('.claim-table td')),
+                  body:style(body.querySelector('.doc-text')),
+                  heading:style(body.querySelector('.doc-section')),
+                  subheading:style(body.querySelector('.doc-subsection'))
+                },
+                pages:pages.map((p,index)=>{
+                  const pr=p.getBoundingClientRect(); const content=p.querySelector('.report-content'); const footer=p.querySelector('.report-footer');
+                  const mark=p.querySelector('.report-footer-mark'); const address=p.querySelector('.report-footer-address'); const contact=p.querySelector('.report-footer-contact'); const number=p.querySelector('.report-page-number');
+                  const cr=content.getBoundingClientRect(); const fr=footer.getBoundingClientRect(); const mr=mark.getBoundingClientRect();
+                  return {
+                    index:index+1, overflow:content.scrollHeight-content.clientHeight, contentBottom:mm(cr.bottom-pr.top), footerTop:mm(fr.top-pr.top),
+                    markCount:p.querySelectorAll('.report-footer-mark').length, markWidth:mm(mr.width), markHeight:mm(mr.height),
+                    address:address.textContent,contact:contact.textContent,number:number.textContent,addressStyle:style(address),numberStyle:style(number)
+                  };
+                })
+              };
+            });
+
+            if(result.count<2) throw new Error('Relatório multipágina não foi gerado');
+            const expectedPx=pt=>pt*96/72;
+            const f=result.fonts;
+            if(!/Arial Black/i.test(f.title.font)||!near(f.title.size,expectedPx(28))) throw new Error(`Título: ${JSON.stringify(f.title)}`);
+            if(!/Arial Black/i.test(f.subtitle.font)||!near(f.subtitle.size,expectedPx(24))) throw new Error(`Subtítulo: ${JSON.stringify(f.subtitle)}`);
+            if(!/Arial/i.test(f.meta.font)||!near(f.meta.size,expectedPx(12))) throw new Error(`Dados da capa: ${JSON.stringify(f.meta)}`);
+            if(!/Arial/i.test(f.claim.font)||!near(f.claim.size,expectedPx(11))) throw new Error(`Sinistros: ${JSON.stringify(f.claim)}`);
+            if(!/Arial/i.test(f.body.font)||!near(f.body.size,expectedPx(11))||f.body.textAlign!=='justify') throw new Error(`Corpo: ${JSON.stringify(f.body)}`);
+            if(!/Arial Black/i.test(f.heading.font)||!near(f.heading.size,expectedPx(14))) throw new Error(`Título principal: ${JSON.stringify(f.heading)}`);
+            if(!/Arial/i.test(f.subheading.font)||!near(f.subheading.size,expectedPx(12))) throw new Error(`Subtítulo de seção: ${JSON.stringify(f.subheading)}`);
+
+            for(const item of result.pages){
+              if(item.overflow>2||item.contentBottom>=item.footerTop) throw new Error(`Sobreposição/overflow na página ${item.index}: ${JSON.stringify(item)}`);
+              if(item.markCount!==1||Math.abs(item.markWidth-22.2)>.4||Math.abs(item.markHeight-16.5)>.4) throw new Error(`Símbolo na página ${item.index}: ${JSON.stringify(item)}`);
+              if(item.address!=='Matriz - Rua XV de novembro 1336, salas 34 e 35 – Blumenau – SC – CEP 89010-903') throw new Error(`Endereço na página ${item.index}`);
+              if(item.contact!=='www.horizonservitas.com +55 47 3326-1844') throw new Error(`Contato na página ${item.index}`);
+              if(item.number!==`${item.index} de ${result.count}`) throw new Error(`Numeração na página ${item.index}: ${item.number}`);
+              if(!/Calibri/i.test(item.addressStyle.font)||!near(item.addressStyle.size,expectedPx(10))||item.addressStyle.color!=='rgb(41, 168, 224)'||item.addressStyle.style!=='normal') throw new Error(`Fonte do rodapé: ${JSON.stringify(item.addressStyle)}`);
+              if(!/Arial/i.test(item.numberStyle.font)||!near(item.numberStyle.size,expectedPx(10))||item.numberStyle.color!=='rgb(0, 0, 0)'||item.numberStyle.style!=='italic') throw new Error(`Fonte da paginação: ${JSON.stringify(item.numberStyle)}`);
+            }
+
+            await page.locator('#reportPreview .report-page').first().screenshot({path:path.join(out,'capa.png')});
+            await page.locator('#reportPreview .report-page').last().screenshot({path:path.join(out,'ultima.png')});
+
+            await page.click('[data-action="export-pdf"]');
+            await page.waitForSelector('#printHost .report-page',{state:'attached'});
+            const printOk=await page.evaluate(()=>{
+              const pages=[...document.querySelectorAll('#printHost .report-page')];
+              return pages.every((p,index)=>p.querySelectorAll('.report-footer-mark').length===1&&p.querySelector('.report-page-number')?.textContent===`${index+1} de ${pages.length}`);
+            });
+            if(!printOk) throw new Error('Estrutura PDF inconsistente');
+            await page.emulateMedia({media:'print'});
+            await page.pdf({path:path.join(out,'relatorio-publico.pdf'),format:'A4',printBackground:true,preferCSSPageSize:true,margin:{top:'0',right:'0',bottom:'0',left:'0'}});
+            await page.emulateMedia({media:'screen'});
+
+            const pending=page.waitForEvent('download',{timeout:120000});
+            await page.click('[data-action="export-word"]');
+            const download=await pending;
+            const wordPath=path.join(out,download.suggestedFilename());
+            await download.saveAs(wordPath);
+            if(!fs.existsSync(wordPath)||fs.statSync(wordPath).size<15000) throw new Error('DOCX público inválido');
+            if(pageErrors.length||httpErrors.length) throw new Error(JSON.stringify({pageErrors,httpErrors}));
+            fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({url,init,result,wordPath,wordBytes:fs.statSync(wordPath).size},null,2));
+            await browser.close();
+          })().catch(error=>{console.error(error);process.exit(1)});
+          NODE
+          NODE_PATH="$PWD/node_modules" node "$OUT/test.js"
+
+          DOCX=$(find "$OUT" -maxdepth 1 -name '*.docx' -print -quit)
+          unzip -t "$DOCX"
+          mkdir -p "$OUT/docx"
+          unzip -q "$DOCX" -d "$OUT/docx"
+          for footer in "$OUT/docx/word/footer1.xml" "$OUT/docx/word/footer2.xml"; do
+            grep -q 'Matriz - Rua XV de novembro 1336' "$footer"
+            grep -q 'www.horizonservitas.com +55 47 3326-1844' "$footer"
+            grep -q 'PAGE' "$footer"
+            grep -q 'NUMPAGES' "$footer"
+            grep -q 'Calibri' "$footer"
+            grep -q '29A8E0' "$footer"
+            grep -q 'Arial' "$footer"
+          done
+          grep -q 'w:tblHeader' "$OUT/docx/word/document.xml"
+          grep -q 'w:cantSplit' "$OUT/docx/word/document.xml"
+          cat "$OUT/result.json"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fast-track-v062-public-0625
+          path: /tmp/v062-public-0625
+          if-no-files-found: warn
