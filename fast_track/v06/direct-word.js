@@ -90,23 +90,36 @@
       return new TableCell({children,width:width ? {size:width,type:WidthType.PERCENTAGE}:undefined,verticalAlign:vertical,borders:border,shading:shading ? {type:ShadingType.CLEAR,fill:shading}:undefined,margins:{top:60,bottom:60,left:80,right:80}});
     }
 
-    const logoRun = new ImageRun({data:logo.data,transformation:{width:314,height:120},type:'png'});
-    let watermarkRun;
-    try {
-      watermarkRun = new ImageRun({
-        data:watermark.data,type:'png',transformation:{width:604,height:450},
-        floating:{
-          horizontalPosition:{relative:HorizontalPositionRelativeFrom?.MARGIN || 'margin',align:HorizontalPositionAlign?.CENTER || 'center'},
-          verticalPosition:{relative:VerticalPositionRelativeFrom?.MARGIN || 'margin',align:VerticalPositionAlign?.CENTER || 'center'},
-          behindDocument:true,
-          wrap:{type:TextWrappingType?.NONE || 'none'}
-        }
-      });
-    } catch {
-      watermarkRun = new ImageRun({data:watermark.data,type:'png',transformation:{width:604,height:450}});
-    }
-    const header = new Header({children:[new Paragraph({children:[logoRun],alignment:AlignmentType.RIGHT,spacing:{after:0}}),new Paragraph({children:[watermarkRun],spacing:{after:0}})]});
-    const firstHeader = new Header({children:[new Paragraph({children:[new ImageRun({data:logo.data,type:'png',transformation:{width:314,height:151}})],alignment:AlignmentType.RIGHT,spacing:{after:0}}),new Paragraph({children:[watermarkRun],spacing:{after:0}})]});
+    const CM_TO_PX = 96 / 2.54;
+    const LOGO_WIDTH_PX = 6.85 * CM_TO_PX;
+    const LOGO_HEIGHT_PX = 3.30 * CM_TO_PX;
+    const WATERMARK_WIDTH_PX = 16.00 * CM_TO_PX;
+    const WATERMARK_HEIGHT_PX = 11.925 * CM_TO_PX;
+
+    const createLogoRun = () => new ImageRun({
+      data:logo.data,
+      type:'png',
+      transformation:{width:LOGO_WIDTH_PX,height:LOGO_HEIGHT_PX}
+    });
+
+    const createWatermarkRun = () => new ImageRun({
+      data:watermark.data,
+      type:'png',
+      transformation:{width:WATERMARK_WIDTH_PX,height:WATERMARK_HEIGHT_PX},
+      floating:{
+        horizontalPosition:{relative:HorizontalPositionRelativeFrom?.MARGIN || 'margin',align:HorizontalPositionAlign?.CENTER || 'center'},
+        verticalPosition:{relative:VerticalPositionRelativeFrom?.MARGIN || 'margin',align:VerticalPositionAlign?.CENTER || 'center'},
+        behindDocument:true,
+        wrap:{type:TextWrappingType?.NONE || 'none'}
+      }
+    });
+
+    const createInstitutionalHeader = () => new Header({children:[
+      new Paragraph({children:[createLogoRun()],alignment:AlignmentType.RIGHT,spacing:{after:0}}),
+      new Paragraph({children:[createWatermarkRun()],spacing:{after:0}})
+    ]});
+    const header = createInstitutionalHeader();
+    const firstHeader = createInstitutionalHeader();
 
     const footerTable = new Table({
       width:{size:100,type:WidthType.PERCENTAGE},borders:noBorder,
