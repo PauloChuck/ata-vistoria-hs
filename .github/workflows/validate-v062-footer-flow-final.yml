@@ -1,0 +1,126 @@
+name: Validate V062 footer flow final
+
+on:
+  push:
+    branches:
+      - fix/v062-footer-fonts-flow
+    paths:
+      - .github/workflows/validate-v062-footer-flow-final.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.56.1
+          CHROME_PATH="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          if ! command -v libreoffice >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y libreoffice-writer poppler-utils
+          fi
+      - name: Generate Word from current branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/v062-final-validation
+          mkdir -p "$OUT"
+          python3 -m http.server 8000 --bind 127.0.0.1 >"$OUT/http.log" 2>&1 &
+          PID=$!
+          trap 'kill $PID || true' EXIT
+          sleep 2
+          cat > "$OUT/test.js" <<'NODE'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+          const path = require('path');
+          (async()=>{
+            const out=process.env.OUT;
+            const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH,args:['--no-sandbox']});
+            const page=await browser.newPage({acceptDownloads:true,viewport:{width:1500,height:1100}});
+            page.on('dialog',d=>d.accept());
+            await page.goto('http://127.0.0.1:8000/fast_track/v062.html?v=0625-final-ci',{waitUntil:'networkidle',timeout:120000});
+            await page.click('[data-action="load-example"]');
+            for(const step of [2,3,4,5,6,7]){
+              await page.click(`[data-go="${step}"]`);
+              await page.waitForSelector(`.screen[data-step="${step}"].active`);
+            }
+            const preview=await page.evaluate(()=>({pages:document.querySelectorAll('#reportPreview .report-page').length,footers:[...document.querySelectorAll('#reportPreview .report-page')].map(p=>({mark:p.querySelectorAll('.report-footer-mark').length,address:p.querySelector('.report-footer-address')?.textContent,number:p.querySelector('.report-page-number')?.textContent}))}));
+            if(!preview.footers.every(x=>x.mark===1&&x.address?.startsWith('Matriz - Rua XV')&&/^\d+ de \d+$/.test(x.number||'')))throw new Error(JSON.stringify(preview));
+            await page.locator('#reportPreview .report-page').first().screenshot({path:path.join(out,'preview-capa.png')});
+            await page.locator('#reportPreview .report-page').last().screenshot({path:path.join(out,'preview-final.png')});
+            const pending=page.waitForEvent('download',{timeout:120000});
+            await page.click('[data-action="export-word"]');
+            const download=await pending;
+            const target=path.join(out,download.suggestedFilename());
+            await download.saveAs(target);
+            if(!fs.existsSync(target)||fs.statSync(target).size<15000)throw new Error('DOCX inválido');
+            fs.writeFileSync(path.join(out,'preview.json'),JSON.stringify(preview,null,2));
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+          OUT="$OUT" NODE_PATH="$PWD/node_modules" node "$OUT/test.js"
+          DOCX=$(find "$OUT" -maxdepth 1 -name '*.docx' -print -quit)
+          unzip -t "$DOCX"
+          mkdir -p "$OUT/docx"
+          unzip -q "$DOCX" -d "$OUT/docx"
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          root=Path('/tmp/v062-final-validation/docx')
+          ns={'w':'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+          body=ET.parse(root/'word/document.xml').getroot().find('.//w:body',ns)
+          nodes=list(body)
+          def txt(n): return ' '.join((x.text or '') for x in n.findall('.//w:t',ns))
+          i=next(i for i,n in enumerate(nodes) if n.tag.endswith('}tbl') and 'Descrição' in txt(n) and 'Valor apurado' in txt(n))
+          j=next(i for i,n in enumerate(nodes) if i>i and n.tag.endswith('}tbl') and 'Total reclamado' in txt(n))
+          if j!=i+2 or not nodes[i+1].tag.endswith('}p'): raise SystemExit(f'Separador incorreto: {i}, {j}')
+          for name in ['footer1.xml','footer2.xml']:
+              xml=(root/'word'/name).read_text(encoding='utf-8')
+              if 'PAGE' not in xml or 'NUMPAGES' not in xml or 'Calibri' not in xml or '29A8E0' not in xml: raise SystemExit(f'Rodapé inválido: {name}')
+          PY
+          mkdir -p "$OUT/render" "$OUT/lo-profile"
+          libreoffice -env:UserInstallation="file://$OUT/lo-profile" --headless --convert-to pdf --outdir "$OUT/render" "$DOCX"
+          PDF=$(find "$OUT/render" -name '*.pdf' -print -quit)
+          pdfinfo "$PDF" > "$OUT/render/pdfinfo.txt"
+          pdftotext -layout "$PDF" "$OUT/render/document.txt"
+          pdftotext -bbox-layout "$PDF" "$OUT/render/document-bbox.html"
+          pdftoppm -png -r 120 "$PDF" "$OUT/render/page" >/dev/null 2>&1
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, xml.etree.ElementTree as ET
+          out=Path('/tmp/v062-final-validation/render')
+          pages=int(re.search(r'^Pages:\s+(\d+)',(out/'pdfinfo.txt').read_text(),re.M).group(1))
+          if pages>8: raise SystemExit(f'Páginas excessivas no caso exemplo: {pages}')
+          text=(out/'document.txt').read_text(encoding='utf-8',errors='ignore')
+          for i,page in enumerate([p for p in text.split('\f') if p.strip()],1):
+              if 'Matriz - Rua XV de novembro 1336' not in page or f'{i} de {pages}' not in page: raise SystemExit(f'Rodapé/numeração ausente: {i}')
+          root=ET.parse(out/'document-bbox.html').getroot(); ns={'x':'http://www.w3.org/1999/xhtml'}
+          widths=[]
+          for page in root.findall('.//x:page',ns):
+              words=page.findall('.//x:word',ns)
+              values=[(w.text or '').strip() for w in words]
+              if 'Descrição' not in values or 'apurado' not in values: continue
+              left=min(float(w.attrib['xMin']) for w in words if (w.text or '').strip()=='Item')
+              right=max(float(w.attrib['xMax']) for w in words if (w.text or '').strip()=='apurado')
+              widths.append(right-left)
+          if not widths or max(widths)<420: raise SystemExit(f'Demonstrativo estreito: {widths}')
+          (out/'validation.txt').write_text(f'Páginas: {pages}\nLargura do demonstrativo (pt): {widths}\n',encoding='utf-8')
+          PY
+          cat "$OUT/render/validation.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v062-footer-flow-final-validation
+          path: /tmp/v062-final-validation
+          if-no-files-found: warn
