@@ -1,4 +1,4 @@
-name: Verify V062 public institutional branding
+name: Verify V062 public footer fonts and flow
 
 on:
   push:
@@ -29,25 +29,35 @@ jobs:
           echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
           "$CHROME_PATH" --version
 
-      - name: Test published watermark in preview, PDF and Word
+      - name: Test published preview, PDF and Word
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/v062-public-branding
-          cat > /tmp/v062-public-branding/test.js <<'NODE'
+          OUT=/tmp/v062-public-footer-flow
+          mkdir -p "$OUT"
+          cat > "$OUT/test.js" <<'NODE'
           const { chromium } = require('playwright');
           const fs = require('fs');
           const path = require('path');
 
           (async()=>{
-            const out='/tmp/v062-public-branding';
-            const url='https://paulochuck.github.io/ata-vistoria-hs/fast_track/v062.html?v=0624-public-ci';
-            const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH,args:['--no-sandbox','--disable-dev-shm-usage']});
+            const out='/tmp/v062-public-footer-flow';
+            const url='https://paulochuck.github.io/ata-vistoria-hs/fast_track/v062.html?v=0625-public-ci';
+            const browser=await chromium.launch({
+              headless:true,
+              executablePath:process.env.CHROME_PATH,
+              args:['--no-sandbox','--disable-dev-shm-usage']
+            });
             const page=await browser.newPage({acceptDownloads:true,viewport:{width:1500,height:1100}});
-            const pageErrors=[]; const httpErrors=[];
+            const pageErrors=[];
+            const httpErrors=[];
             page.on('pageerror',error=>pageErrors.push(String(error)));
-            page.on('response',response=>{if(response.status()>=400&&!/favicon\.ico/i.test(response.url()))httpErrors.push({status:response.status(),url:response.url()});});
-            page.on('dialog',async dialog=>dialog.accept());
+            page.on('response',response=>{
+              if(response.status()>=400 && !/favicon\.ico/i.test(response.url())){
+                httpErrors.push({status:response.status(),url:response.url()});
+              }
+            });
+            page.on('dialog',dialog=>dialog.accept());
 
             await page.goto(url,{waitUntil:'networkidle',timeout:120000});
             await page.waitForSelector('.app-shell',{state:'visible',timeout:30000});
@@ -56,12 +66,12 @@ jobs:
               word:Boolean(window.FastTrackV06Word),
               docx:Boolean(window.docx),
               branding:Boolean(window.FastTrackV06BrandAssets),
-              logoPrefix:window.FastTrackV06BrandAssets?.logo?.slice(0,22),
-              watermarkPrefix:window.FastTrackV06BrandAssets?.watermark?.slice(0,28)
+              screens:document.querySelectorAll('.screen').length,
+              steps:document.querySelectorAll('#progress span').length
             }));
-            if(!init.report||!init.word||!init.docx||!init.branding) throw new Error(`Inicialização incompleta: ${JSON.stringify(init)}`);
-            if(init.logoPrefix!=='data:image/png;base64,') throw new Error(`Logotipo incorreto: ${init.logoPrefix}`);
-            if(!init.watermarkPrefix.startsWith('data:image/svg+xml')) throw new Error(`Marca-d'água incorreta: ${init.watermarkPrefix}`);
+            if(!init.report||!init.word||!init.docx||!init.branding||init.screens!==7||init.steps!==7){
+              throw new Error(`Inicialização pública incompleta: ${JSON.stringify(init)}`);
+            }
 
             await page.click('[data-action="load-example"]');
             for(const step of [2,3,4,5,6,7]){
@@ -70,60 +80,115 @@ jobs:
             }
             await page.waitForSelector('#reportPreview .report-page');
 
-            const pages=await page.evaluate(()=>{
+            const preview=await page.evaluate(()=>{
               const mm=px=>px*25.4/96;
-              return [...document.querySelectorAll('#reportPreview .report-page')].map((p,index)=>{
-                const pr=p.getBoundingClientRect();
-                const wm=p.querySelector('.report-watermark');
-                const logo=p.querySelector('.report-logo');
-                const wr=wm.getBoundingClientRect();
-                const lr=logo.getBoundingClientRect();
-                return {
-                  page:index+1,
-                  watermarkCount:p.querySelectorAll('.report-watermark').length,
-                  logoCount:p.querySelectorAll('.report-logo').length,
-                  watermark:{left:mm(wr.left-pr.left),top:mm(wr.top-pr.top),width:mm(wr.width),height:mm(wr.height),opacity:getComputedStyle(wm).opacity,src:wm.src.slice(0,28)},
-                  logo:{right:mm(pr.right-lr.right),top:mm(lr.top-pr.top),width:mm(lr.width),height:mm(lr.height),src:logo.src.slice(0,22)}
-                };
-              });
+              const pages=[...document.querySelectorAll('#reportPreview .report-page')];
+              const first=pages[0];
+              const bodyPage=pages.find(p=>p.querySelector('.doc-section')) || pages[1];
+              const styleOf=(selector,root=document)=>{
+                const element=root.querySelector(selector);
+                if(!element) return null;
+                const style=getComputedStyle(element);
+                return {font:style.fontFamily,size:style.fontSize,color:style.color,weight:style.fontWeight,style:style.fontStyle,lineHeight:style.lineHeight,textAlign:style.textAlign};
+              };
+              return {
+                pages:pages.length,
+                titleStyle:styleOf('.doc-title',first),
+                subtitleStyle:styleOf('.doc-subtitle',first),
+                metaStyle:styleOf('.meta-table td',first),
+                claimStyle:styleOf('.claim-table td',first),
+                bodyStyle:styleOf('.doc-text',bodyPage),
+                headingStyle:styleOf('.doc-section',bodyPage),
+                subheadingStyle:styleOf('.doc-subsection',bodyPage),
+                details:pages.map((p,index)=>{
+                  const pr=p.getBoundingClientRect();
+                  const content=p.querySelector('.report-content');
+                  const footer=p.querySelector('.report-footer');
+                  const mark=p.querySelector('.report-footer-mark');
+                  const address=p.querySelector('.report-footer-address');
+                  const contact=p.querySelector('.report-footer-contact');
+                  const number=p.querySelector('.report-page-number');
+                  const cr=content.getBoundingClientRect();
+                  const fr=footer.getBoundingClientRect();
+                  const mr=mark.getBoundingClientRect();
+                  const nr=number.getBoundingClientRect();
+                  const as=getComputedStyle(address);
+                  const ns=getComputedStyle(number);
+                  return {
+                    page:index+1,
+                    overflow:content.scrollHeight-content.clientHeight,
+                    contentBottom:mm(cr.bottom-pr.top),
+                    footerTop:mm(fr.top-pr.top),
+                    markCount:p.querySelectorAll('.report-footer-mark').length,
+                    mark:{width:mm(mr.width),height:mm(mr.height)},
+                    address:address.textContent,
+                    contact:contact.textContent,
+                    number:number.textContent,
+                    addressStyle:{font:as.fontFamily,size:as.fontSize,color:as.color,weight:as.fontWeight,style:as.fontStyle},
+                    numberStyle:{font:ns.fontFamily,size:ns.fontSize,color:ns.color,style:ns.fontStyle,right:mm(pr.right-nr.right)}
+                  };
+                })
+              };
             });
-            const near=(a,b,t=.3)=>Math.abs(a-b)<=t;
-            if(pages.length<2) throw new Error('O relatório de teste não gerou múltiplas páginas');
-            for(const item of pages){
-              if(item.watermarkCount!==1||item.logoCount!==1) throw new Error(`Duplicação ou ausência na página ${item.page}: ${JSON.stringify(item)}`);
-              if(!near(item.watermark.left,30)||!near(item.watermark.top,88.875)||!near(item.watermark.width,160)||!near(item.watermark.height,119.25)||item.watermark.opacity!=='1') throw new Error(`Marca-d'água fora do padrão na página ${item.page}: ${JSON.stringify(item.watermark)}`);
-              if(!near(item.logo.right,10)||!near(item.logo.top,1)||!near(item.logo.width,68.5)||!near(item.logo.height,33)) throw new Error(`Logotipo fora do padrão na página ${item.page}: ${JSON.stringify(item.logo)}`);
+
+            const near=(a,b,t=.4)=>Math.abs(a-b)<=t;
+            if(preview.pages<2) throw new Error('O relatório público não gerou múltiplas páginas.');
+            for(const item of preview.details){
+              if(item.overflow>2) throw new Error(`Overflow na página ${item.page}: ${item.overflow}px`);
+              if(item.contentBottom>=item.footerTop) throw new Error(`Conteúdo invadiu o rodapé na página ${item.page}`);
+              if(item.markCount!==1||!near(item.mark.width,22.2)||!near(item.mark.height,16.5)) throw new Error(`Símbolo do rodapé inválido na página ${item.page}: ${JSON.stringify(item.mark)}`);
+              if(item.address!=='Matriz - Rua XV de novembro 1336, salas 34 e 35 – Blumenau – SC – CEP 89010-903') throw new Error(`Endereço inválido na página ${item.page}`);
+              if(item.contact!=='www.horizonservitas.com +55 47 3326-1844') throw new Error(`Contato inválido na página ${item.page}`);
+              if(item.number!==`${item.page} de ${preview.pages}`) throw new Error(`Numeração inválida: ${item.number}`);
+              if(!/Calibri/i.test(item.addressStyle.font)||item.addressStyle.size!=='13.3333px'||item.addressStyle.color!=='rgb(41, 168, 224)'||item.addressStyle.weight!=='400'||item.addressStyle.style!=='normal') throw new Error(`Fonte do rodapé inválida: ${JSON.stringify(item.addressStyle)}`);
+              if(!/Arial/i.test(item.numberStyle.font)||item.numberStyle.size!=='13.3333px'||item.numberStyle.color!=='rgb(0, 0, 0)'||item.numberStyle.style!=='italic') throw new Error(`Fonte da paginação inválida: ${JSON.stringify(item.numberStyle)}`);
             }
+            const px=(pt)=>`${pt*96/72}px`;
+            if(preview.titleStyle?.size!==px(28)||!/Arial Black/i.test(preview.titleStyle?.font||'')) throw new Error(`Título da capa fora do padrão: ${JSON.stringify(preview.titleStyle)}`);
+            if(preview.subtitleStyle?.size!==px(24)||!/Arial Black/i.test(preview.subtitleStyle?.font||'')) throw new Error(`Subtítulo fora do padrão: ${JSON.stringify(preview.subtitleStyle)}`);
+            if(preview.metaStyle?.size!==px(12)||!/Arial/i.test(preview.metaStyle?.font||'')) throw new Error(`Dados da capa fora do padrão: ${JSON.stringify(preview.metaStyle)}`);
+            if(preview.claimStyle?.size!==px(11)||!/Arial/i.test(preview.claimStyle?.font||'')) throw new Error(`Sinistros da capa fora do padrão: ${JSON.stringify(preview.claimStyle)}`);
+            if(preview.bodyStyle?.size!==px(11)||!/Arial/i.test(preview.bodyStyle?.font||'')||preview.bodyStyle?.textAlign!=='justify') throw new Error(`Corpo fora do padrão: ${JSON.stringify(preview.bodyStyle)}`);
+            if(preview.headingStyle?.size!==px(14)||!/Arial Black/i.test(preview.headingStyle?.font||'')) throw new Error(`Título principal fora do padrão: ${JSON.stringify(preview.headingStyle)}`);
+            if(preview.subheadingStyle?.size!==px(12)||!/Arial/i.test(preview.subheadingStyle?.font||'')) throw new Error(`Subtítulo fora do padrão: ${JSON.stringify(preview.subheadingStyle)}`);
+
             await page.locator('#reportPreview .report-page').first().screenshot({path:path.join(out,'public-capa.png')});
-            await page.locator('#reportPreview .report-page').nth(1).screenshot({path:path.join(out,'public-interna.png')});
+            await page.locator('#reportPreview .report-page').last().screenshot({path:path.join(out,'public-final.png')});
 
             await page.click('[data-action="export-pdf"]');
             await page.waitForSelector('#printHost .report-page',{state:'attached'});
-            const printPages=await page.evaluate(()=>[...document.querySelectorAll('#printHost .report-page')].map(p=>({wm:p.querySelectorAll('.report-watermark').length,logo:p.querySelectorAll('.report-logo').length})));
-            if(!printPages.every(p=>p.wm===1&&p.logo===1)) throw new Error(`Ativos inconsistentes no PDF: ${JSON.stringify(printPages)}`);
+            const printPages=await page.evaluate(()=>[...document.querySelectorAll('#printHost .report-page')].map((p,index,total)=>({
+              mark:p.querySelectorAll('.report-footer-mark').length,
+              address:p.querySelector('.report-footer-address')?.textContent,
+              number:p.querySelector('.report-page-number')?.textContent,
+              expected:`${index+1} de ${total.length}`
+            })));
+            if(!printPages.every(p=>p.mark===1&&p.address?.startsWith('Matriz - Rua XV')&&p.number===p.expected)){
+              throw new Error(`Rodapé inconsistente na impressão: ${JSON.stringify(printPages)}`);
+            }
             await page.emulateMedia({media:'print'});
-            await page.pdf({path:path.join(out,'public-watermark.pdf'),format:'A4',printBackground:true,preferCSSPageSize:true,margin:{top:'0',right:'0',bottom:'0',left:'0'}});
+            await page.pdf({path:path.join(out,'public-preview.pdf'),format:'A4',printBackground:true,preferCSSPageSize:true,margin:{top:'0',right:'0',bottom:'0',left:'0'}});
             await page.emulateMedia({media:'screen'});
 
-            const downloadPromise=page.waitForEvent('download',{timeout:120000});
+            const pending=page.waitForEvent('download',{timeout:120000});
             await page.click('[data-action="export-word"]');
-            const download=await downloadPromise;
+            const download=await pending;
             const wordPath=path.join(out,download.suggestedFilename());
             await download.saveAs(wordPath);
             if(!fs.existsSync(wordPath)||fs.statSync(wordPath).size<15000) throw new Error(`DOCX público inválido: ${wordPath}`);
 
             if(pageErrors.length||httpErrors.length) throw new Error(JSON.stringify({pageErrors,httpErrors}));
-            fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({url,init,pages,printPages,wordPath,wordBytes:fs.statSync(wordPath).size},null,2));
+            fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({url,init,preview,printPages,wordPath,wordBytes:fs.statSync(wordPath).size},null,2));
             await browser.close();
-          })().catch(error=>{console.error(error);process.exit(1);});
+          })().catch(error=>{console.error(error);process.exit(1)});
           NODE
-          NODE_PATH="$PWD/node_modules" node /tmp/v062-public-branding/test.js
+          NODE_PATH="$PWD/node_modules" node "$OUT/test.js"
 
-      - name: Validate public DOCX header XML
+      - name: Validate public DOCX footer and pagination
         shell: bash
         run: |
           set -euo pipefail
-          OUT=/tmp/v062-public-branding
+          OUT=/tmp/v062-public-footer-flow
           DOCX=$(find "$OUT" -maxdepth 1 -name '*.docx' -print -quit)
           test -n "$DOCX"
           unzip -t "$DOCX"
@@ -132,28 +197,22 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import json
-          import xml.etree.ElementTree as ET
 
-          root=Path('/tmp/v062-public-branding/docx')
-          ns={'wp':'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing'}
-          expected_logo=(2466000,1188000)
-          expected_wm=(5760000,4293000)
+          root=Path('/tmp/v062-public-footer-flow/docx/word')
           checked=[]
-          for name in ['header1.xml','header2.xml']:
-              tree=ET.parse(root/'word'/name).getroot()
-              inlines=tree.findall('.//wp:inline',ns)
-              anchors=tree.findall('.//wp:anchor',ns)
-              if len(inlines)!=1 or len(anchors)!=1:
-                  raise SystemExit(f'{name}: inline={len(inlines)} anchor={len(anchors)}')
-              logo_ext=inlines[0].find('wp:extent',ns)
-              wm_ext=anchors[0].find('wp:extent',ns)
-              logo=(int(logo_ext.attrib['cx']),int(logo_ext.attrib['cy']))
-              watermark=(int(wm_ext.attrib['cx']),int(wm_ext.attrib['cy']))
-              if logo!=expected_logo: raise SystemExit(f'{name}: logotipo {logo}')
-              if watermark!=expected_wm: raise SystemExit(f'{name}: marca-d’água {watermark}')
-              if anchors[0].attrib.get('behindDoc')!='1': raise SystemExit(f'{name}: behindDoc ausente')
-              checked.append({'header':name,'logo':logo,'watermark':watermark,'behindDoc':'1'})
-          Path('/tmp/v062-public-branding/docx-result.json').write_text(json.dumps(checked,indent=2),encoding='utf-8')
+          for name in ['footer1.xml','footer2.xml']:
+              xml=(root/name).read_text(encoding='utf-8')
+              required=['PAGE','NUMPAGES','Calibri','29A8E0','Arial','Matriz - Rua XV de novembro 1336','www.horizonservitas.com +55 47 3326-1844']
+              missing=[value for value in required if value not in xml]
+              if missing:
+                  raise SystemExit(f'{name}: ausentes {missing}')
+              checked.append({'footer':name,'ok':True})
+          document=(root/'document.xml').read_text(encoding='utf-8')
+          if document.count('w:tblHeader')<2:
+              raise SystemExit('Cabeçalhos repetidos das tabelas ausentes')
+          if document.count('w:cantSplit')<4:
+              raise SystemExit('Proteção de linhas/blocos insuficiente')
+          Path('/tmp/v062-public-footer-flow/docx-result.json').write_text(json.dumps(checked,indent=2),encoding='utf-8')
           print(json.dumps(checked,indent=2))
           PY
           cat "$OUT/result.json"
@@ -161,6 +220,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: fast-track-v062-public-institutional-branding
-          path: /tmp/v062-public-branding
+          name: fast-track-v062-public-footer-flow
+          path: /tmp/v062-public-footer-flow
           if-no-files-found: warn
