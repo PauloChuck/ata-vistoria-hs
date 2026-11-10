@@ -240,6 +240,7 @@ children:[
       heading('6. DEMONSTRATIVO DE INDENIZAÇÃO'),
       para('Conforme alinhado com a seguradora, fixamos os prejuízos juntamente com o cooperado durante a vistoria de acordo com preços médios de mercado e/ou orçamentos apresentados.'),
       new Table({width:{size:9072,type:WidthType.DXA},layout:TableLayoutType.FIXED,columnWidths:[635,3084,1542,1089,1361,1361],rows:[indemnityHeader,...indemnityDataRows]}),
+      new Paragraph({spacing:{after:0,line:20}}),
       new Table({width:{size:62,type:WidthType.PERCENTAGE},alignment:AlignmentType.RIGHT,rows:[
         new TableRow({cantSplit:true,children:[tcell('Total reclamado',{width:65,align:AlignmentType.LEFT,bold:true,shading:LIGHT}),tcell(REPORT().money(calc.totalClaimed),{width:35,shading:LIGHT})]}),
         new TableRow({cantSplit:true,children:[tcell('Total dos prejuízos apurados',{width:65,align:AlignmentType.LEFT,bold:true}),tcell(REPORT().money(calc.totalAssessed),{width:35})]}),
