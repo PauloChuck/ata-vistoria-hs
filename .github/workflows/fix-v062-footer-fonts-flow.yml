@@ -1,0 +1,682 @@
+name: Fix V062 footer fonts and page flow
+
+on:
+  push:
+    branches:
+      - fix/v062-footer-fonts-flow
+    paths:
+      - .github/workflows/fix-v062-footer-fonts-flow.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch report footer typography and page flow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          footer_svg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1431"><path fill="#29A8E0" fill-rule="evenodd" d="M165,384L143,429 L123,482 L107,545 L99,603 L97,652 L98,684 L102,725 L113,784 L131,843 L148,884 L163,914 L181,945 L210,987 L251,1035 L270,1054 L304,1084 L352,1119 L389,1141 L423,1158 L462,1174 L495,1185 L525,1193 L572,1202 L606,1206 L645,1208 L689,1207 L730,1203 L770,1196 L769,1193 L701,1120 L683,1122 L625,1122 L594,1119 L553,1112 L515,1102 L486,1092 L439,1071 L386,1039 L345,1007 L307,970 L274,930 L248,891 L223,843 L204,793 L191,742 L184,692 L183,622 L189,571 L200,523 L209,495 L224,458 L239,428 L255,401 L284,360 L307,333 L338,302 L369,276 L400,254 L441,230 L480,212 L516,199 L553,189 L585,183 L637,178 L691,179 L744,186 L796,199 L844,217 L893,242 L931,267 L970,299 L967,302 L755,393 L729,406 L696,427 L663,454 L638,480 L619,504 L602,530 L586,561 L574,591 L565,622 L558,661 L556,686 L556,715 L558,740 L564,775 L571,801 L582,831 L598,864 L621,900 L645,929 L858,1161 L905,1206 L938,1232 L966,1251 L991,1266 L1028,1285 L1074,1304 L1111,1316 L1143,1324 L1205,1334 L1253,1337 L1323,1334 L1359,1329 L1393,1322 L1423,1314 L1456,1303 L1499,1285 L1558,1253 L1585,1235 L1614,1213 L1647,1184 L1669,1162 L1709,1115 L1738,1073 L1770,1014 L1789,968 L1805,916 L1816,861 L1821,812 L1821,746 L1816,697 L1803,634 L1787,584 L1765,533 L1742,491 L1707,440 L1674,401 L1632,360 L1595,330 L1545,297 L1499,273 L1450,253 L1387,235 L1350,228 L1305,223 L1224,223 L1180,228 L1150,234 L1219,309 L1247,307 L1282,307 L1328,311 L1372,319 L1426,335 L1458,348 L1490,364 L1517,380 L1565,415 L1599,446 L1637,489 L1667,532 L1692,578 L1709,619 L1723,665 L1729,693 L1734,727 L1736,751 L1736,807 L1733,839 L1726,879 L1718,910 L1703,953 L1683,996 L1665,1027 L1637,1067 L1618,1090 L1587,1122 L1562,1144 L1533,1166 L1504,1185 L1463,1207 L1433,1220 L1395,1233 L1364,1241 L1316,1249 L1293,1251 L1235,1251 L1212,1249 L1167,1242 L1118,1229 L1069,1210 L1025,1187 L983,1159 L949,1131 L951,1128 L1163,1037 L1203,1016 L1228,999 L1250,981 L1278,953 L1293,935 L1310,911 L1331,873 L1342,847 L1356,799 L1360,776 L1363,743 L1363,715 L1361,690 L1357,664 L1350,635 L1342,611 L1331,585 L1319,562 L1304,538 L1278,505 L1055,262 L1026,234 L987,202 L939,170 L881,140 L832,121 L778,106 L734,98 L679,93 L614,94 L584,97 L542,104 L485,119 L430,140 L384,163 L332,196 L307,215 L278,240 L235,284 L198,331Z M1034,366L1218,566 L1232,584 L1247,608 L1257,628 L1267,655 L1276,696 L1278,738 L1272,784 L1259,825 L1240,862 L1223,886 L1210,901 L1189,921 L1175,932 L1152,947 L1131,958 L885,1064 L704,867 L688,847 L675,827 L657,789 L649,764 L644,740 L641,709 L641,692 L646,650 L651,630 L661,602 L680,566 L705,533 L725,513 L749,494 L785,473Z"/></svg>'''
+
+          report_path = Path('fast_track/v06/direct-report.js')
+          report = report_path.read_text(encoding='utf-8')
+          report, count = re.subn(r'    footer: svgUri\(`<svg.*?</svg>`\)', f'    footer: svgUri(`{footer_svg}`)', report, count=1)
+          if count != 1:
+              raise SystemExit(f'Ativo do rodapé não localizado: {count}')
+
+          report_page_start = report.index('  function reportPage(')
+          report_page_end = report.index('\n\n  function coverContent', report_page_start)
+          report_page_block = r'''  function reportPage(content, pageNo, total, {first = false, draft = false} = {}) {
+    return `<section class="report-page${first ? ' first' : ''}">
+      <img class="report-logo" src="${ASSETS.logo}" alt="HS beyond solutions">
+      <img class="report-watermark" src="${ASSETS.watermark}" alt="">
+      ${draft ? '<div class="draft-mark">RASCUNHO</div>' : ''}
+      <div class="report-content">${content}</div>
+      <div class="report-footer">
+        <img class="report-footer-mark" src="${ASSETS.footer}" alt="Símbolo Horizon Servitas">
+        <div class="report-footer-address">Matriz - Rua XV de novembro 1336, salas 34 e 35 – Blumenau – SC – CEP 89010-903</div>
+        <div class="report-footer-contact">www.horizonservitas.com +55 47 3326-1844</div>
+        <div class="report-page-number">${pageNo} de ${total}</div>
+      </div>
+    </section>`;
+  }'''
+          report = report[:report_page_start] + report_page_block + report[report_page_end:]
+
+          build_start = report.index('  function buildContents(state) {')
+          build_end = report.index('\n\n  window.FastTrackV06Report', build_start)
+          build_block = r'''  function createFlowPaginator() {
+    const host = document.createElement('div');
+    host.setAttribute('aria-hidden','true');
+    host.style.cssText = 'position:fixed;left:-10000px;top:0;width:210mm;visibility:hidden;pointer-events:none;z-index:-10000';
+    host.innerHTML = '<section class="report-page"><div class="report-content"></div></section>';
+    document.body.appendChild(host);
+    const probe = host.querySelector('.report-content');
+    const pages = [[]];
+    const current = () => pages[pages.length - 1];
+    const currentHTML = () => current().join('');
+    const isEmpty = () => !currentHTML().trim();
+    const fits = (extra = '') => {
+      probe.innerHTML = currentHTML() + extra;
+      return probe.scrollHeight <= probe.clientHeight + 1;
+    };
+    const newPage = () => {
+      if (!isEmpty()) pages.push([]);
+    };
+    const push = (html) => {
+      if (html) current().push(html);
+    };
+    const add = (html, {forceNew = false, keepWithNext = ''} = {}) => {
+      if (!html) return;
+      if (forceNew && !isEmpty()) newPage();
+      if (keepWithNext && !fits(html + keepWithNext) && !isEmpty()) newPage();
+      if (!fits(html) && !isEmpty()) newPage();
+      push(html);
+    };
+    const tableHTML = (tableClass, headerHTML, rowHTML) => `<table class="doc-table ${tableClass}"><thead>${headerHTML}</thead><tbody>${rowHTML}</tbody></table>`;
+    const addTable = ({prefix = '', continuationPrefix = '', tableClass = '', headerHTML = '', rows = [], emptyHTML = ''}) => {
+      if (!rows.length) {
+        if (prefix) add(prefix,{keepWithNext:emptyHTML});
+        add(emptyHTML);
+        return;
+      }
+      let offset = 0;
+      let first = true;
+      while (offset < rows.length) {
+        const heading = first ? prefix : continuationPrefix;
+        if (heading) {
+          const seed = tableHTML(tableClass,headerHTML,rows[offset]);
+          if (!fits(heading + seed) && !isEmpty()) newPage();
+          push(heading);
+        }
+        let best = 0;
+        for (let count = 1; offset + count <= rows.length; count += 1) {
+          const candidate = tableHTML(tableClass,headerHTML,rows.slice(offset,offset + count).join(''));
+          if (fits(candidate)) best = count;
+          else break;
+        }
+        if (!best) {
+          if (!isEmpty()) {
+            newPage();
+            if (continuationPrefix) push(continuationPrefix);
+          }
+          for (let count = 1; offset + count <= rows.length; count += 1) {
+            const candidate = tableHTML(tableClass,headerHTML,rows.slice(offset,offset + count).join(''));
+            if (fits(candidate)) best = count;
+            else break;
+          }
+        }
+        if (!best) best = 1;
+        push(tableHTML(tableClass,headerHTML,rows.slice(offset,offset + best).join('')));
+        offset += best;
+        first = false;
+        if (offset < rows.length) newPage();
+      }
+    };
+    const addList = ({prefix = '', continuationPrefix = '', rows = []}) => {
+      if (!rows.length) {
+        add(prefix + '<p class="doc-text">Documentos não apresentados até o momento.</p>');
+        return;
+      }
+      let offset = 0;
+      let first = true;
+      while (offset < rows.length) {
+        const heading = first ? prefix : continuationPrefix;
+        const list = (count) => `<ol class="document-list" start="${offset + 1}">${rows.slice(offset,offset + count).join('')}</ol>`;
+        if (heading && !fits(heading + list(1)) && !isEmpty()) newPage();
+        if (heading) push(heading);
+        let best = 0;
+        for (let count = 1; offset + count <= rows.length; count += 1) {
+          if (fits(list(count))) best = count;
+          else break;
+        }
+        if (!best) {
+          if (!isEmpty()) {
+            newPage();
+            if (continuationPrefix) push(continuationPrefix);
+          }
+          for (let count = 1; offset + count <= rows.length; count += 1) {
+            if (fits(list(count))) best = count;
+            else break;
+          }
+        }
+        if (!best) best = 1;
+        push(list(best));
+        offset += best;
+        first = false;
+        if (offset < rows.length) newPage();
+      }
+    };
+    const addTextSection = (title, value, continuationTitle = '') => {
+      const words = String(value || '').trim().split(/\s+/).filter(Boolean);
+      if (!words.length) {
+        add(title + '<p class="doc-text"></p>');
+        return;
+      }
+      let offset = 0;
+      let first = true;
+      while (offset < words.length) {
+        const heading = first ? title : continuationTitle;
+        const paragraph = (count) => `<p class="doc-text">${esc(words.slice(offset,offset + count).join(' '))}</p>`;
+        if (heading && !fits(heading + paragraph(Math.min(12,words.length - offset))) && !isEmpty()) newPage();
+        if (heading) push(heading);
+        let low = 1;
+        let high = words.length - offset;
+        let best = 0;
+        while (low <= high) {
+          const mid = Math.floor((low + high) / 2);
+          if (fits(paragraph(mid))) { best = mid; low = mid + 1; }
+          else high = mid - 1;
+        }
+        if (!best) {
+          if (!isEmpty()) {
+            newPage();
+            first = false;
+            continue;
+          }
+          best = Math.min(20,words.length - offset);
+        }
+        push(paragraph(best));
+        offset += best;
+        first = false;
+        if (offset < words.length) newPage();
+      }
+    };
+    const finish = () => pages.filter(page => page.join('').trim()).map(page => page.join(''));
+    const destroy = () => host.remove();
+    return {add,push,newPage,fits,isEmpty,addTable,addList,addTextSection,finish,destroy};
+  }
+
+  function photoRowContent(items, start) {
+    const cells = items.map((photo,index) => `<div class="photo-cell-report">
+      <img src="${attr(photo.dataUrl)}" alt="">
+      <p class="doc-caption">Figura ${start + index + 1} — ${esc(photo.caption || '')}</p>
+    </div>`).join('');
+    return `<div class="photo-row-report">${cells}</div>`;
+  }
+
+  function buildContents(state) {
+    const f = state.fields || {};
+    const damages = Array.isArray(state.damages) ? state.damages : [];
+    const photos = Array.isArray(state.photos) ? state.photos.filter(photo => photo.dataUrl) : [];
+    const docs = f.noDocuments ? [] : (Array.isArray(state.documents) ? state.documents : []);
+    const calc = calculate(state);
+    const paginator = createFlowPaginator();
+    try {
+      paginator.add(technicalStartContent(state));
+
+      const damagePrefix = `<div class="doc-section">4. APURAÇÕES DA REGULAÇÃO</div>
+        <div class="doc-subsection">4.1. LEVANTAMENTOS EM VISTORIA</div>
+        <p class="doc-text">${esc(inspectionText(f.inspectionDate))}</p>
+        <div class="doc-subsection"><u>RELAÇÃO DE DANOS:</u></div>`;
+      const damageContinuation = `<div class="doc-section">4.1. LEVANTAMENTOS EM VISTORIA — CONTINUAÇÃO</div>
+        <div class="doc-subsection"><u>RELAÇÃO DE DANOS:</u></div>`;
+      const damageHeader = '<tr><th>Item</th><th class="left">Material danificado</th><th>Quantidade</th><th>Unidade</th><th>Idade</th><th>Valor reclamado</th></tr>';
+      const damageRowList = damages.map((item,index) => `<tr><td>${index + 1}</td><td class="left">${esc(item.description || '')}</td><td>${esc(item.quantity || '')}</td><td>${esc(item.unit || '')}</td><td>${esc(item.age || '')} ${esc(item.ageUnit || '')}</td><td>${money(item.claimedTotal)}</td></tr>`);
+      paginator.addTable({prefix:damagePrefix,continuationPrefix:damageContinuation,tableClass:'damage-table',headerHTML:damageHeader,rows:damageRowList,emptyHTML:'<p class="doc-text">Nenhum item cadastrado.</p>'});
+
+      if (photos.length) {
+        let shownOnPage = 0;
+        let started = false;
+        for (let start = 0; start < photos.length; start += 2) {
+          const slice = photos.slice(start,start + 2);
+          const row = photoRowContent(slice,start);
+          if (!started) {
+            const heading = '<div class="doc-section">REGISTRO FOTOGRÁFICO</div>';
+            if (!paginator.fits(heading + row) && !paginator.isEmpty()) paginator.newPage();
+            paginator.push(heading);
+            started = true;
+          }
+          if (shownOnPage + slice.length > 4) {
+            paginator.newPage();
+            paginator.push('<div class="doc-section">REGISTRO FOTOGRÁFICO — CONTINUAÇÃO</div>');
+            shownOnPage = 0;
+          }
+          if (!paginator.fits(row)) {
+            paginator.newPage();
+            paginator.push('<div class="doc-section">REGISTRO FOTOGRÁFICO — CONTINUAÇÃO</div>');
+            shownOnPage = 0;
+          }
+          paginator.push(row);
+          shownOnPage += slice.length;
+        }
+      }
+
+      const documentPrefix = '<div class="doc-subsection">4.2. LEVANTAMENTOS DOCUMENTAIS</div>';
+      const documentContinuation = '<div class="doc-subsection">4.2. LEVANTAMENTOS DOCUMENTAIS — CONTINUAÇÃO</div>';
+      const documentRows = docs.map(doc => `<li><strong>${esc(doc.type || doc.name || 'Documento')}</strong>${doc.description ? ` — ${esc(doc.description)}` : ''}</li>`);
+      paginator.addList({prefix:documentPrefix,continuationPrefix:documentContinuation,rows:documentRows});
+
+      paginator.addTextSection('<div class="doc-section">5. PARECER DO REGULADOR</div>',f.regulatorOpinion || '','<div class="doc-section">5. PARECER DO REGULADOR — CONTINUAÇÃO</div>');
+
+      const indemnityPrefix = `<div class="doc-section">6. DEMONSTRATIVO DE INDENIZAÇÃO</div>
+        <p class="doc-text">Conforme alinhado com a seguradora, fixamos os prejuízos juntamente com o cooperado durante a vistoria de acordo com preços médios de mercado e/ou orçamentos apresentados.</p>`;
+      const indemnityContinuation = '<div class="doc-section">6. DEMONSTRATIVO DE INDENIZAÇÃO — CONTINUAÇÃO</div>';
+      const indemnityHeader = '<tr><th>Item</th><th class="left">Descrição</th><th>Quantidade / unidade</th><th>Idade</th><th>Valor reclamado</th><th>Valor apurado</th></tr>';
+      const indemnityRowList = damages.map((item,index) => `<tr><td>${index + 1}</td><td class="left">${esc(item.description || '')}</td><td>${esc(item.quantity || '')} ${esc(item.unit || '')}</td><td>${esc(item.age || '')} ${esc(item.ageUnit || '')}</td><td>${money(item.claimedTotal)}</td><td>${item.assessedTotal === '' || item.assessedTotal == null ? 'A INFORMAR' : money(item.assessedTotal)}</td></tr>`);
+      paginator.addTable({prefix:indemnityPrefix,continuationPrefix:indemnityContinuation,tableClass:'indemnity-table',headerHTML:indemnityHeader,rows:indemnityRowList,emptyHTML:'<p class="doc-text">Nenhum item cadastrado.</p>'});
+      const totals = `<table class="doc-table final-table"><tbody>
+        <tr><th>Total reclamado</th><td>${money(calc.totalClaimed)}</td></tr>
+        <tr><th>Total dos prejuízos apurados</th><td>${money(calc.totalAssessed)}</td></tr>
+        <tr><th>Franquia contratual</th><td>${money(calc.deductible)}</td></tr>
+        <tr class="total-row"><th>Valor líquido apurado para indenização</th><td>${money(calc.net)}</td></tr>
+      </tbody></table>`;
+      if (!paginator.fits(totals) && !paginator.isEmpty()) {
+        paginator.newPage();
+        paginator.push(indemnityContinuation);
+      }
+      paginator.add(totals);
+
+      const other = f.otherInsurance === 'nao'
+        ? 'O cooperado declara não possuir outros seguros contratados para os bens sinistrados.'
+        : f.otherInsurance === 'sim'
+          ? `O cooperado declarou a existência de outro(s) seguro(s): ${esc(f.otherInsuranceDetails || '')}`
+          : 'Declaração sobre outros seguros não informada.';
+      paginator.add(`<div class="doc-section">7. DECLARAÇÃO DE OUTROS SEGUROS</div><p class="doc-text">${other}</p>`);
+      paginator.add(`<div class="doc-section">8. DADOS CADASTRAIS</div><p class="doc-text doc-data"><strong>Nome completo:</strong> ${esc(f.claimantName || '')}<br><strong>CPF:</strong> ${esc(f.claimantCpf || '')}<br><strong>Dados Bancários:</strong> ${esc(f.bankName || '')} — AG: ${esc(f.bankAgency || '')} / CC: ${esc(f.bankAccount || '')}</p>`);
+      paginator.add(`<div class="doc-section">9. CRONOLOGIA</div><table class="doc-table chrono-table"><tbody>
+        <tr><td class="left">Data da ocorrência</td><td>${esc(formatDate(f.lossDate))}</td></tr>
+        <tr><td class="left">Data do aviso</td><td>${esc(formatDate(f.noticeDate))}</td></tr>
+        <tr><td class="left">Data do agendamento da vistoria</td><td>${esc(formatDate(f.scheduleDate))}</td></tr>
+        <tr><td class="left">Data da realização da vistoria</td><td>${esc(formatDate(f.inspectionDate))}</td></tr>
+      </tbody></table>`);
+      paginator.add(`<div class="doc-section">10. INFORMAÇÕES COMPLEMENTARES</div><p class="doc-text">As orientações não representam o reconhecimento prévio de cobertura do sinistro ora reclamado ou de eventual valor a indenizar, os quais dependem da análise das Condições do Seguro contratado, e da devida análise e manifestação da Companhia Seguradora.</p>`);
+
+      const regulatorSig = state.signatures?.regulator;
+      const claimantSig = state.signatures?.claimant;
+      const signatureBlock = `<div class="closing-signature-block"><p class="doc-text report-date">${esc(f.reportCity || '')}, ${esc(longDate(f.reportDate))}.</p>
+        <div class="signature-report-grid">
+          <div class="signature-report">${regulatorSig ? `<img src="${attr(regulatorSig)}" alt="">` : '<div class="signature-spacer"></div>'}<div class="signature-line">Regulador</div><div>${esc(f.regulatorName || '')}</div><div>CPF: ${esc(f.regulatorCpf || '')}</div></div>
+          <div class="signature-report">${claimantSig ? `<img src="${attr(claimantSig)}" alt="">` : '<div class="signature-spacer"></div>'}<div class="signature-line">Cooperado / Representante</div><div>${esc(f.claimantName || '')}</div><div>CPF: ${esc(f.claimantCpf || '')}</div></div>
+        </div></div>`;
+      paginator.add(signatureBlock);
+
+      const flowPages = paginator.finish();
+      return [{html:coverContent(state),first:true},...flowPages.map(html => ({html}))];
+    } finally {
+      paginator.destroy();
+    }
+  }
+
+  function buildHTML(state, {draft = false} = {}) {
+    const contents = buildContents(state);
+    return contents.map((page,index) => reportPage(page.html,index + 1,contents.length,{first:page.first,draft})).join('');
+  }'''
+          report = report[:build_start] + build_block + report[build_end:]
+          report_path.write_text(report,encoding='utf-8')
+
+          css_path = Path('fast_track/v06/direct.css')
+          css = css_path.read_text(encoding='utf-8')
+          replacements = {
+            '.report-content{position:relative;z-index:2;height:240mm;overflow:hidden}': '.report-content{position:relative;z-index:2;height:236mm;overflow:hidden}\n.report-page.first .report-content{height:230mm}',
+            '.report-footer{position:absolute;left:0;right:0;bottom:0;height:28mm;z-index:5;font-family:Calibri,Arial,sans-serif;color:#29a8e0;font-size:10pt}\n.report-footer-mark{position:absolute;left:0;top:0;width:22mm;height:16.5mm;object-fit:contain}\n.report-footer-text{position:absolute;left:25mm;top:4mm;line-height:1.55}\n.report-page-number{position:absolute;right:-1mm;bottom:0;color:#111;font-family:Arial,sans-serif;font-size:10pt;font-style:italic}': '.report-footer{position:absolute;left:0;right:0;bottom:0;height:28mm;z-index:5;font-family:Calibri,Arial,sans-serif;color:#29a8e0;font-size:10pt;font-weight:400;font-style:normal}\n.report-footer-mark{position:absolute;left:0;top:3.4mm;width:22.2mm;height:16.5mm;object-fit:contain}\n.report-footer-address,.report-footer-contact{position:absolute;left:27.5mm;right:32mm;text-align:left;white-space:nowrap;font-family:Calibri,Arial,sans-serif;font-size:10pt;line-height:1;font-weight:400;font-style:normal;color:#29a8e0}\n.report-footer-address{top:6.9mm}\n.report-footer-contact{top:13.4mm}\n.report-page-number{position:absolute;right:2.5mm;top:22.4mm;color:#000;font-family:Arial,sans-serif;font-size:10pt;line-height:1;font-style:italic;font-weight:400}',
+            '.doc-section{font-family:"Arial Black",Arial,sans-serif;font-size:14pt;line-height:1.5;margin:8mm 0 4mm;page-break-after:avoid;font-weight:900}': '.doc-section{font-family:"Arial Black",Arial,sans-serif;font-size:14pt;line-height:1.5;margin:10.58mm 0 5.29mm;page-break-after:avoid;font-weight:900}\n.report-content>.doc-section:first-child{margin-top:0}',
+            '.doc-subsection{font-size:12pt;font-weight:800;text-transform:uppercase;margin:6mm 0 3mm;page-break-after:avoid}': '.doc-subsection{font-family:Arial,sans-serif;font-size:12pt;font-weight:700;text-transform:uppercase;margin:8.82mm 0 3.53mm;page-break-after:avoid}\n.report-content>.doc-subsection:first-child{margin-top:0}',
+            '.doc-caption{font-size:10pt;color:#1f497d;text-align:center;line-height:1.1;margin:2mm 0 0}': '.doc-caption{font-family:Arial,sans-serif;font-size:10pt;color:#1f497d;text-align:center;line-height:1;margin:2mm 0 0}',
+            '.photo-grid-report{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:5mm;height:218mm}\n.photo-cell-report{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-height:0}\n.photo-cell-report img{width:100%;height:88mm;object-fit:contain;background:#fff}\n.photo-cell-report .doc-caption{min-height:10mm}': '.photo-row-report{display:grid;grid-template-columns:1fr 1fr;gap:5mm;margin:0 0 5mm;break-inside:avoid;page-break-inside:avoid}\n.photo-cell-report{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-height:0;break-inside:avoid;page-break-inside:avoid}\n.photo-cell-report img{width:100%;height:88mm;object-fit:contain;background:#fff}\n.photo-cell-report .doc-caption{min-height:10mm}',
+            '.signature-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:20mm;margin-top:18mm}': '.closing-signature-block{break-inside:avoid;page-break-inside:avoid}\n.report-date{text-align:right!important;margin-top:9mm!important}\n.signature-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:20mm;margin-top:18mm;break-inside:avoid;page-break-inside:avoid}',
+            '.signature-report img{width:45mm;height:18mm;object-fit:contain;display:block;margin:0 auto -2mm}': '.signature-report img{width:45mm;height:18mm;object-fit:contain;display:block;margin:0 auto -2mm}\n.signature-spacer{height:18mm}\n.doc-data{line-height:1}'
+          }
+          for old,new in replacements.items():
+              if old not in css:
+                  raise SystemExit(f'Bloco CSS não encontrado: {old[:80]}')
+              css = css.replace(old,new,1)
+          css_path.write_text(css,encoding='utf-8')
+
+          word_path = Path('fast_track/v06/direct-word.js')
+          word = word_path.read_text(encoding='utf-8')
+
+          tcell_start = word.index('    function tcell(')
+          tcell_end = word.index('\n\n    const CM_TO_PX',tcell_start)
+          tcell_block = r'''    function tcell(content,{width,align=AlignmentType.CENTER,bold=false,shading,vertical=VerticalAlign.CENTER,border=thinBorder,size=20,font='Arial',line=240,margins={top:60,bottom:60,left:80,right:80}}={}) {
+      const children = Array.isArray(content) && content.every(x => x && typeof x === 'object' && x.constructor?.name === 'Paragraph')
+        ? content : [para(Array.isArray(content) ? content : text(content),{alignment:align,after:0,line,size,font})];
+      if (bold && children[0]) children[0] = new Paragraph({children:[run(text(content),{size,bold:true,font})],alignment:align,spacing:{after:0,line}});
+      return new TableCell({children,width:width ? {size:width,type:WidthType.PERCENTAGE}:undefined,verticalAlign:vertical,borders:border,shading:shading ? {type:ShadingType.CLEAR,fill:shading}:undefined,margins});
+    }'''
+          word = word[:tcell_start] + tcell_block + word[tcell_end:]
+
+          footer_start = word.index('    const footerTable = new Table({')
+          footer_end = word.index('\n\n    // Capa',footer_start)
+          footer_block = r'''    const FOOTER_MARK_WIDTH_PX = 2.22 * CM_TO_PX;
+    const FOOTER_MARK_HEIGHT_PX = 1.65 * CM_TO_PX;
+    const footerInfoTable = new Table({
+      width:{size:11907,type:WidthType.DXA},
+      indent:{size:-1701,type:WidthType.DXA},
+      borders:noBorder,
+      rows:[new TableRow({cantSplit:true,children:[
+        new TableCell({
+          width:{size:1559,type:WidthType.DXA},verticalAlign:VerticalAlign.CENTER,borders:noBorder,
+          margins:{top:0,bottom:0,left:0,right:0},
+          children:[new Paragraph({children:[new ImageRun({data:footerMark.data,type:'png',transformation:{width:FOOTER_MARK_WIDTH_PX,height:FOOTER_MARK_HEIGHT_PX}})],alignment:AlignmentType.LEFT,spacing:{after:0,line:240}})]
+        }),
+        new TableCell({
+          width:{size:10348,type:WidthType.DXA},verticalAlign:VerticalAlign.CENTER,borders:noBorder,
+          margins:{top:0,bottom:0,left:0,right:0},
+          children:[
+            new Paragraph({children:[run('Matriz - Rua XV de novembro 1336, salas 34 e 35 – Blumenau – SC – CEP 89010-903',{font:'Calibri',size:20,color:BLUE})],alignment:AlignmentType.LEFT,spacing:{line:360,after:0}}),
+            new Paragraph({children:[run('www.horizonservitas.com +55 47 3326-1844',{font:'Calibri',size:20,color:BLUE})],alignment:AlignmentType.LEFT,spacing:{line:360,after:0}})
+          ]
+        })
+      ]})]
+    });
+    const footerPageNumber = new Paragraph({
+      children:[new TextRun({children:[PageNumber.CURRENT,' de ',PageNumber.TOTAL_PAGES],font:'Arial',size:20,italics:true,color:'000000'})],
+      alignment:AlignmentType.RIGHT,indent:{right:-994},spacing:{after:0,line:240}
+    });
+    const footer = new Footer({children:[footerInfoTable,footerPageNumber]});
+
+    const children = [];'''
+          word = word[:footer_start] + footer_block + word[footer_end:]
+
+          word = word.replace("tcell('Sinistro Seguradora:',{width:60,align:AlignmentType.LEFT,border:noBorder}),tcell(f.insurerClaim || 'A INFORMAR',{width:40,align:AlignmentType.LEFT,border:noBorder})", "tcell('Sinistro Seguradora:',{width:60,align:AlignmentType.LEFT,border:noBorder,size:22}),tcell(f.insurerClaim || 'A INFORMAR',{width:40,align:AlignmentType.LEFT,border:noBorder,size:22})",1)
+          word = word.replace("tcell('Sinistro Horizon Servitas:',{width:60,align:AlignmentType.LEFT,border:noBorder}),tcell(f.hsClaim || 'A INFORMAR',{width:40,align:AlignmentType.LEFT,border:noBorder})", "tcell('Sinistro Horizon Servitas:',{width:60,align:AlignmentType.LEFT,border:noBorder,size:22}),tcell(f.hsClaim || 'A INFORMAR',{width:40,align:AlignmentType.LEFT,border:noBorder,size:22})",1)
+          word = word.replace("tcell(label,{width:40,align:AlignmentType.LEFT,bold:true,border:noBorder}),tcell(value || 'A INFORMAR',{width:60,align:AlignmentType.LEFT,border:noBorder})", "tcell(label,{width:40,align:AlignmentType.LEFT,bold:true,border:noBorder,size:24}),tcell(value || 'A INFORMAR',{width:60,align:AlignmentType.LEFT,border:noBorder,size:24})",1)
+
+          word = word.replace('    addPage([\n      new Paragraph({children:[run(\'RELATÓRIO FAST TRACK DE CONTINGÊNCIA\'', '    children.push(\n      new Paragraph({children:[run(\'RELATÓRIO FAST TRACK DE CONTINGÊNCIA\'',1)
+          cover_end = '      new Table({width:{size:100,type:WidthType.PERCENTAGE},borders:noBorder,rows:metaRows})\n    ]);\n\n    // Página técnica inicial'
+          if cover_end not in word:
+              raise SystemExit('Final da capa não encontrado')
+          word = word.replace(cover_end,'      new Table({width:{size:100,type:WidthType.PERCENTAGE},borders:noBorder,rows:metaRows}),\n      pageBreak()\n    );\n\n    // Página técnica inicial',1)
+          word = word.replace('    addPage(technical);','    children.push(...technical);',1)
+          word = word.replace('        rows.push(new TableRow({children:cells}));','        rows.push(new TableRow({cantSplit:true,children:cells}));',1)
+          word = word.replace("      addPage([heading(start ? 'REGISTRO FOTOGRÁFICO — CONTINUAÇÃO' : 'REGISTRO FOTOGRÁFICO'),new Table({width:{size:100,type:WidthType.PERCENTAGE},borders:noBorder,rows})]);", "      if(start) children.push(pageBreak());\n      children.push(heading(start ? 'REGISTRO FOTOGRÁFICO — CONTINUAÇÃO' : 'REGISTRO FOTOGRÁFICO'),new Table({width:{size:100,type:WidthType.PERCENTAGE},borders:noBorder,rows}));",1)
+          word = word.replace('    addPage(docChildren);','    children.push(...docChildren);',1)
+
+          demo_start = word.index('    // Demonstrativo')
+          demo_end = word.index('\n\n    // Encerramento',demo_start)
+          demo_block = r'''    // Demonstrativo contínuo, com cabeçalho repetido e linhas indivisíveis
+    const damages=state.damages || [];
+    const indemnityHeader = new TableRow({tableHeader:true,cantSplit:true,children:[
+      tcell('Item',{width:7,bold:true}),tcell('Descrição',{width:34,bold:true,align:AlignmentType.LEFT}),
+      tcell('Quantidade / unidade',{width:17,bold:true}),tcell('Idade',{width:12,bold:true}),
+      tcell('Valor reclamado',{width:15,bold:true}),tcell('Valor apurado',{width:15,bold:true})
+    ]});
+    const indemnityDataRows = damages.map((item,index)=>new TableRow({cantSplit:true,children:[
+      tcell(String(index+1),{width:7}),tcell(item.description,{width:34,align:AlignmentType.LEFT}),
+      tcell(`${item.quantity || ''} ${item.unit || ''}`,{width:17}),tcell(`${item.age || ''} ${item.ageUnit || ''}`,{width:12}),
+      tcell(REPORT().money(item.claimedTotal),{width:15}),tcell(item.assessedTotal===''||item.assessedTotal==null?'A INFORMAR':REPORT().money(item.assessedTotal),{width:15})
+    ]}));
+    children.push(
+      heading('6. DEMONSTRATIVO DE INDENIZAÇÃO'),
+      para('Conforme alinhado com a seguradora, fixamos os prejuízos juntamente com o cooperado durante a vistoria de acordo com preços médios de mercado e/ou orçamentos apresentados.'),
+      new Table({width:{size:100,type:WidthType.PERCENTAGE},rows:[indemnityHeader,...indemnityDataRows]}),
+      new Table({width:{size:62,type:WidthType.PERCENTAGE},alignment:AlignmentType.RIGHT,rows:[
+        new TableRow({cantSplit:true,children:[tcell('Total reclamado',{width:65,align:AlignmentType.LEFT,bold:true,shading:LIGHT}),tcell(REPORT().money(calc.totalClaimed),{width:35,shading:LIGHT})]}),
+        new TableRow({cantSplit:true,children:[tcell('Total dos prejuízos apurados',{width:65,align:AlignmentType.LEFT,bold:true}),tcell(REPORT().money(calc.totalAssessed),{width:35})]}),
+        new TableRow({cantSplit:true,children:[tcell('Franquia contratual',{width:65,align:AlignmentType.LEFT,bold:true}),tcell(REPORT().money(calc.deductible),{width:35})]}),
+        new TableRow({cantSplit:true,children:[tcell('Valor líquido apurado para indenização',{width:65,align:AlignmentType.LEFT,bold:true,shading:LIGHT}),tcell(REPORT().money(calc.net),{width:35,shading:LIGHT})]})
+      ]})
+    );'''
+          word = word[:demo_start] + demo_block + word[demo_end:]
+
+          word = word.replace("heading('8. DADOS CADASTRAIS'),para([run('Nome completo: '", "heading('8. DADOS CADASTRAIS'),para([run('Nome completo: '",1)
+          word = word.replace("run(`${f.bankName || ''} — AG: ${f.bankAgency || ''} / CC: ${f.bankAccount || ''}`)]),heading('9. CRONOLOGIA')", "run(`${f.bankName || ''} — AG: ${f.bankAgency || ''} / CC: ${f.bankAccount || ''}`)],{line:240}),heading('9. CRONOLOGIA')",1)
+          word = word.replace("].map(([label,date])=>new TableRow({children:[tcell(label,{width:72,align:AlignmentType.LEFT}),tcell(date,{width:28})]}))", "].map(([label,date])=>new TableRow({cantSplit:true,children:[tcell(label,{width:72,align:AlignmentType.LEFT}),tcell(date,{width:28})]}))",1)
+          word = word.replace("rows:[new TableRow({children:signatureCells})]", "rows:[new TableRow({cantSplit:true,children:signatureCells})]",1)
+          word = word.replace('    addPage(closing);','    children.push(...closing);',1)
+          old_assembly = "    const children=[];\n    pages.forEach((page,index)=>{if(index)children.push(pageBreak());children.push(...page);});\n\n"
+          if old_assembly not in word:
+              raise SystemExit('Montagem antiga de páginas não encontrada')
+          word = word.replace(old_assembly,'',1)
+          if 'addPage(' in word or 'const pages = []' in word:
+              raise SystemExit('Persistiram marcadores da paginação fixa no Word')
+          word_path.write_text(word,encoding='utf-8')
+
+          html_path = Path('fast_track/v062.html')
+          html = html_path.read_text(encoding='utf-8').replace('v=0624','v=0625')
+          html_path.write_text(html,encoding='utf-8')
+          redirect_path = Path('fast_track/v06.html')
+          redirect_path.write_text(redirect_path.read_text(encoding='utf-8').replace('v=0624','v=0625'),encoding='utf-8')
+          PY
+
+          node --check fast_track/v06/direct-report.js
+          node --check fast_track/v06/direct-word.js
+          node --check fast_track/v06/direct-app.js
+          grep -q 'report-footer-address' fast_track/v06/direct-report.js
+          grep -q 'createFlowPaginator' fast_track/v06/direct-report.js
+          grep -q 'width:22.2mm;height:16.5mm' fast_track/v06/direct.css
+          grep -q 'font-family:Calibri' fast_track/v06/direct.css
+          grep -q 'width:{size:11907,type:WidthType.DXA}' fast_track/v06/direct-word.js
+          grep -q 'PageNumber.TOTAL_PAGES' fast_track/v06/direct-word.js
+          grep -q 'v=0625' fast_track/v062.html
+
+      - name: Prepare browser and document tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.56.1
+          CHROME_PATH="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          "$CHROME_PATH" --version
+          if ! command -v libreoffice >/dev/null 2>&1 && ! command -v soffice >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y libreoffice-writer poppler-utils
+          fi
+
+      - name: Validate preview PDF Word footer fonts and flow
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/v062-footer-flow
+          mkdir -p "$OUT"
+          python3 -m http.server 8000 --bind 127.0.0.1 >"$OUT/http.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          sleep 2
+
+          cat > "$OUT/test.js" <<'NODE'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+          const path = require('path');
+
+          const svgData=(label,bg='#e8eef1')=>`data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"><rect width="1200" height="800" fill="${bg}"/><path d="M40 700 L1160 100" stroke="#777" stroke-width="35"/><text x="80" y="150" font-family="Arial" font-size="55">${label}</text></svg>`)}`;
+          const makeDamage=i=>({id:`d${i}`,description:i%3===0?`Item ${i} — descrição técnica extensa para verificar a quebra de linha e a continuidade da tabela sem espaços vazios artificiais`:`Item ${i} — material danificado apurado em vistoria`,quantity:String(i*7.5),unit:i%2?'un.':'m²',age:String((i%8)+1),ageUnit:i%4?'anos':'meses',claimedTotal:String(900+i*173.45),assessedTotal:String(850+i*163.25)});
+          const baseFields={
+            insurerClaim:'1325000',hsClaim:'S2609000',insurer:'SOMPO SEGUROS S/A',insured:'COOPERATIVA CENTRAL AURORA ALIMENTOS',claimantName:'Cooperado Teste de Fluxo',claimantCpf:'000.000.000-00',riskAddress:'Linha Teste, Município/SC',policyNumber:'9600131927',productName:'RISCOS NOMEADOS',broker:'ALPER CONSULTORIA E CORRETORA DE SEGUROS S/A',lossDate:'2026-11-04',coverageName:'Vendaval / Granizo',inspectionDate:'2026-11-10',regulatorOpinion:'Diante do exposto, o sinistro está amparado pela cobertura de Vendaval/Granizo da apólice. '.repeat(18),otherInsurance:'nao',otherInsuranceDetails:'',bankName:'CRESOL',bankAgency:'02508',bankAccount:'001.801-5',noticeDate:'2026-11-05',scheduleDate:'2026-11-06',reportCity:'Blumenau (SC)',reportDate:'2026-11-10',regulatorName:'Paulo R. Schlosser',regulatorCpf:'068.613.739-66',noDocuments:false,mapFit:'contain',mapPosX:'50',mapPosY:'50'
+          };
+          const signature=svgData('assinatura','#ffffff');
+          const state={version:'0.6.2',fields:baseFields,map:{dataUrl:svgData('Mapa de localização'),name:'mapa.svg',fit:'contain',posX:'50',posY:'50'},damages:Array.from({length:14},(_,i)=>makeDamage(i+1)),photos:Array.from({length:6},(_,i)=>({id:`p${i}`,name:`foto-${i+1}.svg`,dataUrl:svgData(`Fotografia ${i+1}`,i%2?'#dfe9d9':'#e5e3ef'),caption:`Evidência fotográfica ${i+1} do dano vistoriado`})),documents:Array.from({length:15},(_,i)=>({id:`doc${i}`,name:`documento-${i+1}.txt`,type:`Documento ${i+1}`,description:`Descrição do documento ${i+1} apresentado para análise`,mime:'text/plain',dataUrl:'data:text/plain;base64,VEVTVEU='})),signatures:{regulator:signature,claimant:signature},finalizedAt:null};
+
+          (async()=>{
+            const out=process.env.OUT;
+            const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH,args:['--no-sandbox','--disable-dev-shm-usage']});
+            const page=await browser.newPage({acceptDownloads:true,viewport:{width:1600,height:1200}});
+            const errors=[]; const http=[];
+            page.on('pageerror',e=>errors.push(String(e)));
+            page.on('response',r=>{if(r.status()>=400&&!/favicon\.ico/i.test(r.url()))http.push({status:r.status(),url:r.url()});});
+            page.on('dialog',async d=>d.accept());
+            await page.goto('http://127.0.0.1:8000/fast_track/v062.html?v=0625-ci',{waitUntil:'networkidle',timeout:120000});
+            await page.waitForSelector('.app-shell');
+            await page.setInputFiles('#backupInput',{name:'fluxo.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(state))});
+            await page.waitForFunction(()=>document.querySelectorAll('#damageList .damage-card').length===14,{timeout:30000});
+            await page.evaluate(()=>document.querySelector('.screen[data-step="6"] [data-go="7"]').click());
+            await page.waitForSelector('.screen[data-step="7"].active');
+            await page.waitForSelector('#reportPreview .report-page');
+
+            const preview=await page.evaluate(()=>{
+              const mm=px=>px*25.4/96;
+              const pages=[...document.querySelectorAll('#reportPreview .report-page')];
+              const details=pages.map((p,index)=>{
+                const pr=p.getBoundingClientRect();
+                const content=p.querySelector('.report-content');
+                const cr=content.getBoundingClientRect();
+                const mark=p.querySelector('.report-footer-mark');
+                const addr=p.querySelector('.report-footer-address');
+                const contact=p.querySelector('.report-footer-contact');
+                const num=p.querySelector('.report-page-number');
+                const mr=mark.getBoundingClientRect(), ar=addr.getBoundingClientRect(), cor=contact.getBoundingClientRect(), nr=num.getBoundingClientRect();
+                const css=e=>getComputedStyle(e);
+                return {page:index+1,overflow:content.scrollHeight-content.clientHeight,contentBottom:mm(cr.bottom-pr.top),footer:{mark:{left:mm(mr.left-pr.left),top:mm(mr.top-pr.top),width:mm(mr.width),height:mm(mr.height)},address:{top:mm(ar.top-pr.top),font:css(addr).fontFamily,size:css(addr).fontSize,color:css(addr).color,weight:css(addr).fontWeight,style:css(addr).fontStyle},contact:{top:mm(cor.top-pr.top)},number:{right:mm(pr.right-nr.right),top:mm(nr.top-pr.top),font:css(num).fontFamily,size:css(num).fontSize,color:css(num).color,style:css(num).fontStyle,text:num.textContent.trim()}},photos:p.querySelectorAll('.photo-cell-report').length,damageRows:p.querySelectorAll('.damage-table tbody tr').length,indemnityRows:p.querySelectorAll('.indemnity-table tbody tr').length,text:p.innerText};
+              });
+              const sample={title:cssInfo('.doc-title'),subtitle:cssInfo('.doc-subtitle'),claim:cssInfo('.claim-table'),meta:cssInfo('.meta-table td'),body:cssInfo('.doc-text'),heading:cssInfo('.doc-section'),subheading:cssInfo('.doc-subsection'),caption:cssInfo('.doc-caption')};
+              function cssInfo(selector){const e=document.querySelector(`#reportPreview ${selector}`);if(!e)return null;const c=getComputedStyle(e);return{font:c.fontFamily,size:c.fontSize,line:c.lineHeight,color:c.color,weight:c.fontWeight};}
+              return {details,sample,pageCount:pages.length};
+            });
+            const near=(a,b,t=.45)=>Math.abs(a-b)<=t;
+            if(preview.pageCount>10) throw new Error(`Paginação ainda excessiva: ${preview.pageCount}`);
+            let damageTotal=0, indemnityTotal=0;
+            for(const item of preview.details){
+              if(item.overflow>2) throw new Error(`Overflow na página ${item.page}: ${item.overflow}`);
+              if(item.contentBottom>268) throw new Error(`Corpo aproximou-se do rodapé na página ${item.page}: ${item.contentBottom} mm`);
+              if(!near(item.footer.mark.left,0)||!near(item.footer.mark.top,272.4)||!near(item.footer.mark.width,22.2)||!near(item.footer.mark.height,16.5)) throw new Error(`Símbolo do rodapé fora do padrão: ${JSON.stringify(item.footer.mark)}`);
+              if(!near(item.footer.address.top,275.9)||!near(item.footer.contact.top,282.4)||!near(item.footer.number.top,291.4)) throw new Error(`Posições do rodapé fora do padrão: ${JSON.stringify(item.footer)}`);
+              if(!/Calibri/i.test(item.footer.address.font)||item.footer.address.size!=='13.3333px'||item.footer.address.color!=='rgb(41, 168, 224)'||item.footer.address.style!=='normal') throw new Error(`Tipografia do rodapé inválida: ${JSON.stringify(item.footer.address)}`);
+              if(!/Arial/i.test(item.footer.number.font)||item.footer.number.size!=='13.3333px'||item.footer.number.color!=='rgb(0, 0, 0)'||item.footer.number.style!=='italic') throw new Error(`Paginação inválida: ${JSON.stringify(item.footer.number)}`);
+              const [current,total]=item.footer.number.text.split(' de ').map(Number);
+              if(current!==item.page||total!==preview.pageCount) throw new Error(`Numeração incoerente: ${item.footer.number.text}`);
+              if(item.photos>4) throw new Error(`Mais de quatro fotos na página ${item.page}`);
+              damageTotal+=item.damageRows; indemnityTotal+=item.indemnityRows;
+            }
+            if(damageTotal!==14||indemnityTotal!==14) throw new Error(`Linhas incompletas: danos=${damageTotal}, demonstrativo=${indemnityTotal}`);
+            const s=preview.sample;
+            const checks=[['title',s.title,'37.3333px'],['subtitle',s.subtitle,'32px'],['claim',s.claim,'14.6667px'],['meta',s.meta,'16px'],['body',s.body,'14.6667px'],['heading',s.heading,'18.6667px'],['subheading',s.subheading,'16px'],['caption',s.caption,'13.3333px']];
+            for(const [name,val,size] of checks){if(!val||val.size!==size)throw new Error(`Tamanho ${name} incorreto: ${JSON.stringify(val)}`);}
+            if(!/Arial Black/i.test(s.title.font)||!/Arial Black/i.test(s.heading.font)||!/Arial/i.test(s.body.font)) throw new Error(`Hierarquia de fontes incorreta: ${JSON.stringify(s)}`);
+            const combined=preview.details.some(d=>d.text.includes('5. PARECER DO REGULADOR')&&d.text.includes('6. DEMONSTRATIVO DE INDENIZAÇÃO'));
+            if(!combined) throw new Error('O fluxo não aproveitou uma página para seções consecutivas no cenário de teste');
+
+            await page.locator('#reportPreview').screenshot({path:path.join(out,'preview-completo.png'),fullPage:true});
+            await page.locator('#reportPreview .report-page').first().screenshot({path:path.join(out,'preview-capa.png')});
+            await page.locator('#reportPreview .report-page').last().screenshot({path:path.join(out,'preview-final.png')});
+
+            await page.click('[data-action="export-pdf"]');
+            await page.waitForSelector('#printHost .report-page',{state:'attached'});
+            await page.emulateMedia({media:'print'});
+            await page.pdf({path:path.join(out,'Relatorio_Fast_Track_fluxo.pdf'),format:'A4',printBackground:true,preferCSSPageSize:true,margin:{top:'0',right:'0',bottom:'0',left:'0'}});
+            await page.emulateMedia({media:'screen'});
+
+            const downloadPromise=page.waitForEvent('download',{timeout:120000});
+            await page.click('[data-action="export-word"]');
+            const download=await downloadPromise;
+            const docxPath=path.join(out,download.suggestedFilename());
+            await download.saveAs(docxPath);
+            if(!fs.existsSync(docxPath)||fs.statSync(docxPath).size<20000) throw new Error('DOCX inválido');
+            if(errors.length||http.length) throw new Error(JSON.stringify({errors,http}));
+            fs.writeFileSync(path.join(out,'browser-result.json'),JSON.stringify({preview,docxPath,docxBytes:fs.statSync(docxPath).size},null,2));
+            await browser.close();
+          })().catch(error=>{console.error(error);process.exit(1);});
+          NODE
+          OUT="$OUT" NODE_PATH="$PWD/node_modules" node "$OUT/test.js"
+
+          DOCX=$(find "$OUT" -maxdepth 1 -name '*.docx' -print -quit)
+          test -n "$DOCX"
+          unzip -t "$DOCX"
+          rm -rf "$OUT/docx" && mkdir -p "$OUT/docx"
+          unzip -q "$DOCX" -d "$OUT/docx"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, re, xml.etree.ElementTree as ET
+          root=Path('/tmp/v062-footer-flow/docx')
+          ns={'w':'http://schemas.openxmlformats.org/wordprocessingml/2006/main','wp':'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing'}
+          W='{%s}'%ns['w']
+          expected_mark=(799200,594000)
+          footers=[]
+          for name in ['footer1.xml','footer2.xml']:
+              path=root/'word'/name
+              tree=ET.parse(path).getroot()
+              images=tree.findall('.//wp:inline',ns)
+              if len(images)!=1: raise SystemExit(f'{name}: símbolo duplicado ou ausente: {len(images)}')
+              ext=images[0].find('wp:extent',ns)
+              dims=(int(ext.attrib['cx']),int(ext.attrib['cy']))
+              if any(abs(a-b)>100 for a,b in zip(dims,expected_mark)): raise SystemExit(f'{name}: dimensão do símbolo {dims}')
+              xml=path.read_text(encoding='utf-8')
+              if 'PAGE' not in xml or 'NUMPAGES' not in xml: raise SystemExit(f'{name}: campos PAGE/NUMPAGES ausentes')
+              if '29A8E0' not in xml or 'Calibri' not in xml or 'w:sz w:val="20"' not in xml: raise SystemExit(f'{name}: tipografia institucional ausente')
+              tbl=tree.find('.//w:tbl',ns); tblpr=tbl.find('w:tblPr',ns)
+              tblw=tblpr.find('w:tblW',ns); ind=tblpr.find('w:tblInd',ns)
+              if tblw is None or tblw.attrib.get(W+'w')!='11907': raise SystemExit(f'{name}: largura do rodapé incorreta')
+              if ind is None or ind.attrib.get(W+'w')!='-1701': raise SystemExit(f'{name}: recuo do rodapé incorreto')
+              footers.append({'name':name,'mark':dims,'pageFields':True})
+
+          document=(root/'word/document.xml').read_text(encoding='utf-8')
+          settings=(root/'word/settings.xml').read_text(encoding='utf-8')
+          styles=(root/'word/styles.xml').read_text(encoding='utf-8')
+          page_breaks=len(re.findall(r'<w:br[^>]+w:type="page"',document))
+          if page_breaks>3: raise SystemExit(f'Quebras manuais excessivas: {page_breaks}')
+          if document.count('<w:tblHeader')<2: raise SystemExit('Cabeçalhos repetidos das tabelas não configurados')
+          if document.count('<w:cantSplit')<20: raise SystemExit('Linhas indivisíveis insuficientes')
+          if 'w:ascii="Arial"' not in styles and 'w:asciiTheme' not in styles: raise SystemExit('Fonte padrão Arial não localizada')
+          if 'w:pgMar w:top="284" w:right="1134" w:bottom="284" w:left="1701" w:header="57" w:footer="0"' not in document: raise SystemExit('Margens/cabeçalho/rodapé divergentes')
+          (Path('/tmp/v062-footer-flow')/'docx-structure.json').write_text(json.dumps({'footers':footers,'pageBreaks':page_breaks,'tableHeaders':document.count('<w:tblHeader'),'cantSplit':document.count('<w:cantSplit')},indent=2),encoding='utf-8')
+          PY
+
+          OFFICE=$(command -v libreoffice || command -v soffice)
+          mkdir -p "$OUT/lo-profile" "$OUT/render"
+          "$OFFICE" -env:UserInstallation="file://$OUT/lo-profile" --headless --convert-to pdf --outdir "$OUT/render" "$DOCX"
+          WORDPDF=$(find "$OUT/render" -maxdepth 1 -name '*.pdf' -print -quit)
+          test -s "$WORDPDF"
+          pdfinfo "$WORDPDF" > "$OUT/render/pdfinfo.txt"
+          pdftotext -layout "$WORDPDF" "$OUT/render/document.txt"
+          pdftotext -bbox-layout "$WORDPDF" "$OUT/render/document-bbox.html"
+          pdftoppm -png -r 120 "$WORDPDF" "$OUT/render/page" >/dev/null 2>&1
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, xml.etree.ElementTree as ET
+          out=Path('/tmp/v062-footer-flow/render')
+          info=(out/'pdfinfo.txt').read_text(encoding='utf-8',errors='ignore')
+          pages_n=int(re.search(r'^Pages:\s+(\d+)',info,re.M).group(1))
+          if pages_n>10: raise SystemExit(f'Word gerou páginas excessivas: {pages_n}')
+          text=(out/'document.txt').read_text(encoding='utf-8',errors='ignore')
+          pages=[p for p in text.split('\f') if p.strip()]
+          if len(pages)!=pages_n: raise SystemExit(f'Páginas textuais {len(pages)} != {pages_n}')
+          address='Matriz - Rua XV de novembro 1336, salas 34 e 35 – Blumenau – SC – CEP 89010-903'
+          for i,page in enumerate(pages,1):
+              if address not in page or 'www.horizonservitas.com +55 47 3326-1844' not in page: raise SystemExit(f'Rodapé ausente na página {i}')
+              if f'{i} de {pages_n}' not in page: raise SystemExit(f'Numeração dinâmica ausente na página {i}')
+              if len(page.strip())<120: raise SystemExit(f'Página possivelmente vazia: {i}')
+          root=ET.parse(out/'document-bbox.html').getroot(); ns={'x':'http://www.w3.org/1999/xhtml'}
+          gaps=[]
+          for i,page in enumerate(root.findall('.//x:page',ns),1):
+              words=page.findall('.//x:word',ns)
+              matriz=[w for w in words if (w.text or '').strip()=='Matriz']
+              if not matriz: raise SystemExit(f'Matriz não localizada no bbox da página {i}')
+              footer_y=min(float(w.attrib['yMin']) for w in matriz)
+              body=[]
+              for w in words:
+                  value=(w.text or '').strip()
+                  if not value: continue
+                  y=float(w.attrib['yMax'])
+                  if y<footer_y-1: body.append(y)
+              gap=footer_y-max(body) if body else footer_y
+              if gap<5: raise SystemExit(f'Conteúdo aproximou-se do rodapé na página {i}: {gap:.2f} pt')
+              gaps.append(round(gap,2))
+          (out/'validation-summary.txt').write_text(f'Páginas: {pages_n}\nFolgas texto/rodapé (pt): {gaps}\n',encoding='utf-8')
+          PY
+
+          cat "$OUT/browser-result.json"
+          cat "$OUT/docx-structure.json"
+          cat "$OUT/render/validation-summary.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v062-footer-fonts-flow-validation
+          path: /tmp/v062-footer-flow
+          if-no-files-found: warn
+
+      - name: Commit validated adjustment
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/fix-v062-footer-fonts-flow.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add fast_track/v06/direct-report.js fast_track/v06/direct-word.js fast_track/v06/direct.css fast_track/v062.html fast_track/v06.html .github/workflows/fix-v062-footer-fonts-flow.yml
+          git commit -m 'fix(v06): ajustar rodapé fontes e fluxo de páginas'
+          git push origin HEAD:fix/v062-footer-fonts-flow
