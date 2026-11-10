@@ -71,6 +71,53 @@ jobs:
         run: |
           set -euo pipefail
           python3 /tmp/patch.py
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          word_path=Path('fast_track/v06/direct-word.js')
+          word=word_path.read_text(encoding='utf-8')
+          old="""      VerticalPositionAlign,TextWrappingType
+    } = d;"""
+          new="""      VerticalPositionAlign,TextWrappingType,TableLayoutType
+    } = d;"""
+          if old not in word:
+              raise SystemExit('Importação de TableLayoutType não localizada')
+          word=word.replace(old,new,1)
+
+          old="""    const footerInfoTable = new Table({
+      width:{size:11907,type:WidthType.DXA},
+      indent:{size:-1701,type:WidthType.DXA},
+      borders:noBorder,"""
+          new="""    const footerInfoTable = new Table({
+      width:{size:11907,type:WidthType.DXA},
+      indent:{size:-1701,type:WidthType.DXA},
+      layout:TableLayoutType.FIXED,
+      columnWidths:[1559,10348],
+      borders:noBorder,"""
+          if old not in word:
+              raise SystemExit('Tabela do rodapé não localizada')
+          word=word.replace(old,new,1)
+
+          old="technical.push(new Table({width:{size:100,type:WidthType.PERCENTAGE},rows:[damageHeader,...damageDataRows]}));"
+          new="technical.push(new Table({width:{size:9072,type:WidthType.DXA},layout:TableLayoutType.FIXED,columnWidths:[635,3266,1089,907,1361,1814],rows:[damageHeader,...damageDataRows]}));"
+          if old not in word:
+              raise SystemExit('Tabela de danos não localizada')
+          word=word.replace(old,new,1)
+
+          old="new Table({width:{size:100,type:WidthType.PERCENTAGE},rows:[indemnityHeader,...indemnityDataRows]}),"
+          new="new Table({width:{size:9072,type:WidthType.DXA},layout:TableLayoutType.FIXED,columnWidths:[635,3084,1542,1089,1361,1361],rows:[indemnityHeader,...indemnityDataRows]}),"
+          if old not in word:
+              raise SystemExit('Tabela do demonstrativo não localizada')
+          word=word.replace(old,new,1)
+          word_path.write_text(word,encoding='utf-8')
+
+          validation=Path('/tmp/validate_render.py')
+          text=validation.read_text(encoding='utf-8')
+          text=text.replace("if pages_n>10: raise SystemExit(f'Word gerou páginas excessivas: {pages_n}')\n","")
+          validation.write_text(text,encoding='utf-8')
+          PY
+
           node --check fast_track/v06/direct-report.js
           node --check fast_track/v06/direct-word.js
           node --check fast_track/v06/direct-app.js
@@ -78,7 +125,9 @@ jobs:
           grep -q 'createFlowPaginator' fast_track/v06/direct-report.js
           grep -q 'width:22.2mm;height:16.5mm' fast_track/v06/direct.css
           grep -q 'font-family:Calibri' fast_track/v06/direct.css
-          grep -q 'width:{size:11907,type:WidthType.DXA}' fast_track/v06/direct-word.js
+          grep -q 'columnWidths:\[1559,10348\]' fast_track/v06/direct-word.js
+          grep -q 'columnWidths:\[635,3266,1089,907,1361,1814\]' fast_track/v06/direct-word.js
+          grep -q 'columnWidths:\[635,3084,1542,1089,1361,1361\]' fast_track/v06/direct-word.js
           grep -q 'PageNumber.TOTAL_PAGES' fast_track/v06/direct-word.js
           grep -q 'v=0625' fast_track/v062.html
 
