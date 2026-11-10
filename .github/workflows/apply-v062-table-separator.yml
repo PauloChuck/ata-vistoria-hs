@@ -1,0 +1,42 @@
+name: Apply V062 table separator
+
+on:
+  push:
+    branches:
+      - fix/v062-footer-fonts-flow
+    paths:
+      - .github/workflows/apply-v062-table-separator.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('fast_track/v06/direct-word.js')
+          text = path.read_text(encoding='utf-8')
+          old = "new Table({width:{size:9072,type:WidthType.DXA},layout:TableLayoutType.FIXED,columnWidths:[635,3084,1542,1089,1361,1361],rows:[indemnityHeader,...indemnityDataRows]}),\n      new Table({width:{size:62,type:WidthType.PERCENTAGE},alignment:AlignmentType.RIGHT,rows:["
+          new = "new Table({width:{size:9072,type:WidthType.DXA},layout:TableLayoutType.FIXED,columnWidths:[635,3084,1542,1089,1361,1361],rows:[indemnityHeader,...indemnityDataRows]}),\n      new Paragraph({spacing:{after:0,line:20}}),\n      new Table({width:{size:62,type:WidthType.PERCENTAGE},alignment:AlignmentType.RIGHT,rows:["
+          if old not in text:
+              raise SystemExit('Sequência das tabelas não localizada')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          node --check fast_track/v06/direct-word.js
+          grep -q 'new Paragraph({spacing:{after:0,line:20}})' fast_track/v06/direct-word.js
+          rm -f .github/workflows/apply-v062-table-separator.yml .github/workflows/fix-v062-table-separator.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add fast_track/v06/direct-word.js .github/workflows/apply-v062-table-separator.yml .github/workflows/fix-v062-table-separator.yml
+          git commit -m 'fix(v06): separar demonstrativo do quadro final'
+          git push origin HEAD:fix/v062-footer-fonts-flow
