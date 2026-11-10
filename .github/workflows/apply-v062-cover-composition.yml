@@ -6,6 +6,7 @@ on:
       - fix/v062-cover-composition
     paths:
       - .github/workflows/apply-v062-cover-composition.yml
+      - .github/scripts/**
   workflow_dispatch:
 
 permissions:
