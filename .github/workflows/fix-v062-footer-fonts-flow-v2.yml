@@ -77,24 +77,14 @@ jobs:
 
           word_path=Path('fast_track/v06/direct-word.js')
           word=word_path.read_text(encoding='utf-8')
-          old="""      VerticalPositionAlign,TextWrappingType
-    } = d;"""
-          new="""      VerticalPositionAlign,TextWrappingType,TableLayoutType
-    } = d;"""
+          old="      VerticalPositionAlign,TextWrappingType\n    } = d;"
+          new="      VerticalPositionAlign,TextWrappingType,TableLayoutType\n    } = d;"
           if old not in word:
               raise SystemExit('Importação de TableLayoutType não localizada')
           word=word.replace(old,new,1)
 
-          old="""    const footerInfoTable = new Table({
-      width:{size:11907,type:WidthType.DXA},
-      indent:{size:-1701,type:WidthType.DXA},
-      borders:noBorder,"""
-          new="""    const footerInfoTable = new Table({
-      width:{size:11907,type:WidthType.DXA},
-      indent:{size:-1701,type:WidthType.DXA},
-      layout:TableLayoutType.FIXED,
-      columnWidths:[1559,10348],
-      borders:noBorder,"""
+          old="    const footerInfoTable = new Table({\n      width:{size:11907,type:WidthType.DXA},\n      indent:{size:-1701,type:WidthType.DXA},\n      borders:noBorder,"
+          new="    const footerInfoTable = new Table({\n      width:{size:11907,type:WidthType.DXA},\n      indent:{size:-1701,type:WidthType.DXA},\n      layout:TableLayoutType.FIXED,\n      columnWidths:[1559,10348],\n      borders:noBorder,"
           if old not in word:
               raise SystemExit('Tabela do rodapé não localizada')
           word=word.replace(old,new,1)
