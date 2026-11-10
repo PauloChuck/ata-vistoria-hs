@@ -58,7 +58,7 @@
       Document,Packer,Paragraph,TextRun,Table,TableRow,TableCell,WidthType,AlignmentType,
       VerticalAlign,BorderStyle,Header,Footer,ImageRun,PageNumber,PageBreak,ShadingType,
       HorizontalPositionRelativeFrom,HorizontalPositionAlign,VerticalPositionRelativeFrom,
-      VerticalPositionAlign,TextWrappingType
+      VerticalPositionAlign,TextWrappingType,TableLayoutType
     } = d;
 
     const noBorder = borders(BorderStyle.NONE,'FFFFFF',0);
@@ -83,11 +83,11 @@
     const caption = (value) => new Paragraph({children:[run(value,{size:20,color:CAPTION_BLUE})],alignment:AlignmentType.CENTER,spacing:{line:240,after:120},keepLines:true});
     const pageBreak = () => new Paragraph({children:[new PageBreak()]});
 
-    function tcell(content,{width,align=AlignmentType.CENTER,bold=false,shading,vertical=VerticalAlign.CENTER,border=thinBorder}={}) {
+    function tcell(content,{width,align=AlignmentType.CENTER,bold=false,shading,vertical=VerticalAlign.CENTER,border=thinBorder,size=20,font='Arial',line=240,margins={top:60,bottom:60,left:80,right:80}}={}) {
       const children = Array.isArray(content) && content.every(x => x && typeof x === 'object' && x.constructor?.name === 'Paragraph')
-        ? content : [para(Array.isArray(content) ? content : text(content),{alignment:align,after:0,line:240})];
-      if (bold && children[0]) children[0] = new Paragraph({children:[run(text(content),{size:20,bold:true})],alignment:align,spacing:{after:0,line:240}});
-      return new TableCell({children,width:width ? {size:width,type:WidthType.PERCENTAGE}:undefined,verticalAlign:vertical,borders:border,shading:shading ? {type:ShadingType.CLEAR,fill:shading}:undefined,margins:{top:60,bottom:60,left:80,right:80}});
+        ? content : [para(Array.isArray(content) ? content : text(content),{alignment:align,after:0,line,size,font})];
+      if (bold && children[0]) children[0] = new Paragraph({children:[run(text(content),{size,bold:true,font})],alignment:align,spacing:{after:0,line}});
+      return new TableCell({children,width:width ? {size:width,type:WidthType.PERCENTAGE}:undefined,verticalAlign:vertical,borders:border,shading:shading ? {type:ShadingType.CLEAR,fill:shading}:undefined,margins});
     }
 
     const CM_TO_PX = 96 / 2.54;
@@ -121,34 +121,54 @@
     const header = createInstitutionalHeader();
     const firstHeader = createInstitutionalHeader();
 
-    const footerTable = new Table({
-      width:{size:100,type:WidthType.PERCENTAGE},borders:noBorder,
-      rows:[new TableRow({children:[
-        tcell([new Paragraph({children:[new ImageRun({data:footerMark.data,type:'png',transformation:{width:84,height:62}})],spacing:{after:0}})],{width:14,border:noBorder}),
-        tcell([new Paragraph({children:[run('Matriz - Rua XV de novembro 1336, salas 34 e 35 – Blumenau – SC – CEP 89010-903',{font:'Calibri',size:20,color:BLUE}),run('www.horizonservitas.com +55 47 3326-1844',{font:'Calibri',size:20,color:BLUE,break:1})],spacing:{line:240,after:0}})],{width:70,align:AlignmentType.LEFT,border:noBorder}),
-        tcell([new Paragraph({children:[run('',{size:20,italics:true}),new TextRun({children:[PageNumber.CURRENT,' de ',PageNumber.TOTAL_PAGES],font:'Arial',size:20,italics:true})],alignment:AlignmentType.RIGHT,spacing:{after:0}})],{width:16,border:noBorder})
+    const FOOTER_MARK_WIDTH_PX = 2.22 * CM_TO_PX;
+    const FOOTER_MARK_HEIGHT_PX = 1.65 * CM_TO_PX;
+    const footerInfoTable = new Table({
+      width:{size:11907,type:WidthType.DXA},
+      indent:{size:-1701,type:WidthType.DXA},
+      layout:TableLayoutType.FIXED,
+      columnWidths:[1559,10348],
+      borders:noBorder,
+      rows:[new TableRow({cantSplit:true,children:[
+        new TableCell({
+width:{size:1559,type:WidthType.DXA},verticalAlign:VerticalAlign.CENTER,borders:noBorder,
+margins:{top:0,bottom:0,left:0,right:0},
+children:[new Paragraph({children:[new ImageRun({data:footerMark.data,type:'png',transformation:{width:FOOTER_MARK_WIDTH_PX,height:FOOTER_MARK_HEIGHT_PX}})],alignment:AlignmentType.LEFT,spacing:{after:0,line:240}})]
+        }),
+        new TableCell({
+width:{size:10348,type:WidthType.DXA},verticalAlign:VerticalAlign.CENTER,borders:noBorder,
+margins:{top:0,bottom:0,left:0,right:0},
+children:[
+  new Paragraph({children:[run('Matriz - Rua XV de novembro 1336, salas 34 e 35 – Blumenau – SC – CEP 89010-903',{font:'Calibri',size:20,color:BLUE})],alignment:AlignmentType.LEFT,spacing:{line:360,after:0}}),
+  new Paragraph({children:[run('www.horizonservitas.com +55 47 3326-1844',{font:'Calibri',size:20,color:BLUE})],alignment:AlignmentType.LEFT,spacing:{line:360,after:0}})
+]
+        })
       ]})]
     });
-    const footer = new Footer({children:[footerTable]});
+    const footerPageNumber = new Paragraph({
+      children:[new TextRun({children:[PageNumber.CURRENT,' de ',PageNumber.TOTAL_PAGES],font:'Arial',size:20,italics:true,color:'000000'})],
+      alignment:AlignmentType.RIGHT,indent:{right:-994},spacing:{after:0,line:240}
+    });
+    const footer = new Footer({children:[footerInfoTable,footerPageNumber]});
 
-    const pages = [];
-    const addPage = (children) => pages.push(children);
+    const children = [];
 
     // Capa
     const claimTable = new Table({width:{size:55,type:WidthType.PERCENTAGE},alignment:AlignmentType.RIGHT,borders:noBorder,rows:[
-      new TableRow({children:[tcell('Sinistro Seguradora:',{width:60,align:AlignmentType.LEFT,border:noBorder}),tcell(f.insurerClaim || 'A INFORMAR',{width:40,align:AlignmentType.LEFT,border:noBorder})]}),
-      new TableRow({children:[tcell('Sinistro Horizon Servitas:',{width:60,align:AlignmentType.LEFT,border:noBorder}),tcell(f.hsClaim || 'A INFORMAR',{width:40,align:AlignmentType.LEFT,border:noBorder})]})
+      new TableRow({children:[tcell('Sinistro Seguradora:',{width:60,align:AlignmentType.LEFT,border:noBorder,size:22}),tcell(f.insurerClaim || 'A INFORMAR',{width:40,align:AlignmentType.LEFT,border:noBorder,size:22})]}),
+      new TableRow({children:[tcell('Sinistro Horizon Servitas:',{width:60,align:AlignmentType.LEFT,border:noBorder,size:22}),tcell(f.hsClaim || 'A INFORMAR',{width:40,align:AlignmentType.LEFT,border:noBorder,size:22})]})
     ]});
     const metaRows = [
       ['COMPANHIA SEGURADORA:',f.insurer],['SEGURADO:',f.insured],['COOPERADO:',f.claimantName],['LOCAL DO SINISTRO:',f.riskAddress],
       ['APÓLICE DE SEGUROS:',f.policyNumber],['PRODUTO:',f.productName],['CORRETOR:',f.broker],['DATA DO SINISTRO:',REPORT().longDate(f.lossDate,true)],['COBERTURA:',f.coverageName]
-    ].map(([label,value]) => new TableRow({children:[tcell(label,{width:40,align:AlignmentType.LEFT,bold:true,border:noBorder}),tcell(value || 'A INFORMAR',{width:60,align:AlignmentType.LEFT,border:noBorder})]}));
-    addPage([
+    ].map(([label,value]) => new TableRow({children:[tcell(label,{width:40,align:AlignmentType.LEFT,bold:true,border:noBorder,size:24}),tcell(value || 'A INFORMAR',{width:60,align:AlignmentType.LEFT,border:noBorder,size:24})]}));
+    children.push(
       new Paragraph({children:[run('RELATÓRIO FAST TRACK DE CONTINGÊNCIA',{font:'Arial Black',size:56,bold:true})],alignment:AlignmentType.LEFT,spacing:{before:900,after:0,line:240}}),
       new Paragraph({children:[run('RISCOS NOMEADOS EMPRESARIAL',{font:'Arial Black',size:48,bold:true,color:BLUE})],alignment:AlignmentType.LEFT,spacing:{after:700,line:240}}),
       claimTable,new Paragraph({spacing:{after:180}}),
-      new Table({width:{size:100,type:WidthType.PERCENTAGE},borders:noBorder,rows:metaRows})
-    ]);
+      new Table({width:{size:100,type:WidthType.PERCENTAGE},borders:noBorder,rows:metaRows}),
+      pageBreak()
+    );
 
     // Página técnica inicial
     const technical = [heading('1. LOCAL DO SINISTRO'),para('Trata-se de propriedade rural destinada a engorda de animais (matérias-primas) do segurado.')];
@@ -167,11 +187,11 @@
     if(damageItems.length){
       const damageHeader=new TableRow({tableHeader:true,cantSplit:true,children:[tcell('Item',{width:7,bold:true}),tcell('Material danificado',{width:36,bold:true,align:AlignmentType.LEFT}),tcell('Quantidade',{width:12,bold:true}),tcell('Unidade',{width:10,bold:true}),tcell('Idade',{width:15,bold:true}),tcell('Valor reclamado',{width:20,bold:true})]});
       const damageDataRows=damageItems.map((item,index)=>new TableRow({cantSplit:true,children:[tcell(String(index+1),{width:7}),tcell(item.description,{width:36,align:AlignmentType.LEFT}),tcell(item.quantity,{width:12}),tcell(item.unit,{width:10}),tcell(`${item.age || ''} ${item.ageUnit || ''}`,{width:15}),tcell(REPORT().money(item.claimedTotal),{width:20})]}));
-      technical.push(new Table({width:{size:100,type:WidthType.PERCENTAGE},rows:[damageHeader,...damageDataRows]}));
+      technical.push(new Table({width:{size:9072,type:WidthType.DXA},layout:TableLayoutType.FIXED,columnWidths:[635,3266,1089,907,1361,1814],rows:[damageHeader,...damageDataRows]}));
     } else {
       technical.push(para('Nenhum item cadastrado.',{alignment:AlignmentType.LEFT}));
     }
-    addPage(technical);
+    children.push(...technical);
 
     // Fotografias — quatro por página
     const photos=(state.photos||[]).filter(p=>p.dataUrl);
@@ -190,9 +210,10 @@
             caption(`Figura ${start+r*2+c+1} — ${photo.caption || ''}`)
           ]}));
         }
-        rows.push(new TableRow({children:cells}));
+        rows.push(new TableRow({cantSplit:true,children:cells}));
       }
-      addPage([heading(start ? 'REGISTRO FOTOGRÁFICO — CONTINUAÇÃO' : 'REGISTRO FOTOGRÁFICO'),new Table({width:{size:100,type:WidthType.PERCENTAGE},borders:noBorder,rows})]);
+      if(start) children.push(pageBreak());
+      children.push(heading(start ? 'REGISTRO FOTOGRÁFICO — CONTINUAÇÃO' : 'REGISTRO FOTOGRÁFICO'),new Table({width:{size:100,type:WidthType.PERCENTAGE},borders:noBorder,rows}));
     }
 
     // Documentos e parecer
@@ -201,35 +222,39 @@
     if(docs.length) docs.forEach((doc,index)=>docChildren.push(para([run(`${index+1}. ${doc.type || doc.name || 'Documento'}`,{bold:true}),run(doc.description ? ` — ${doc.description}` : '')],{alignment:AlignmentType.LEFT})));
     else docChildren.push(para('Documentos não apresentados até o momento.'));
     docChildren.push(heading('5. PARECER DO REGULADOR'),para(f.regulatorOpinion || ''));
-    addPage(docChildren);
+    children.push(...docChildren);
 
-    // Demonstrativo
-    const rowsPerPage=8;
+    // Demonstrativo contínuo, com cabeçalho repetido e linhas indivisíveis
     const damages=state.damages || [];
-    const chunks=damages.length ? Array.from({length:Math.ceil(damages.length/rowsPerPage)},(_,i)=>damages.slice(i*rowsPerPage,(i+1)*rowsPerPage)) : [[]];
-    chunks.forEach((slice,pageIndex)=>{
-      const start=pageIndex*rowsPerPage;
-      const children=[heading(pageIndex ? '6. DEMONSTRATIVO DE INDENIZAÇÃO — CONTINUAÇÃO' : '6. DEMONSTRATIVO DE INDENIZAÇÃO')];
-      if(!pageIndex) children.push(para('Conforme alinhado com a seguradora, fixamos os prejuízos juntamente com o cooperado durante a vistoria de acordo com preços médios de mercado e/ou orçamentos apresentados.'));
-      children.push(new Table({width:{size:100,type:WidthType.PERCENTAGE},rows:[
-        new TableRow({children:[tcell('Item',{width:7,bold:true}),tcell('Descrição',{width:34,bold:true,align:AlignmentType.LEFT}),tcell('Quantidade / unidade',{width:17,bold:true}),tcell('Idade',{width:12,bold:true}),tcell('Valor reclamado',{width:15,bold:true}),tcell('Valor apurado',{width:15,bold:true})]}),
-        ...slice.map((item,i)=>new TableRow({children:[tcell(String(start+i+1),{width:7}),tcell(item.description,{width:34,align:AlignmentType.LEFT}),tcell(`${item.quantity || ''} ${item.unit || ''}`,{width:17}),tcell(`${item.age || ''} ${item.ageUnit || ''}`,{width:12}),tcell(REPORT().money(item.claimedTotal),{width:15}),tcell(item.assessedTotal===''||item.assessedTotal==null?'A INFORMAR':REPORT().money(item.assessedTotal),{width:15})]}))
-      ]}));
-      if(pageIndex===chunks.length-1) children.push(new Table({width:{size:62,type:WidthType.PERCENTAGE},alignment:AlignmentType.RIGHT,rows:[
-        new TableRow({children:[tcell('Total reclamado',{width:65,align:AlignmentType.LEFT,bold:true,shading:LIGHT}),tcell(REPORT().money(calc.totalClaimed),{width:35,shading:LIGHT})]}),
-        new TableRow({children:[tcell('Total dos prejuízos apurados',{width:65,align:AlignmentType.LEFT,bold:true}),tcell(REPORT().money(calc.totalAssessed),{width:35})]}),
-        new TableRow({children:[tcell('Franquia contratual',{width:65,align:AlignmentType.LEFT,bold:true}),tcell(REPORT().money(calc.deductible),{width:35})]}),
-        new TableRow({children:[tcell('Valor líquido apurado para indenização',{width:65,align:AlignmentType.LEFT,bold:true,shading:LIGHT}),tcell(REPORT().money(calc.net),{width:35,shading:LIGHT})]})
-      ]}));
-      addPage(children);
-    });
+    const indemnityHeader = new TableRow({tableHeader:true,cantSplit:true,children:[
+      tcell('Item',{width:7,bold:true}),tcell('Descrição',{width:34,bold:true,align:AlignmentType.LEFT}),
+      tcell('Quantidade / unidade',{width:17,bold:true}),tcell('Idade',{width:12,bold:true}),
+      tcell('Valor reclamado',{width:15,bold:true}),tcell('Valor apurado',{width:15,bold:true})
+    ]});
+    const indemnityDataRows = damages.map((item,index)=>new TableRow({cantSplit:true,children:[
+      tcell(String(index+1),{width:7}),tcell(item.description,{width:34,align:AlignmentType.LEFT}),
+      tcell(`${item.quantity || ''} ${item.unit || ''}`,{width:17}),tcell(`${item.age || ''} ${item.ageUnit || ''}`,{width:12}),
+      tcell(REPORT().money(item.claimedTotal),{width:15}),tcell(item.assessedTotal===''||item.assessedTotal==null?'A INFORMAR':REPORT().money(item.assessedTotal),{width:15})
+    ]}));
+    children.push(
+      heading('6. DEMONSTRATIVO DE INDENIZAÇÃO'),
+      para('Conforme alinhado com a seguradora, fixamos os prejuízos juntamente com o cooperado durante a vistoria de acordo com preços médios de mercado e/ou orçamentos apresentados.'),
+      new Table({width:{size:9072,type:WidthType.DXA},layout:TableLayoutType.FIXED,columnWidths:[635,3084,1542,1089,1361,1361],rows:[indemnityHeader,...indemnityDataRows]}),
+      new Paragraph({spacing:{after:0,line:20}}),
+      new Table({width:{size:62,type:WidthType.PERCENTAGE},alignment:AlignmentType.RIGHT,rows:[
+        new TableRow({cantSplit:true,children:[tcell('Total reclamado',{width:65,align:AlignmentType.LEFT,bold:true,shading:LIGHT}),tcell(REPORT().money(calc.totalClaimed),{width:35,shading:LIGHT})]}),
+        new TableRow({cantSplit:true,children:[tcell('Total dos prejuízos apurados',{width:65,align:AlignmentType.LEFT,bold:true}),tcell(REPORT().money(calc.totalAssessed),{width:35})]}),
+        new TableRow({cantSplit:true,children:[tcell('Franquia contratual',{width:65,align:AlignmentType.LEFT,bold:true}),tcell(REPORT().money(calc.deductible),{width:35})]}),
+        new TableRow({cantSplit:true,children:[tcell('Valor líquido apurado para indenização',{width:65,align:AlignmentType.LEFT,bold:true,shading:LIGHT}),tcell(REPORT().money(calc.net),{width:35,shading:LIGHT})]})
+      ]})
+    );
 
     // Encerramento
     const other = f.otherInsurance==='nao' ? 'O cooperado declara não possuir outros seguros contratados para os bens sinistrados.' : f.otherInsurance==='sim' ? `O cooperado declarou a existência de outro(s) seguro(s): ${f.otherInsuranceDetails || ''}` : 'Declaração sobre outros seguros não informada.';
-    const closing=[heading('7. DECLARAÇÃO DE OUTROS SEGUROS'),para(other),heading('8. DADOS CADASTRAIS'),para([run('Nome completo: ',{bold:true}),run(f.claimantName || ''),run('\nCPF: ',{bold:true}),run(f.claimantCpf || ''),run('\nDados Bancários: ',{bold:true}),run(`${f.bankName || ''} — AG: ${f.bankAgency || ''} / CC: ${f.bankAccount || ''}`)]),heading('9. CRONOLOGIA')];
+    const closing=[heading('7. DECLARAÇÃO DE OUTROS SEGUROS'),para(other),heading('8. DADOS CADASTRAIS'),para([run('Nome completo: ',{bold:true}),run(f.claimantName || ''),run('\nCPF: ',{bold:true}),run(f.claimantCpf || ''),run('\nDados Bancários: ',{bold:true}),run(`${f.bankName || ''} — AG: ${f.bankAgency || ''} / CC: ${f.bankAccount || ''}`)],{line:240}),heading('9. CRONOLOGIA')];
     closing.push(new Table({width:{size:100,type:WidthType.PERCENTAGE},rows:[
       ['Data da ocorrência',REPORT().formatDate(f.lossDate)],['Data do aviso',REPORT().formatDate(f.noticeDate)],['Data do agendamento da vistoria',REPORT().formatDate(f.scheduleDate)],['Data da realização da vistoria',REPORT().formatDate(f.inspectionDate)]
-    ].map(([label,date])=>new TableRow({children:[tcell(label,{width:72,align:AlignmentType.LEFT}),tcell(date,{width:28})]}))}));
+    ].map(([label,date])=>new TableRow({cantSplit:true,children:[tcell(label,{width:72,align:AlignmentType.LEFT}),tcell(date,{width:28})]}))}));
     closing.push(heading('10. INFORMAÇÕES COMPLEMENTARES'),para('As orientações não representam o reconhecimento prévio de cobertura do sinistro ora reclamado ou de eventual valor a indenizar, os quais dependem da análise das Condições do Seguro contratado, e da devida análise e manifestação da Companhia Seguradora.'),para(`${f.reportCity || ''}, ${REPORT().longDate(f.reportDate)}.`,{alignment:AlignmentType.RIGHT,before:400}));
 
     const signatureCells=[];
@@ -244,12 +269,9 @@
       children.push(new Paragraph({children:[run(label)],border:{top:{style:BorderStyle.SINGLE,size:4,color:'555555'}},alignment:AlignmentType.CENTER,spacing:{after:80}}),para(name || '',{alignment:AlignmentType.CENTER,after:40,line:240}),para(`CPF: ${cpf || ''}`,{alignment:AlignmentType.CENTER,after:0,line:240}));
       signatureCells.push(new TableCell({children,width:{size:50,type:WidthType.PERCENTAGE},borders:noBorder,margins:{left:300,right:300}}));
     }
-    closing.push(new Table({width:{size:100,type:WidthType.PERCENTAGE},borders:noBorder,rows:[new TableRow({children:signatureCells})]}));
+    closing.push(new Table({width:{size:100,type:WidthType.PERCENTAGE},borders:noBorder,rows:[new TableRow({cantSplit:true,children:signatureCells})]}));
     if(draft) closing.unshift(new Paragraph({children:[run('RASCUNHO',{size:36,bold:true,color:'AA7777'})],alignment:AlignmentType.CENTER,spacing:{after:200}}));
-    addPage(closing);
-
-    const children=[];
-    pages.forEach((page,index)=>{if(index)children.push(pageBreak());children.push(...page);});
+    children.push(...closing);
 
     const doc = new Document({
       creator:'Horizon Servitas',title:'Relatório Fast Track de Contingência',description:'Relatório gerado pelo aplicativo Fast Track',

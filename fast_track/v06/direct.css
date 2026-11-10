@@ -112,15 +112,18 @@ textarea{resize:vertical;line-height:1.45}
 .report-page{position:relative;width:210mm;height:297mm;background:#fff;color:#111;margin:0 auto 14px;padding:31mm 20mm 24mm 30mm;font-family:Arial,sans-serif;font-size:11pt;line-height:1.5;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.16);page-break-after:always}
 .report-page:last-child{page-break-after:auto}
 .report-page.first{padding-top:37mm}
-.report-content{position:relative;z-index:2;height:240mm;overflow:hidden}
+.report-content{position:relative;z-index:2;height:236mm;overflow:hidden}
+.report-page.first .report-content{height:230mm}
 .report-logo{position:absolute;right:10mm;top:1mm;width:68.5mm;height:33mm;object-fit:contain;z-index:5}
 .report-page.first .report-logo{right:10mm;top:1mm;width:68.5mm;height:33mm}
 .report-watermark{position:absolute;left:30mm;top:88.875mm;width:160mm;height:119.25mm;object-fit:contain;z-index:1;opacity:1;pointer-events:none}
 .report-page.first .report-watermark{left:30mm;top:88.875mm;width:160mm;height:119.25mm}
-.report-footer{position:absolute;left:0;right:0;bottom:0;height:28mm;z-index:5;font-family:Calibri,Arial,sans-serif;color:#29a8e0;font-size:10pt}
-.report-footer-mark{position:absolute;left:0;top:0;width:22mm;height:16.5mm;object-fit:contain}
-.report-footer-text{position:absolute;left:25mm;top:4mm;line-height:1.55}
-.report-page-number{position:absolute;right:-1mm;bottom:0;color:#111;font-family:Arial,sans-serif;font-size:10pt;font-style:italic}
+.report-footer{position:absolute;left:0;right:0;bottom:0;height:28mm;z-index:5;font-family:Calibri,Arial,sans-serif;color:#29a8e0;font-size:10pt;font-weight:400;font-style:normal}
+.report-footer-mark{position:absolute;left:0;top:3.4mm;width:22.2mm;height:16.5mm;object-fit:contain}
+.report-footer-address,.report-footer-contact{position:absolute;left:27.5mm;right:32mm;text-align:left;white-space:nowrap;font-family:Calibri,Arial,sans-serif;font-size:10pt;line-height:1;font-weight:400;font-style:normal;color:#29a8e0}
+.report-footer-address{top:6.9mm}
+.report-footer-contact{top:13.4mm}
+.report-page-number{position:absolute;right:2.5mm;top:22.4mm;color:#000;font-family:Arial,sans-serif;font-size:10pt;line-height:1;font-style:italic;font-weight:400}
 .doc-title{font-family:"Arial Black",Arial,sans-serif;font-size:28pt;line-height:1;margin:8mm 0 1mm;font-weight:900}
 .doc-subtitle{font-family:"Arial Black",Arial,sans-serif;font-size:24pt;line-height:1;color:#29a8e0;margin:0 0 12mm;font-weight:900}
 .claim-table{width:95mm;margin:0 0 9mm auto;border-collapse:collapse;font-size:11pt}
@@ -129,10 +132,12 @@ textarea{resize:vertical;line-height:1.45}
 .meta-table{width:172.6mm;border-collapse:collapse;table-layout:fixed}
 .meta-table th,.meta-table td{border:0;text-align:left;vertical-align:top;padding:3.2mm 0;font-size:12pt}
 .meta-table th{width:68mm;font-weight:800;padding-right:5mm}
-.doc-section{font-family:"Arial Black",Arial,sans-serif;font-size:14pt;line-height:1.5;margin:8mm 0 4mm;page-break-after:avoid;font-weight:900}
-.doc-subsection{font-size:12pt;font-weight:800;text-transform:uppercase;margin:6mm 0 3mm;page-break-after:avoid}
+.doc-section{font-family:"Arial Black",Arial,sans-serif;font-size:14pt;line-height:1.5;margin:10.58mm 0 5.29mm;page-break-after:avoid;font-weight:900}
+.report-content>.doc-section:first-child{margin-top:0}
+.doc-subsection{font-family:Arial,sans-serif;font-size:12pt;font-weight:700;text-transform:uppercase;margin:8.82mm 0 3.53mm;page-break-after:avoid}
+.report-content>.doc-subsection:first-child{margin-top:0}
 .doc-text{margin:0 0 3mm;text-align:justify;white-space:pre-wrap;orphans:2;widows:2}
-.doc-caption{font-size:10pt;color:#1f497d;text-align:center;line-height:1.1;margin:2mm 0 0}
+.doc-caption{font-family:Arial,sans-serif;font-size:10pt;color:#1f497d;text-align:center;line-height:1;margin:2mm 0 0}
 .map-report{height:56mm;display:flex;align-items:center;justify-content:center;margin:2mm auto 1mm;width:130mm}
 .map-report img{max-width:100%;max-height:100%;object-fit:contain}
 .doc-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9pt;margin:2mm 0}
@@ -143,8 +148,8 @@ textarea{resize:vertical;line-height:1.45}
 .damage-table th,.damage-table td{padding:1.25mm 1mm}
 .damage-table tr{break-inside:avoid;page-break-inside:avoid}
 .damage-table th:nth-child(1){width:7%}.damage-table th:nth-child(2){width:39%}.damage-table th:nth-child(3){width:12%}.damage-table th:nth-child(4){width:10%}.damage-table th:nth-child(5){width:14%}.damage-table th:nth-child(6){width:18%}
-.photo-grid-report{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:5mm;height:218mm}
-.photo-cell-report{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-height:0}
+.photo-row-report{display:grid;grid-template-columns:1fr 1fr;gap:5mm;margin:0 0 5mm;break-inside:avoid;page-break-inside:avoid}
+.photo-cell-report{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-height:0;break-inside:avoid;page-break-inside:avoid}
 .photo-cell-report img{width:100%;height:88mm;object-fit:contain;background:#fff}
 .photo-cell-report .doc-caption{min-height:10mm}
 .document-list{margin:0;padding-left:7mm}
@@ -156,9 +161,13 @@ textarea{resize:vertical;line-height:1.45}
 .final-table th,.final-table td{text-align:right}
 .final-table th:first-child,.final-table td:first-child{text-align:left}
 .chrono-table td{border-left:0;border-right:0;padding:2mm}
-.signature-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:20mm;margin-top:18mm}
+.closing-signature-block{break-inside:avoid;page-break-inside:avoid}
+.report-date{text-align:right!important;margin-top:9mm!important}
+.signature-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:20mm;margin-top:18mm;break-inside:avoid;page-break-inside:avoid}
 .signature-report{text-align:center}
 .signature-report img{width:45mm;height:18mm;object-fit:contain;display:block;margin:0 auto -2mm}
+.signature-spacer{height:18mm}
+.doc-data{line-height:1}
 .signature-line{border-top:.5pt solid #555;padding-top:2mm}
 .draft-mark{position:absolute;left:25mm;top:135mm;transform:rotate(-35deg);font-size:54pt;color:rgba(150,0,0,.12);font-weight:900;z-index:4;pointer-events:none}
 @media(max-width:760px){
