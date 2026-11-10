@@ -1,0 +1,269 @@
+name: Fix V062 watermark branding
+
+on:
+  push:
+    branches:
+      - fix/v062-watermark-branding
+    paths:
+      - .github/workflows/fix-v062-watermark-branding.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch report preview, Word and PDF branding
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          report_path = Path('fast_track/v06/direct-report.js')
+          report = report_path.read_text(encoding='utf-8')
+          pattern = re.compile(r"  const ASSETS = \{\n    logo: svgUri\(`.*?`\),\n    watermark: svgUri\(`.*?`\),", re.S)
+          replacement = '''  const BRAND_ASSETS = window.FastTrackV06BrandAssets || {};
+          const ASSETS = {
+            logo: BRAND_ASSETS.logo || svgUri(`<svg xmlns="http://www.w3.org/2000/svg" width="830" height="400" viewBox="0 0 830 400"><rect width="830" height="400" fill="white"/><g fill="none" stroke="#29A8E0" stroke-width="18"><ellipse cx="235" cy="190" rx="150" ry="118"/><ellipse cx="365" cy="190" rx="150" ry="118"/></g><text x="205" y="235" font-family="Arial Black,Arial" font-size="130" font-weight="900" fill="#29A8E0">HS</text><text x="540" y="155" font-family="Arial Black,Arial" font-size="58" font-weight="900" fill="#111">beyond</text><text x="540" y="225" font-family="Arial Black,Arial" font-size="58" font-weight="900" fill="#111">solutions</text></svg>`),
+            watermark: BRAND_ASSETS.watermark || svgUri(`<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="750" viewBox="0 0 1000 750"><g fill="none" stroke="#29A8E0" stroke-opacity="0.18" stroke-width="28"><ellipse cx="405" cy="375" rx="310" ry="245"/><ellipse cx="595" cy="375" rx="310" ry="245"/></g><text x="320" y="470" font-family="Arial Black,Arial" font-size="260" font-weight="900" fill="#29A8E0" fill-opacity="0.10">HS</text></svg>`),'''
+          report, count = pattern.subn(replacement, report, count=1)
+          if count != 1:
+              raise SystemExit(f'Bloco ASSETS não localizado ou ambíguo: {count}')
+          report_path.write_text(report, encoding='utf-8')
+
+          css_path = Path('fast_track/v06/direct.css')
+          css = css_path.read_text(encoding='utf-8')
+          old = '''.report-logo{position:absolute;right:10mm;top:1mm;width:83mm;height:30mm;object-fit:contain;z-index:5}
+          .report-page.first .report-logo{right:8mm;width:83mm;height:40mm}
+          .report-watermark{position:absolute;left:30mm;top:94mm;width:160mm;height:119mm;object-fit:contain;z-index:1;opacity:.12}
+          .report-page.first .report-watermark{top:100mm}'''
+          new = '''.report-logo{position:absolute;right:10mm;top:1mm;width:68.5mm;height:33mm;object-fit:contain;z-index:5}
+          .report-page.first .report-logo{right:10mm;top:1mm;width:68.5mm;height:33mm}
+          .report-watermark{position:absolute;left:30mm;top:88.875mm;width:160mm;height:119.25mm;object-fit:contain;z-index:1;opacity:1;pointer-events:none}
+          .report-page.first .report-watermark{left:30mm;top:88.875mm;width:160mm;height:119.25mm}'''
+          if old not in css:
+              raise SystemExit('Bloco CSS institucional esperado não encontrado')
+          css = css.replace(old, new, 1)
+          css_path.write_text(css, encoding='utf-8')
+
+          word_path = Path('fast_track/v06/direct-word.js')
+          word = word_path.read_text(encoding='utf-8')
+          word_pattern = re.compile(r"    const logoRun = new ImageRun\(\{.*?    const firstHeader = new Header\(\{children:\[.*?\]\}\);", re.S)
+          word_replacement = '''    const CM_TO_PX = 96 / 2.54;
+              const LOGO_WIDTH_PX = 6.85 * CM_TO_PX;
+              const LOGO_HEIGHT_PX = 3.30 * CM_TO_PX;
+              const WATERMARK_WIDTH_PX = 16.00 * CM_TO_PX;
+              const WATERMARK_HEIGHT_PX = 11.925 * CM_TO_PX;
+
+              const createLogoRun = () => new ImageRun({
+                data:logo.data,
+                type:'png',
+                transformation:{width:LOGO_WIDTH_PX,height:LOGO_HEIGHT_PX}
+              });
+
+              const createWatermarkRun = () => new ImageRun({
+                data:watermark.data,
+                type:'png',
+                transformation:{width:WATERMARK_WIDTH_PX,height:WATERMARK_HEIGHT_PX},
+                floating:{
+                  horizontalPosition:{relative:HorizontalPositionRelativeFrom?.MARGIN || 'margin',align:HorizontalPositionAlign?.CENTER || 'center'},
+                  verticalPosition:{relative:VerticalPositionRelativeFrom?.MARGIN || 'margin',align:VerticalPositionAlign?.CENTER || 'center'},
+                  behindDocument:true,
+                  wrap:{type:TextWrappingType?.NONE || 'none'}
+                }
+              });
+
+              const createInstitutionalHeader = () => new Header({children:[
+                new Paragraph({children:[createLogoRun()],alignment:AlignmentType.RIGHT,spacing:{after:0}}),
+                new Paragraph({children:[createWatermarkRun()],spacing:{after:0}})
+              ]});
+              const header = createInstitutionalHeader();
+              const firstHeader = createInstitutionalHeader();'''
+          word, count = word_pattern.subn(word_replacement, word, count=1)
+          if count != 1:
+              raise SystemExit(f'Bloco de cabeçalhos Word não localizado ou ambíguo: {count}')
+          word_path.write_text(word, encoding='utf-8')
+
+          html_path = Path('fast_track/v062.html')
+          html = html_path.read_text(encoding='utf-8')
+          if 'v06/brand-assets.js' not in html:
+              html = html.replace('<script src="v06/direct-report.js?v=0623"></script>', '<script src="v06/brand-assets.js?v=0624"></script>\n<script src="v06/direct-report.js?v=0624"></script>', 1)
+          html = html.replace('direct.css?v=0623', 'direct.css?v=0624')
+          html = html.replace('direct-word.js?v=0623', 'direct-word.js?v=0624')
+          html = html.replace('direct-app.js?v=0623', 'direct-app.js?v=0624')
+          html = html.replace('direct-report.js?v=0623', 'direct-report.js?v=0624')
+          html_path.write_text(html, encoding='utf-8')
+
+          redirect_path = Path('fast_track/v06.html')
+          redirect = redirect_path.read_text(encoding='utf-8').replace('v=0623','v=0624')
+          redirect_path.write_text(redirect, encoding='utf-8')
+          PY
+
+          node --check fast_track/v06/brand-assets.js
+          node --check fast_track/v06/direct-report.js
+          node --check fast_track/v06/direct-word.js
+          node --check fast_track/v06/direct-app.js
+          grep -q 'FastTrackV06BrandAssets' fast_track/v06/direct-report.js
+          grep -q 'width:160mm;height:119.25mm' fast_track/v06/direct.css
+          grep -q 'WATERMARK_WIDTH_PX = 16.00' fast_track/v06/direct-word.js
+          grep -q 'brand-assets.js?v=0624' fast_track/v062.html
+
+      - name: Prepare browser tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.56.1
+          CHROME_PATH="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          "$CHROME_PATH" --version
+
+      - name: Validate preview, PDF and Word headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/v062-watermark
+          python3 -m http.server 8000 --bind 127.0.0.1 >/tmp/v062-watermark-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          sleep 2
+
+          cat > /tmp/v062-watermark/test.js <<'NODE'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+          const path = require('path');
+
+          (async()=>{
+            const out='/tmp/v062-watermark';
+            const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH,args:['--no-sandbox','--disable-dev-shm-usage']});
+            const page=await browser.newPage({acceptDownloads:true,viewport:{width:1500,height:1100}});
+            const errors=[];
+            page.on('pageerror',e=>errors.push(String(e)));
+            page.on('dialog',async d=>d.accept());
+            await page.goto('http://127.0.0.1:8000/fast_track/v062.html?v=watermark-ci',{waitUntil:'networkidle',timeout:120000});
+            await page.waitForSelector('.app-shell');
+            await page.click('[data-action="load-example"]');
+            for(const step of [2,3,4,5,6,7]){
+              await page.click(`[data-go="${step}"]`);
+              await page.waitForSelector(`.screen[data-step="${step}"].active`);
+            }
+            await page.waitForSelector('#reportPreview .report-page');
+
+            const preview=await page.evaluate(()=>{
+              const pages=[...document.querySelectorAll('#reportPreview .report-page')];
+              const mm=x=>x*25.4/96;
+              const details=pages.map((p,index)=>{
+                const pr=p.getBoundingClientRect();
+                const wm=p.querySelector('.report-watermark');
+                const logo=p.querySelector('.report-logo');
+                if(!wm||!logo) throw new Error(`Ativos ausentes na página ${index+1}`);
+                const wr=wm.getBoundingClientRect();
+                const lr=logo.getBoundingClientRect();
+                return {
+                  page:index+1,
+                  watermarkCount:p.querySelectorAll('.report-watermark').length,
+                  logoCount:p.querySelectorAll('.report-logo').length,
+                  wm:{left:mm(wr.left-pr.left),top:mm(wr.top-pr.top),width:mm(wr.width),height:mm(wr.height),opacity:getComputedStyle(wm).opacity,src:wm.src.slice(0,32)},
+                  logo:{right:mm(pr.right-lr.right),top:mm(lr.top-pr.top),width:mm(lr.width),height:mm(lr.height),src:logo.src.slice(0,32)}
+                };
+              });
+              return details;
+            });
+            for(const d of preview){
+              if(d.watermarkCount!==1||d.logoCount!==1) throw new Error(`Duplicação de ativos na página ${d.page}`);
+              const near=(a,b,t=.25)=>Math.abs(a-b)<=t;
+              if(!near(d.wm.left,30)||!near(d.wm.top,88.875)||!near(d.wm.width,160)||!near(d.wm.height,119.25)||d.wm.opacity!=='1') throw new Error(`Marca-d'água fora do padrão: ${JSON.stringify(d)}`);
+              if(!near(d.logo.width,68.5)||!near(d.logo.height,33)||!near(d.logo.top,1)||!near(d.logo.right,10)) throw new Error(`Logotipo fora do padrão: ${JSON.stringify(d)}`);
+              if(!d.wm.src.startsWith('data:image/svg+xml')) throw new Error('A marca-d’água institucional não foi carregada');
+              if(!d.logo.src.startsWith('data:image/png')) throw new Error('O logotipo institucional não foi carregado');
+            }
+            await page.locator('#reportPreview .report-page').first().screenshot({path:path.join(out,'preview-capa.png')});
+            if(preview.length>1) await page.locator('#reportPreview .report-page').nth(1).screenshot({path:path.join(out,'preview-interna.png')});
+
+            await page.click('[data-action="export-pdf"]');
+            await page.waitForSelector('#printHost .report-page',{state:'attached'});
+            const printCheck=await page.evaluate(()=>[...document.querySelectorAll('#printHost .report-page')].every(p=>p.querySelectorAll('.report-watermark').length===1&&p.querySelectorAll('.report-logo').length===1));
+            if(!printCheck) throw new Error('A estrutura de impressão não preservou os ativos institucionais');
+            await page.emulateMedia({media:'print'});
+            await page.pdf({path:path.join(out,'Relatorio_Fast_Track_watermark.pdf'),format:'A4',printBackground:true,preferCSSPageSize:true,margin:{top:'0',right:'0',bottom:'0',left:'0'}});
+            await page.emulateMedia({media:'screen'});
+
+            const downloadPromise=page.waitForEvent('download',{timeout:120000});
+            await page.click('[data-action="export-word"]');
+            const download=await downloadPromise;
+            const wordPath=path.join(out,download.suggestedFilename());
+            await download.saveAs(wordPath);
+            if(!fs.existsSync(wordPath)||fs.statSync(wordPath).size<15000) throw new Error('DOCX inválido');
+            fs.writeFileSync(path.join(out,'browser-result.json'),JSON.stringify({preview,errors,wordPath},null,2));
+            if(errors.length) throw new Error(errors.join('\n'));
+            await browser.close();
+          })().catch(error=>{console.error(error);process.exit(1);});
+          NODE
+
+          NODE_PATH="$PWD/node_modules" node /tmp/v062-watermark/test.js
+
+          DOCX=$(find /tmp/v062-watermark -maxdepth 1 -name '*.docx' -print -quit)
+          test -n "$DOCX"
+          unzip -t "$DOCX"
+          mkdir -p /tmp/v062-watermark/docx
+          unzip -q "$DOCX" -d /tmp/v062-watermark/docx
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          root=Path('/tmp/v062-watermark/docx')
+          ns={'wp':'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing'}
+          expected_logo=(2466000,1188000)
+          expected_wm=(5760000,4293000)
+          summary=[]
+          for name in ['header1.xml','header2.xml']:
+              path=root/'word'/name
+              if not path.exists(): raise SystemExit(f'{name} ausente')
+              tree=ET.parse(path).getroot()
+              inlines=tree.findall('.//wp:inline',ns)
+              anchors=tree.findall('.//wp:anchor',ns)
+              if len(inlines)!=1 or len(anchors)!=1:
+                  raise SystemExit(f'{name}: esperado 1 logotipo e 1 marca-d’água; obtido inline={len(inlines)}, anchor={len(anchors)}')
+              logo_ext=inlines[0].find('wp:extent',ns)
+              wm_ext=anchors[0].find('wp:extent',ns)
+              logo=(int(logo_ext.attrib['cx']),int(logo_ext.attrib['cy']))
+              wm=(int(wm_ext.attrib['cx']),int(wm_ext.attrib['cy']))
+              if any(abs(a-b)>100 for a,b in zip(logo,expected_logo)):
+                  raise SystemExit(f'{name}: dimensão do logotipo incorreta {logo}')
+              if any(abs(a-b)>100 for a,b in zip(wm,expected_wm)):
+                  raise SystemExit(f'{name}: dimensão da marca-d’água incorreta {wm}')
+              if anchors[0].attrib.get('behindDoc')!='1':
+                  raise SystemExit(f'{name}: marca-d’água não está atrás do conteúdo')
+              summary.append({'header':name,'logo':logo,'watermark':wm,'behindDoc':anchors[0].attrib.get('behindDoc')})
+          import json
+          (Path('/tmp/v062-watermark')/'docx-result.json').write_text(json.dumps(summary,indent=2),encoding='utf-8')
+          print(json.dumps(summary,indent=2))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v062-watermark-branding-validation
+          path: /tmp/v062-watermark
+          if-no-files-found: warn
+
+      - name: Commit validated correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/fix-v062-watermark-branding.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add fast_track/v06/brand-assets.js fast_track/v06/direct-report.js fast_track/v06/direct-word.js fast_track/v06/direct.css fast_track/v062.html fast_track/v06.html .github/workflows/fix-v062-watermark-branding.yml
+          git commit -m 'fix(v06): padronizar marca-d’água institucional'
+          git push origin HEAD:fix/v062-watermark-branding
