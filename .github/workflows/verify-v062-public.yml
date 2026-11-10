@@ -1,4 +1,4 @@
-name: Verify V062 public damage pagination
+name: Verify V062 public institutional branding
 
 on:
   push:
@@ -17,6 +17,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+
       - name: Prepare Chrome test
         shell: bash
         run: |
@@ -28,117 +29,81 @@ jobs:
           echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
           "$CHROME_PATH" --version
 
-      - name: Test published links and damage pagination
+      - name: Test published watermark in preview, PDF and Word
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/v062-public
-          cat > /tmp/v062-public/test.js <<'NODE'
+          mkdir -p /tmp/v062-public-branding
+          cat > /tmp/v062-public-branding/test.js <<'NODE'
           const { chromium } = require('playwright');
           const fs = require('fs');
           const path = require('path');
 
-          const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700"><rect width="1200" height="700" fill="#e8eef1"/><rect x="80" y="80" width="1040" height="540" fill="#b8d6b1"/><path d="M100 560 L1100 140" stroke="#777" stroke-width="36"/><circle cx="780" cy="310" r="34" fill="#c33"/><text x="110" y="150" font-family="Arial" font-size="52">Mapa de teste público</text></svg>`;
-          const mapDataUrl = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-          const baseFields = {
-            insurerClaim:'1325000',hsClaim:'S2609000',insurer:'SOMPO SEGUROS S/A',insured:'COOPERATIVA CENTRAL AURORA ALIMENTOS',
-            claimantName:'Cooperado Teste Paginação',claimantCpf:'000.000.000-00',riskAddress:'Linha Teste, Município/SC',policyNumber:'9600131927',
-            productName:'RISCOS NOMEADOS',broker:'ALPER CONSULTORIA E CORRETORA DE SEGUROS S/A',lossDate:'2026-11-04',coverageName:'Vendaval / Granizo',
-            inspectionDate:'2026-11-10',regulatorOpinion:'Diante do exposto, o sinistro está amparado pela cobertura de Vendaval/Granizo da apólice.',
-            otherInsurance:'nao',otherInsuranceDetails:'',bankName:'CRESOL',bankAgency:'2508',bankAccount:'1.801-5',noticeDate:'2026-11-05',scheduleDate:'2026-11-06',
-            reportCity:'Blumenau (SC)',reportDate:'2026-11-10',regulatorName:'Paulo R. Schlosser',regulatorCpf:'068.613.739-66',noDocuments:true,
-            mapFit:'contain',mapPosX:'50',mapPosY:'50'
-          };
-          const makeDamage = (i) => ({
-            id:`damage_${i}`,
-            description:i % 4 === 0 ? `Item de dano ${String(i).padStart(2,'0')} - descrição técnica mais extensa para validar a quebra controlada dentro da célula` : `Item de dano ${String(i).padStart(2,'0')} - material apurado em vistoria`,
-            quantity:String(i * 10),unit:i % 3 === 0 ? 'conjunto' : 'un.',age:String((i % 8) + 1),ageUnit:i % 5 === 0 ? 'meses' : 'anos',
-            claimedTotal:String(1000 + i * 137),assessedTotal:String(1000 + i * 137)
-          });
-          const stateFor = (count) => ({
-            version:'0.6.2',fields:{...baseFields},map:{dataUrl:mapDataUrl,name:'mapa-teste.svg',fit:'contain',posX:'50',posY:'50'},
-            damages:Array.from({length:count},(_,i)=>makeDamage(i+1)),photos:[],documents:[],signatures:{regulator:null,claimant:null},finalizedAt:null
-          });
-
-          async function importState(page,state,name){
-            await page.setInputFiles('#backupInput',{name,mimeType:'application/json',buffer:Buffer.from(JSON.stringify(state))});
-            await page.waitForFunction((expected)=>document.querySelectorAll('#damageList .damage-card').length===expected,state.damages.length,{timeout:20000});
-            await page.evaluate(()=>document.querySelector('.screen[data-step="6"] [data-go="7"]').click());
-            await page.waitForSelector('.screen[data-step="7"].active');
-            await page.waitForSelector('#reportPreview .damage-table');
-          }
-
-          async function inspectRelation(page,expected){
-            return await page.evaluate((expected)=>{
-              const details=[...document.querySelectorAll('#reportPreview .report-page')].map((page,index)=>{
-                const table=page.querySelector('.damage-table');
-                if(!table) return null;
-                const content=page.querySelector('.report-content');
-                const footer=page.querySelector('.report-footer');
-                const tableRect=table.getBoundingClientRect();
-                const footerRect=footer.getBoundingClientRect();
-                return {
-                  index:index+1,
-                  rows:table.querySelectorAll('tbody tr').length,
-                  overflow:content.scrollHeight-content.clientHeight,
-                  tableBottom:tableRect.bottom,
-                  footerTop:footerRect.top
-                };
-              }).filter(Boolean);
-              const total=details.reduce((sum,item)=>sum+item.rows,0);
-              if(total!==expected) throw new Error(`Itens exibidos: ${total}/${expected}`);
-              for(const item of details){
-                if(item.overflow>2) throw new Error(`Overflow na página ${item.index}: ${item.overflow}px`);
-                if(item.tableBottom>item.footerTop-2) throw new Error(`Tabela alcançou o rodapé na página ${item.index}`);
-              }
-              return details;
-            },expected);
-          }
-
           (async()=>{
-            const out='/tmp/v062-public';
+            const out='/tmp/v062-public-branding';
+            const url='https://paulochuck.github.io/ata-vistoria-hs/fast_track/v062.html?v=0624-public-ci';
             const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH,args:['--no-sandbox','--disable-dev-shm-usage']});
-            const context=await browser.newContext({acceptDownloads:true,viewport:{width:1500,height:1100}});
-            const urls=[
-              'https://paulochuck.github.io/ata-vistoria-hs/fast_track/v062.html?v=0623-public-ci',
-              'https://paulochuck.github.io/ata-vistoria-hs/fast_track/v06.html?v=0623-public-ci'
-            ];
-            const results=[];
-
-            for(const requestedUrl of urls){
-              const page=await context.newPage();
-              const pageErrors=[]; const httpErrors=[];
-              page.on('pageerror',error=>pageErrors.push(String(error)));
-              page.on('response',response=>{if(response.status()>=400&&!/favicon\.ico/i.test(response.url()))httpErrors.push({status:response.status(),url:response.url()});});
-              page.on('dialog',async dialog=>dialog.accept());
-              await page.goto(requestedUrl,{waitUntil:'networkidle',timeout:120000});
-              await page.waitForSelector('.app-shell',{state:'visible',timeout:30000});
-              const globals=await page.evaluate(()=>({
-                report:Boolean(window.FastTrackV06Report),word:Boolean(window.FastTrackV06Word),docx:Boolean(window.docx),
-                paginator:typeof window.FastTrackV06Report?.paginateDamageItems==='function',
-                screens:document.querySelectorAll('.screen').length,steps:document.querySelectorAll('#progress span').length
-              }));
-              if(!globals.report||!globals.word||!globals.docx||!globals.paginator||globals.screens!==7||globals.steps!==7){
-                throw new Error(`Inicialização pública incompleta: ${JSON.stringify({requestedUrl,globals})}`);
-              }
-              if(pageErrors.length||httpErrors.length) throw new Error(`Erros públicos: ${JSON.stringify({requestedUrl,pageErrors,httpErrors})}`);
-              results.push({requestedUrl,finalUrl:page.url(),globals});
-              await page.close();
-            }
-
-            const page=await context.newPage();
+            const page=await browser.newPage({acceptDownloads:true,viewport:{width:1500,height:1100}});
+            const pageErrors=[]; const httpErrors=[];
+            page.on('pageerror',error=>pageErrors.push(String(error)));
+            page.on('response',response=>{if(response.status()>=400&&!/favicon\.ico/i.test(response.url()))httpErrors.push({status:response.status(),url:response.url()});});
             page.on('dialog',async dialog=>dialog.accept());
-            await page.goto(urls[0],{waitUntil:'networkidle',timeout:120000});
 
-            await importState(page,stateFor(4),'quatro-itens.json');
-            const fourDetails=await inspectRelation(page,4);
-            if(fourDetails.length!==1||fourDetails[0].rows!==4) throw new Error(`Quatro itens não permaneceram na mesma página: ${JSON.stringify(fourDetails)}`);
-            await page.locator('#reportPreview .report-page').nth(fourDetails[0].index-1).screenshot({path:path.join(out,'public-quatro-itens.png')});
+            await page.goto(url,{waitUntil:'networkidle',timeout:120000});
+            await page.waitForSelector('.app-shell',{state:'visible',timeout:30000});
+            const init=await page.evaluate(()=>({
+              report:Boolean(window.FastTrackV06Report),
+              word:Boolean(window.FastTrackV06Word),
+              docx:Boolean(window.docx),
+              branding:Boolean(window.FastTrackV06BrandAssets),
+              logoPrefix:window.FastTrackV06BrandAssets?.logo?.slice(0,22),
+              watermarkPrefix:window.FastTrackV06BrandAssets?.watermark?.slice(0,28)
+            }));
+            if(!init.report||!init.word||!init.docx||!init.branding) throw new Error(`Inicialização incompleta: ${JSON.stringify(init)}`);
+            if(init.logoPrefix!=='data:image/png;base64,') throw new Error(`Logotipo incorreto: ${init.logoPrefix}`);
+            if(!init.watermarkPrefix.startsWith('data:image/svg+xml')) throw new Error(`Marca-d'água incorreta: ${init.watermarkPrefix}`);
 
-            await importState(page,stateFor(24),'vinte-quatro-itens.json');
-            const stressDetails=await inspectRelation(page,24);
-            if(stressDetails.length<2||stressDetails[0].rows<=3) throw new Error(`Paginação adaptativa pública inválida: ${JSON.stringify(stressDetails)}`);
-            await page.locator('#reportPreview').screenshot({path:path.join(out,'public-estresse.png')});
+            await page.click('[data-action="load-example"]');
+            for(const step of [2,3,4,5,6,7]){
+              await page.click(`[data-go="${step}"]`);
+              await page.waitForSelector(`.screen[data-step="${step}"].active`);
+            }
+            await page.waitForSelector('#reportPreview .report-page');
+
+            const pages=await page.evaluate(()=>{
+              const mm=px=>px*25.4/96;
+              return [...document.querySelectorAll('#reportPreview .report-page')].map((p,index)=>{
+                const pr=p.getBoundingClientRect();
+                const wm=p.querySelector('.report-watermark');
+                const logo=p.querySelector('.report-logo');
+                const wr=wm.getBoundingClientRect();
+                const lr=logo.getBoundingClientRect();
+                return {
+                  page:index+1,
+                  watermarkCount:p.querySelectorAll('.report-watermark').length,
+                  logoCount:p.querySelectorAll('.report-logo').length,
+                  watermark:{left:mm(wr.left-pr.left),top:mm(wr.top-pr.top),width:mm(wr.width),height:mm(wr.height),opacity:getComputedStyle(wm).opacity,src:wm.src.slice(0,28)},
+                  logo:{right:mm(pr.right-lr.right),top:mm(lr.top-pr.top),width:mm(lr.width),height:mm(lr.height),src:logo.src.slice(0,22)}
+                };
+              });
+            });
+            const near=(a,b,t=.3)=>Math.abs(a-b)<=t;
+            if(pages.length<2) throw new Error('O relatório de teste não gerou múltiplas páginas');
+            for(const item of pages){
+              if(item.watermarkCount!==1||item.logoCount!==1) throw new Error(`Duplicação ou ausência na página ${item.page}: ${JSON.stringify(item)}`);
+              if(!near(item.watermark.left,30)||!near(item.watermark.top,88.875)||!near(item.watermark.width,160)||!near(item.watermark.height,119.25)||item.watermark.opacity!=='1') throw new Error(`Marca-d'água fora do padrão na página ${item.page}: ${JSON.stringify(item.watermark)}`);
+              if(!near(item.logo.right,10)||!near(item.logo.top,1)||!near(item.logo.width,68.5)||!near(item.logo.height,33)) throw new Error(`Logotipo fora do padrão na página ${item.page}: ${JSON.stringify(item.logo)}`);
+            }
+            await page.locator('#reportPreview .report-page').first().screenshot({path:path.join(out,'public-capa.png')});
+            await page.locator('#reportPreview .report-page').nth(1).screenshot({path:path.join(out,'public-interna.png')});
+
+            await page.click('[data-action="export-pdf"]');
+            await page.waitForSelector('#printHost .report-page',{state:'attached'});
+            const printPages=await page.evaluate(()=>[...document.querySelectorAll('#printHost .report-page')].map(p=>({wm:p.querySelectorAll('.report-watermark').length,logo:p.querySelectorAll('.report-logo').length})));
+            if(!printPages.every(p=>p.wm===1&&p.logo===1)) throw new Error(`Ativos inconsistentes no PDF: ${JSON.stringify(printPages)}`);
+            await page.emulateMedia({media:'print'});
+            await page.pdf({path:path.join(out,'public-watermark.pdf'),format:'A4',printBackground:true,preferCSSPageSize:true,margin:{top:'0',right:'0',bottom:'0',left:'0'}});
+            await page.emulateMedia({media:'screen'});
 
             const downloadPromise=page.waitForEvent('download',{timeout:120000});
             await page.click('[data-action="export-word"]');
@@ -147,30 +112,55 @@ jobs:
             await download.saveAs(wordPath);
             if(!fs.existsSync(wordPath)||fs.statSync(wordPath).size<15000) throw new Error(`DOCX público inválido: ${wordPath}`);
 
-            results.push({workflow:'damage-pagination',fourDetails,stressDetails,wordPath,wordBytes:fs.statSync(wordPath).size});
-            fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(results,null,2));
+            if(pageErrors.length||httpErrors.length) throw new Error(JSON.stringify({pageErrors,httpErrors}));
+            fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({url,init,pages,printPages,wordPath,wordBytes:fs.statSync(wordPath).size},null,2));
             await browser.close();
           })().catch(error=>{console.error(error);process.exit(1);});
           NODE
-          NODE_PATH="$PWD/node_modules" node /tmp/v062-public/test.js
+          NODE_PATH="$PWD/node_modules" node /tmp/v062-public-branding/test.js
 
-      - name: Validate published Word package
+      - name: Validate public DOCX header XML
         shell: bash
         run: |
           set -euo pipefail
-          DOCX=$(find /tmp/v062-public -maxdepth 1 -name '*.docx' -print -quit)
+          OUT=/tmp/v062-public-branding
+          DOCX=$(find "$OUT" -maxdepth 1 -name '*.docx' -print -quit)
           test -n "$DOCX"
           unzip -t "$DOCX"
-          unzip -p "$DOCX" word/document.xml > /tmp/v062-public/document.xml
-          grep -q 'Item de dano 24' /tmp/v062-public/document.xml
-          grep -q 'w:tblHeader' /tmp/v062-public/document.xml
-          grep -q 'w:cantSplit' /tmp/v062-public/document.xml
-          ! grep -q 'LEVANTAMENTOS EM VISTORIA — CONTINUAÇÃO' /tmp/v062-public/document.xml
-          cat /tmp/v062-public/result.json
+          mkdir -p "$OUT/docx"
+          unzip -q "$DOCX" -d "$OUT/docx"
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          import xml.etree.ElementTree as ET
+
+          root=Path('/tmp/v062-public-branding/docx')
+          ns={'wp':'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing'}
+          expected_logo=(2466000,1188000)
+          expected_wm=(5760000,4293000)
+          checked=[]
+          for name in ['header1.xml','header2.xml']:
+              tree=ET.parse(root/'word'/name).getroot()
+              inlines=tree.findall('.//wp:inline',ns)
+              anchors=tree.findall('.//wp:anchor',ns)
+              if len(inlines)!=1 or len(anchors)!=1:
+                  raise SystemExit(f'{name}: inline={len(inlines)} anchor={len(anchors)}')
+              logo_ext=inlines[0].find('wp:extent',ns)
+              wm_ext=anchors[0].find('wp:extent',ns)
+              logo=(int(logo_ext.attrib['cx']),int(logo_ext.attrib['cy']))
+              watermark=(int(wm_ext.attrib['cx']),int(wm_ext.attrib['cy']))
+              if logo!=expected_logo: raise SystemExit(f'{name}: logotipo {logo}')
+              if watermark!=expected_wm: raise SystemExit(f'{name}: marca-d’água {watermark}')
+              if anchors[0].attrib.get('behindDoc')!='1': raise SystemExit(f'{name}: behindDoc ausente')
+              checked.append({'header':name,'logo':logo,'watermark':watermark,'behindDoc':'1'})
+          Path('/tmp/v062-public-branding/docx-result.json').write_text(json.dumps(checked,indent=2),encoding='utf-8')
+          print(json.dumps(checked,indent=2))
+          PY
+          cat "$OUT/result.json"
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: fast-track-v062-public-damage-pagination
-          path: /tmp/v062-public
+          name: fast-track-v062-public-institutional-branding
+          path: /tmp/v062-public-branding
           if-no-files-found: warn
