@@ -25,6 +25,7 @@ jobs:
         run: |
           set -euo pipefail
           sed -i 's/pattern.subn(replacement, text, count=1)/pattern.subn(lambda _match: replacement, text, count=1)/g' .github/scripts/patch_v062_cover.py
+          sed -i 's/\.meta-table tr{height:11\.25mm}/.meta-table tr{height:11.5mm}/' .github/scripts/patch_v062_cover.py
           python3 .github/scripts/patch_v062_cover.py
           node --check fast_track/v06/direct-report.js
           node --check fast_track/v06/direct-word.js
