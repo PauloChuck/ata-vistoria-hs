@@ -2,9 +2,10 @@
   'use strict';
 
   const svgUri = (svg) => `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-  const ASSETS = {
-    logo: svgUri(`<svg xmlns="http://www.w3.org/2000/svg" width="830" height="400" viewBox="0 0 830 400"><rect width="830" height="400" fill="white"/><g fill="none" stroke="#29A8E0" stroke-width="18"><ellipse cx="235" cy="190" rx="150" ry="118"/><ellipse cx="365" cy="190" rx="150" ry="118"/></g><text x="205" y="235" font-family="Arial Black,Arial" font-size="130" font-weight="900" fill="#29A8E0">HS</text><text x="540" y="155" font-family="Arial Black,Arial" font-size="58" font-weight="900" fill="#111">beyond</text><text x="540" y="225" font-family="Arial Black,Arial" font-size="58" font-weight="900" fill="#111">solutions</text></svg>`),
-    watermark: svgUri(`<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="750" viewBox="0 0 1000 750"><g fill="none" stroke="#29A8E0" stroke-opacity="0.18" stroke-width="28"><ellipse cx="405" cy="375" rx="310" ry="245"/><ellipse cx="595" cy="375" rx="310" ry="245"/></g><text x="320" y="470" font-family="Arial Black,Arial" font-size="260" font-weight="900" fill="#29A8E0" fill-opacity="0.10">HS</text></svg>`),
+  const BRAND_ASSETS = window.FastTrackV06BrandAssets || {};
+const ASSETS = {
+  logo: BRAND_ASSETS.logo || svgUri(`<svg xmlns="http://www.w3.org/2000/svg" width="830" height="400" viewBox="0 0 830 400"><rect width="830" height="400" fill="white"/><g fill="none" stroke="#29A8E0" stroke-width="18"><ellipse cx="235" cy="190" rx="150" ry="118"/><ellipse cx="365" cy="190" rx="150" ry="118"/></g><text x="205" y="235" font-family="Arial Black,Arial" font-size="130" font-weight="900" fill="#29A8E0">HS</text><text x="540" y="155" font-family="Arial Black,Arial" font-size="58" font-weight="900" fill="#111">beyond</text><text x="540" y="225" font-family="Arial Black,Arial" font-size="58" font-weight="900" fill="#111">solutions</text></svg>`),
+  watermark: BRAND_ASSETS.watermark || svgUri(`<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="750" viewBox="0 0 1000 750"><g fill="none" stroke="#29A8E0" stroke-opacity="0.18" stroke-width="28"><ellipse cx="405" cy="375" rx="310" ry="245"/><ellipse cx="595" cy="375" rx="310" ry="245"/></g><text x="320" y="470" font-family="Arial Black,Arial" font-size="260" font-weight="900" fill="#29A8E0" fill-opacity="0.10">HS</text></svg>`),
     footer: svgUri(`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="239" viewBox="0 0 320 239"><g fill="none" stroke="#29A8E0" stroke-width="13"><ellipse cx="115" cy="120" rx="88" ry="70"/><ellipse cx="205" cy="120" rx="88" ry="70"/></g></svg>`)
   };
 
