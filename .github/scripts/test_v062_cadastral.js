@@ -138,7 +138,11 @@ function validate(result, { checkGeometry = true } = {}) {
     input.value = 'NOME COMPLETO EXTENSO DO COOPERADO PARA VALIDAR A CONTINUAÇÃO AUTOMÁTICA NA LINHA SEGUINTE SEM MESCLAR O CONTEÚDO COM O CAMPO DE CPF';
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
-  await page.waitForTimeout(250);
+  await page.click('[data-go="6"]');
+  await page.waitForSelector('.screen[data-step="6"].active');
+  await page.click('[data-go="7"]');
+  await page.waitForSelector('.screen[data-step="7"].active');
+  await page.waitForSelector('#reportPreview .cadastral-data');
   const longValue = await inspect('#reportPreview');
   if (longValue.count !== 3 || longValue.details[0].bottom - longValue.details[0].top <= longValue.details[0].lineHeight * 1.5) {
     throw new Error(`Valor longo não quebrou dentro do próprio parágrafo: ${JSON.stringify(longValue)}`);
