@@ -1,0 +1,215 @@
+name: Verify V062 public cover 0626
+
+on:
+  push:
+    branches:
+      - verification/v062-public
+    paths:
+      - .github/workflows/verify-v062-cover-0626.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.56.1
+          CHROME_PATH="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          if ! command -v pdftotext >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y poppler-utils
+          fi
+
+      - name: Validate public preview PDF and Word
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/v062-public-cover-0626
+          mkdir -p "$OUT"
+          cat > "$OUT/test.js" <<'NODE'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+          const path = require('path');
+
+          (async()=>{
+            const out='/tmp/v062-public-cover-0626';
+            const url='https://paulochuck.github.io/ata-vistoria-hs/fast_track/v062.html?v=0626-public-cover-final';
+            const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH,args:['--no-sandbox','--disable-dev-shm-usage']});
+            const page=await browser.newPage({acceptDownloads:true,viewport:{width:1500,height:1100}});
+            const pageErrors=[]; const httpErrors=[];
+            page.on('pageerror',error=>pageErrors.push(String(error)));
+            page.on('response',response=>{if(response.status()>=400&&!/favicon\.ico/i.test(response.url()))httpErrors.push({status:response.status(),url:response.url()});});
+            page.on('dialog',dialog=>dialog.accept());
+
+            await page.goto(url,{waitUntil:'networkidle',timeout:120000});
+            await page.waitForSelector('.app-shell',{state:'visible',timeout:30000});
+            const init=await page.evaluate(()=>({
+              report:Boolean(window.FastTrackV06Report),word:Boolean(window.FastTrackV06Word),docx:Boolean(window.docx),branding:Boolean(window.FastTrackV06BrandAssets),
+              screens:document.querySelectorAll('.screen').length,steps:document.querySelectorAll('#progress span').length,
+              sources:[...document.scripts].map(s=>s.src).filter(Boolean)
+            }));
+            if(!init.report||!init.word||!init.docx||!init.branding||init.screens!==7||init.steps!==7) throw new Error(`Inicialização pública incompleta: ${JSON.stringify(init)}`);
+            if(!init.sources.some(src=>/direct-report\.js\?v=0626/.test(src))||!init.sources.some(src=>/direct-word\.js\?v=0626/.test(src))) throw new Error(`Revisão 0626 não carregada: ${JSON.stringify(init.sources)}`);
+
+            await page.click('[data-action="load-example"]');
+            for(const step of [2,3,4,5,6,7]){
+              await page.click(`[data-go="${step}"]`);
+              await page.waitForSelector(`.screen[data-step="${step}"].active`);
+            }
+            await page.waitForSelector('#reportPreview .report-page.first');
+
+            const cover=await page.evaluate(()=>{
+              const mm=px=>px*25.4/96;
+              const report=document.querySelector('#reportPreview .report-page.first');
+              const pr=report.getBoundingClientRect();
+              const rect=selector=>{
+                const el=report.querySelector(selector); const r=el.getBoundingClientRect(); const s=getComputedStyle(el);
+                return {top:mm(r.top-pr.top),left:mm(r.left-pr.left),width:mm(r.width),height:mm(r.height),text:el.textContent.trim(),bg:s.backgroundColor,font:s.fontFamily,size:parseFloat(s.fontSize),letterSpacing:s.letterSpacing};
+              };
+              const visualLines=selector=>{
+                const el=report.querySelector(selector); const range=document.createRange(); range.selectNodeContents(el);
+                const rects=[...range.getClientRects()].filter(r=>r.width>.5&&r.height>.5);
+                return [...new Set(rects.map(r=>Math.round(r.top)))].length;
+              };
+              const claimRows=[...report.querySelectorAll('.claim-table tr')].map(row=>{const r=row.getBoundingClientRect();return {top:mm(r.top-pr.top),height:mm(r.height),texts:[...row.cells].map(c=>c.textContent.trim())};});
+              const metaRows=[...report.querySelectorAll('.meta-table tr')].map(row=>{const r=row.getBoundingClientRect();return {top:mm(r.top-pr.top),height:mm(r.height),cells:[...row.cells].map(c=>{const cr=c.getBoundingClientRect();const range=document.createRange();range.selectNodeContents(c);const lines=[...new Set([...range.getClientRects()].filter(x=>x.width>.5&&x.height>.5).map(x=>Math.round(x.top)))].length;return {text:c.textContent.trim(),left:mm(cr.left-pr.left),width:mm(cr.width),colSpan:c.colSpan,lines};})};});
+              const pages=[...document.querySelectorAll('#reportPreview .report-page')];
+              const bodyStyle=getComputedStyle(pages[1].querySelector('.doc-text'));
+              const headingStyle=getComputedStyle(pages[1].querySelector('.doc-section'));
+              const footer=report.querySelector('.report-footer').getBoundingClientRect();
+              const watermark=report.querySelector('.report-watermark').getBoundingClientRect();
+              const logo=report.querySelector('.report-logo').getBoundingClientRect();
+              return {
+                title:rect('.doc-title'),subtitle:rect('.doc-subtitle'),claim:rect('.claim-table'),meta:rect('.meta-table'),
+                titleLines:visualLines('.doc-title'),subtitleLines:visualLines('.doc-subtitle'),claimRows,metaRows,
+                contentOverflow:report.querySelector('.report-content').scrollHeight-report.querySelector('.report-content').clientHeight,
+                pageCount:pages.length,
+                internal:{bodyFont:bodyStyle.fontSize,bodyAlign:bodyStyle.textAlign,headingFont:headingStyle.fontSize},
+                institutional:{footerHeight:mm(footer.height),watermarkWidth:mm(watermark.width),logoWidth:mm(logo.width),logoHeight:mm(logo.height)}
+              };
+            });
+
+            const near=(a,b,t)=>Math.abs(Number(a)-Number(b))<=t;
+            if(cover.title.text!=='RELATÓRIO DE CONTINGÊNCIA'||cover.titleLines!==1||!near(cover.title.size,26*96/72,.15)) throw new Error(`Título inválido: ${JSON.stringify(cover.title)} linhas=${cover.titleLines}`);
+            if(cover.subtitle.text!=='RISCOS NOMEADOS EMPRESARIAL'||cover.subtitleLines!==1||!near(cover.subtitle.size,24*96/72,.15)||cover.subtitle.letterSpacing!=='-0.666667px') throw new Error(`Subtítulo inválido: ${JSON.stringify(cover.subtitle)} linhas=${cover.subtitleLines}`);
+            if(!near(cover.title.top,49.99,1)||!near(cover.subtitle.top,62.16,1)) throw new Error(`Posição dos títulos: ${JSON.stringify({title:cover.title.top,subtitle:cover.subtitle.top})}`);
+            if(!near(cover.claimRows[0].top,80.63,1.2)||!near(cover.claimRows[1].top,86.50,1.2)) throw new Error(`Posição dos sinistros: ${JSON.stringify(cover.claimRows)}`);
+            if(!near(cover.meta.width,172.6,.6)||!near(cover.metaRows[0].cells[0].width,65.1,.7)||!near(cover.metaRows[0].cells[1].width,107.5,.8)) throw new Error(`Tabela/colunas usuais: ${JSON.stringify({meta:cover.meta,first:cover.metaRows[0]})}`);
+            if(cover.metaRows[7].cells[0].colSpan!==2||!near(cover.metaRows[7].cells[0].width,77.5,.8)||!near(cover.metaRows[7].cells[1].width,95.1,.8)) throw new Error(`Mesclagem deslocada: ${JSON.stringify(cover.metaRows[7])}`);
+            if(!near(cover.metaRows[0].top,103.37,1.5)||!near(cover.metaRows.at(-1).top,195.35,2)||!cover.metaRows.every(row=>row.height>=11.45)) throw new Error(`Distribuição vertical: ${JSON.stringify({first:cover.metaRows[0],last:cover.metaRows.at(-1)})}`);
+            if(cover.metaRows[1].cells[1].lines!==1||cover.metaRows[1].cells[1].text!=='COOPERATIVA CENTRAL AURORA ALIMENTOS') throw new Error(`Segurado quebrou: ${JSON.stringify(cover.metaRows[1])}`);
+            if(cover.title.bg!=='rgba(0, 0, 0, 0)'||cover.meta.bg!=='rgba(0, 0, 0, 0)') throw new Error(`Preenchimento indevido: ${cover.title.bg}/${cover.meta.bg}`);
+            if(cover.contentOverflow>2) throw new Error(`Overflow na capa: ${cover.contentOverflow}px`);
+            if(cover.internal.bodyFont!=='14.6667px'||cover.internal.bodyAlign!=='justify'||cover.internal.headingFont!=='18.6667px') throw new Error(`Página interna alterada: ${JSON.stringify(cover.internal)}`);
+            if(!near(cover.institutional.logoWidth,68.5,.3)||!near(cover.institutional.logoHeight,33,.3)||!near(cover.institutional.watermarkWidth,160,.3)||!near(cover.institutional.footerHeight,28,.3)) throw new Error(`Elementos institucionais alterados: ${JSON.stringify(cover.institutional)}`);
+            if(pageErrors.length||httpErrors.length) throw new Error(JSON.stringify({pageErrors,httpErrors}));
+
+            await page.locator('#reportPreview .report-page.first').screenshot({path:path.join(out,'public-cover.png')});
+            await page.locator('#reportPreview .report-page').nth(1).screenshot({path:path.join(out,'public-page-2.png')});
+
+            await page.click('[data-action="export-pdf"]');
+            await page.waitForSelector('#printHost .report-page',{state:'attached'});
+            const printCheck=await page.evaluate(()=>{
+              const pages=[...document.querySelectorAll('#printHost .report-page')];
+              const first=pages[0];
+              return {count:pages.length,title:first.querySelector('.doc-title')?.textContent,subtitle:first.querySelector('.doc-subtitle')?.textContent,footers:pages.every((p,index)=>p.querySelector('.report-page-number')?.textContent===`${index+1} de ${pages.length}`)};
+            });
+            if(printCheck.title!=='RELATÓRIO DE CONTINGÊNCIA'||printCheck.subtitle!=='RISCOS NOMEADOS EMPRESARIAL'||!printCheck.footers) throw new Error(`Estrutura PDF inconsistente: ${JSON.stringify(printCheck)}`);
+            await page.emulateMedia({media:'print'});
+            await page.pdf({path:path.join(out,'Relatorio_Fast_Track_1325000_v0626_capa.pdf'),format:'A4',printBackground:true,preferCSSPageSize:true,margin:{top:'0',right:'0',bottom:'0',left:'0'}});
+            await page.emulateMedia({media:'screen'});
+
+            const pending=page.waitForEvent('download',{timeout:120000});
+            await page.click('[data-action="export-word"]');
+            const download=await pending;
+            const wordPath=path.join(out,'Relatorio_Fast_Track_1325000_v0626_capa.docx');
+            await download.saveAs(wordPath);
+            if(!fs.existsSync(wordPath)||fs.statSync(wordPath).size<15000) throw new Error('DOCX público inválido');
+            fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({url,init,cover,printCheck,wordBytes:fs.statSync(wordPath).size},null,2));
+            await browser.close();
+          })().catch(error=>{console.error(error);process.exit(1)});
+          NODE
+          CHROME_PATH="$CHROME_PATH" NODE_PATH="$PWD/node_modules" node "$OUT/test.js"
+
+          DOCX="$OUT/Relatorio_Fast_Track_1325000_v0626_capa.docx"
+          unzip -t "$DOCX"
+          mkdir -p "$OUT/docx"
+          unzip -q "$DOCX" -d "$OUT/docx"
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          root=Path('/tmp/v062-public-cover-0626/docx')
+          ns={'w':'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+          body=ET.parse(root/'word/document.xml').getroot().find('.//w:body',ns)
+          nodes=list(body)
+          def txt(node): return ' '.join((t.text or '') for t in node.findall('.//w:t',ns))
+          title_index=next(i for i,n in enumerate(nodes) if n.tag.endswith('}p') and 'RELATÓRIO DE CONTINGÊNCIA' in txt(n))
+          title=nodes[title_index]; subtitle=nodes[title_index+1]; claim=nodes[title_index+2]; meta=nodes[title_index+4]
+          if title.findall('.//w:br',ns) or subtitle.findall('.//w:br',ns): raise SystemExit('Quebra manual em título/subtítulo')
+          if not claim.tag.endswith('}tbl') or not meta.tag.endswith('}tbl'): raise SystemExit('Ordem estrutural da capa inválida')
+          grid=[int(c.attrib[f'{{{ns["w"]}}}w']) for c in meta.findall('./w:tblGrid/w:gridCol',ns)]
+          if grid!=[3691,703,5392]: raise SystemExit(f'Grade inválida: {grid}')
+          rows=meta.findall('./w:tr',ns)
+          if len(rows)!=9: raise SystemExit(f'Linhas cadastrais: {len(rows)}')
+          spans=[]
+          for i,row in enumerate(rows):
+              h=row.find('./w:trPr/w:trHeight',ns)
+              if h is None or h.attrib.get(f'{{{ns["w"]}}}val')!='650' or h.attrib.get(f'{{{ns["w"]}}}hRule')!='atLeast': raise SystemExit(f'Altura inválida: {i+1}')
+              spans.append([int(cell.find('./w:tcPr/w:gridSpan',ns).attrib[f'{{{ns["w"]}}}val']) if cell.find('./w:tcPr/w:gridSpan',ns) is not None else 1 for cell in row.findall('./w:tc',ns)])
+          if spans[0]!=[1,2] or spans[7]!=[2,1] or spans[8]!=[2,1]: raise SystemExit(f'Mesclagens inválidas: {spans}')
+          if meta.findall('.//w:shd',ns): raise SystemExit('Sombreamento indevido na capa')
+          for node,size in [(title,'52'),(subtitle,'48')]:
+              rpr=node.find('.//w:rPr',ns)
+              if rpr.find('./w:rFonts',ns).attrib.get(f'{{{ns["w"]}}}ascii')!='Arial Black' or rpr.find('./w:sz',ns).attrib.get(f'{{{ns["w"]}}}val')!=size: raise SystemExit('Fonte/tamanho da capa inválido')
+          spacing=subtitle.find('.//w:rPr/w:spacing',ns)
+          if spacing is None or spacing.attrib.get(f'{{{ns["w"]}}}val')!='-10': raise SystemExit('Condensação do subtítulo ausente')
+          if 'COOPERATIVA CENTRAL AURORA ALIMENTOS' not in txt(meta): raise SystemExit('Segurado ausente')
+          for footer in ['footer1.xml','footer2.xml']:
+              xml=(root/'word'/footer).read_text(encoding='utf-8')
+              for value in ['Matriz - Rua XV de novembro 1336','PAGE','NUMPAGES','Calibri','29A8E0']:
+                  if value not in xml: raise SystemExit(f'Rodapé alterado: {footer}/{value}')
+          print('DOCX público validado: capa, grade, mesclagens, fontes e rodapés.')
+          PY
+
+          PDF="$OUT/Relatorio_Fast_Track_1325000_v0626_capa.pdf"
+          pdfinfo "$PDF" > "$OUT/pdfinfo.txt"
+          pdftotext -layout "$PDF" "$OUT/pdf.txt"
+          grep -q 'RELATÓRIO DE CONTINGÊNCIA' "$OUT/pdf.txt"
+          grep -q 'RISCOS NOMEADOS EMPRESARIAL' "$OUT/pdf.txt"
+          grep -q 'COOPERATIVA CENTRAL AURORA ALIMENTOS' "$OUT/pdf.txt"
+          grep -q 'Matriz - Rua XV de novembro 1336' "$OUT/pdf.txt"
+          cat "$OUT/result.json"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fast-track-v062-public-cover-0626
+          path: /tmp/v062-public-cover-0626
+          if-no-files-found: warn
+
+      - name: Remove temporary public verification workflow
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/verify-v062-cover-0626.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/verify-v062-cover-0626.yml
+          git commit -m 'chore(v06): remover validação pública temporária da capa'
+          git push origin HEAD:verification/v062-public
