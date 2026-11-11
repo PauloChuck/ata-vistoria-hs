@@ -80,6 +80,10 @@
     });
     const heading = (value) => new Paragraph({children:[run(value,{font:'Arial Black',size:28,bold:true})],spacing:{before:600,after:300,line:360},keepNext:true,keepLines:true});
     const subheading = (value) => new Paragraph({children:[run(value.toUpperCase(),{size:24,bold:true})],spacing:{before:500,after:200,line:360},keepNext:true,keepLines:true});
+    const narrativeParagraphs = (value) => {
+      const lines = text(value).replace(/\r\n/g,'\n').split('\n');
+      return lines.map((line) => para(line,{alignment:AlignmentType.JUSTIFIED,line:360,after:160}));
+    };
     const caption = (value) => new Paragraph({children:[run(value,{size:20,color:CAPTION_BLUE})],alignment:AlignmentType.CENTER,spacing:{line:240,after:120},keepLines:true});
     const pageBreak = () => new Paragraph({children:[new PageBreak()]});
 
@@ -234,12 +238,12 @@ children:[
       const scale=Math.min(490/mapImg.width,340/mapImg.height,1);
       technical.push(new Paragraph({children:[new ImageRun({data:mapImg.data,type:'png',transformation:{width:Math.max(1,Math.round(mapImg.width*scale)),height:Math.max(1,Math.round(mapImg.height*scale))}})],alignment:AlignmentType.CENTER,spacing:{after:80}}),caption('Localização da propriedade sinistrada.'));
     } else technical.push(para('Imagem de localização não informada.',{alignment:AlignmentType.CENTER}));
-    technical.push(heading('2. DESCRIÇÃO DA OCORRÊNCIA'),para(REPORT().occurrenceText(f.lossDate)),heading('3. COBERTURA RECLAMADA'));
+    technical.push(heading('2. DESCRIÇÃO DA OCORRÊNCIA'),...narrativeParagraphs(REPORT().effectiveOccurrenceText(state)),heading('3. COBERTURA RECLAMADA'));
     technical.push(new Table({width:{size:100,type:WidthType.PERCENTAGE},rows:[
       new TableRow({children:[tcell('Cobertura',{width:44,bold:true,align:AlignmentType.LEFT}),tcell('Limite de Indenização',{width:28,bold:true}),tcell('Franquia',{width:28,bold:true})]}),
       new TableRow({children:[tcell(f.coverageName || 'Vendaval / Granizo',{width:44,align:AlignmentType.LEFT}),tcell(REPORT().money(35000000),{width:28}),tcell('15% com mínimo\nde R$ 3.000,00',{width:28})]})
     ]}));
-    technical.push(heading('4. APURAÇÕES DA REGULAÇÃO'),subheading('4.1. LEVANTAMENTOS EM VISTORIA'),para(REPORT().inspectionText(f.inspectionDate)),subheading('RELAÇÃO DE DANOS:'));
+    technical.push(heading('4. APURAÇÕES DA REGULAÇÃO'),subheading('4.1. LEVANTAMENTOS EM VISTORIA'),...narrativeParagraphs(REPORT().effectiveInspectionText(state)),subheading('RELAÇÃO DE DANOS:'));
     const damageItems=state.damages||[];
     if(damageItems.length){
       const damageHeader=new TableRow({tableHeader:true,cantSplit:true,children:[tcell('Item',{width:7,bold:true}),tcell('Material danificado',{width:36,bold:true,align:AlignmentType.LEFT}),tcell('Quantidade',{width:12,bold:true}),tcell('Unidade',{width:10,bold:true}),tcell('Idade',{width:15,bold:true}),tcell('Valor reclamado',{width:20,bold:true})]});
@@ -276,8 +280,14 @@ children:[
     // Documentos e parecer
     const docs = f.noDocuments ? [] : (state.documents || []);
     const docChildren=[subheading('4.2. LEVANTAMENTOS DOCUMENTAIS')];
-    if(docs.length) docs.forEach((doc,index)=>docChildren.push(para([run(`${index+1}. ${doc.type || doc.name || 'Documento'}`,{bold:true}),run(doc.description ? ` — ${doc.description}` : '')],{alignment:AlignmentType.LEFT})));
-    else docChildren.push(para('Documentos não apresentados até o momento.'));
+    if(f.noDocuments) {
+      docChildren.push(para('Documentos não apresentados até o momento.'));
+    } else if(docs.length) {
+      docChildren.push(para('Em vistoria foram coletados os documentos abaixo relacionados',{alignment:AlignmentType.LEFT}));
+      docs.forEach((doc,index)=>docChildren.push(para([run(`${index+1}. ${doc.type || doc.name || 'Documento'}`,{bold:true}),run(doc.description ? ` — ${doc.description}` : '')],{alignment:AlignmentType.LEFT})));
+    } else {
+      docChildren.push(para('Nenhum documento relacionado no momento.'));
+    }
     docChildren.push(heading('5. PARECER DO REGULADOR'),para(f.regulatorOpinion || ''));
     children.push(...docChildren);
 
