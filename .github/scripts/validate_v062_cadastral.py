@@ -67,11 +67,19 @@ def validate_docx() -> None:
 
 def validate_pdf_text(file_name: str) -> None:
     lines = [line.strip() for line in (OUT / file_name).read_text(encoding='utf-8', errors='ignore').splitlines()]
+    section_starts = [index for index, line in enumerate(lines) if line == '8. DADOS CADASTRAIS']
+    section_ends = [index for index, line in enumerate(lines) if line == '9. CRONOLOGIA']
+    if len(section_starts) != 1 or len(section_ends) != 1 or section_starts[0] >= section_ends[0]:
+        raise SystemExit(f'{file_name}: limites da seção cadastral inválidos: início={section_starts}, fim={section_ends}')
+
+    start = section_starts[0]
+    end = section_ends[0]
+    section = lines[start + 1:end]
     positions = []
     for value in EXPECTED:
-        matches = [index for index, line in enumerate(lines) if value in line]
+        matches = [index for index, line in enumerate(section) if value in line]
         if len(matches) != 1:
-            raise SystemExit(f'{file_name}: campo não encontrado em linha própria: {value!r}; ocorrências={matches}')
+            raise SystemExit(f'{file_name}: campo não encontrado em linha própria dentro da seção cadastral: {value!r}; ocorrências={matches}; seção={section}')
         positions.append(matches[0])
     if not positions[0] < positions[1] < positions[2] or len(set(positions)) != 3:
         raise SystemExit(f'{file_name}: ordem ou separação inválida: {positions}')
