@@ -1,0 +1,356 @@
+name: Apply V0630 parecer evidencias reset
+
+on:
+  push:
+    branches:
+      - feature/v0630-parecer-evidencias-reset
+    paths:
+      - .github/workflows/apply-v0630.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-test-commit:
+    if: ${{ !contains(github.event.head_commit.message, 'finalizar implementação v0630') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct implementation payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/v0630/payload.*.b64part | tr -d '\n\r' | base64 -d > /tmp/v0630-payload.tar.gz
+          tar -tzf /tmp/v0630-payload.tar.gz
+          tar -xzf /tmp/v0630-payload.tar.gz -C .
+          node --check fast_track/v06/direct-app-0630.js
+          node --check fast_track/v06/direct-layout-0630.js
+          node --check fast_track/v06/direct-word-0630.js
+
+          grep -q 'direct-app-0630.js?v=0630' fast_track/v062.html
+          grep -q 'direct-layout-0630.js?v=0630' fast_track/v062.html
+          grep -q 'direct-word-0630.js?v=0630' fast_track/v062.html
+          grep -q 'id="causeEvidenceInput"' fast_track/v062.html
+          grep -q 'id="causeEvidenceList"' fast_track/v062.html
+          grep -q 'id="addPhotoButton"' fast_track/v062.html
+          ! grep -q 'id="documentInput"' fast_track/v062.html
+          ! grep -q 'id="documentList"' fast_track/v062.html
+          ! grep -q 'id="noDocuments"' fast_track/v062.html
+          ! grep -qi 'Levantamentos documentais' fast_track/v062.html
+          ! grep -qi 'LEVANTAMENTOS DOCUMENTAIS' fast_track/v06/direct-layout-0630.js
+          ! grep -qi 'DADOS CADASTRAIS' fast_track/v06/direct-layout-0630.js
+          ! grep -qi 'LEVANTAMENTOS DOCUMENTAIS' fast_track/v06/direct-word-0630.js
+          ! grep -qi 'DADOS CADASTRAIS' fast_track/v06/direct-word-0630.js
+          grep -q '4.2. PARECER DO REGULADOR' fast_track/v06/direct-layout-0630.js
+          grep -q 'EVIDÊNCIAS DA CAUSA' fast_track/v06/direct-layout-0630.js
+          grep -q 'state.photos = \[\]' fast_track/v06/direct-app-0630.js
+          grep -q 'state.damages = \[\]' fast_track/v06/direct-app-0630.js
+
+      - name: Prepare browser and document tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/v0630-node /tmp/v0630-validation
+          cd /tmp/v0630-node
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.56.1
+          CHROME_PATH="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          if ! command -v libreoffice >/dev/null 2>&1 || ! command -v pdftotext >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y libreoffice-writer poppler-utils
+          fi
+
+      - name: Run functional acceptance tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/v0630-validation
+          python3 -m http.server 8000 --bind 127.0.0.1 >"$OUT/http.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          sleep 2
+
+          cat > "$OUT/test.js" <<'NODE'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+          const path = require('path');
+
+          const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAGCAIAAABxZ0isAAAAFElEQVR4nGMMWHCHARtgwipKJwkADY0B2N/GZccAAAAASUVORK5CYII=';
+          const pngBuffer = Buffer.from(pngBase64,'base64');
+          const pngDataUrl = `data:image/png;base64,${pngBase64}`;
+          const pdfBuffer = Buffer.from('%PDF-1.4\n1 0 obj<< /Type /Catalog >>endobj\ntrailer<< /Root 1 0 R >>\n%%EOF\n');
+          const pdfDataUrl = `data:application/pdf;base64,${pdfBuffer.toString('base64')}`;
+
+          function fields(){
+            return {
+              insurerClaim:'1326300',hsClaim:'S2609630',insurer:'SOMPO SEGUROS S/A',insured:'COOPERATIVA CENTRAL AURORA ALIMENTOS',
+              claimantName:'Cooperado Teste V0630',claimantCpf:'012.345.678-90',riskAddress:'Linha Teste, Município/SC',policyNumber:'9600131927',
+              productName:'RISCOS NOMEADOS',broker:'ALPER CONSULTORIA E CORRETORA DE SEGUROS S/A',lossDate:'2026-11-04',coverageName:'Vendaval / Granizo',
+              inspectionDate:'2026-11-10',occurrenceNarrative:'No dia 04 de novembro de 2026, ocorreu tempestade severa na região.',occurrenceNarrativeMode:'custom',occurrenceNarrativeDate:'2026-11-04',
+              inspectionNarrative:'Em vistoria presencial realizada no dia 10 de novembro de 2026, foram constatados os danos descritos.',inspectionNarrativeMode:'custom',inspectionNarrativeDate:'2026-11-10',
+              mapFit:'contain',mapPosX:'50',mapPosY:'50',regulatorOpinion:'Diante do exposto, o conjunto probatório confirma o nexo causal e o sinistro está amparado pela cobertura contratada.',
+              otherInsurance:'nao',otherInsuranceDetails:'',bankName:'BANCO TESTE NÃO EXIBIR',bankAgency:'0001',bankAccount:'000123-4',
+              noticeDate:'2026-11-05',scheduleDate:'2026-11-06',reportCity:'Blumenau (SC)',reportDate:'2026-11-10',
+              regulatorName:'Paulo R. Schlosser',regulatorCpf:'068.613.739-66',noDocuments:true
+            };
+          }
+
+          function backup({legacyOnly=false}={}){
+            return {
+              version:'0.6.10',updatedAt:new Date().toISOString(),finalizedAt:null,fields:fields(),
+              map:{dataUrl:pngDataUrl,name:'mapa.png',fit:'contain',posX:'50',posY:'50'},
+              damages:[
+                {id:'damage_1',description:'Telhas e componentes de cobertura com descrição extensa para validar o fluxo',quantity:'120',unit:'un.',age:'4',ageUnit:'anos',claimedTotal:'10000',assessedTotal:'9500'},
+                {id:'damage_2',description:'Cortinado lateral',quantity:'220',unit:'m²',age:'2',ageUnit:'anos',claimedTotal:'6480',assessedTotal:'6480'}
+              ],
+              photos:[{id:'photo_1',name:'vistoria.png',caption:'Danos observados em vistoria',dataUrl:pngDataUrl}],
+              documents:[{id:'legacy_doc',name:'documento-antigo.pdf',type:'Laudo antigo',description:'Não deve reaparecer nem migrar',mime:'application/pdf',dataUrl:pdfDataUrl}],
+              causeEvidence:legacyOnly ? undefined : [
+                {id:'evidence_1',name:'foto-causa.png',mime:'image/png',dataUrl:pngDataUrl,caption:'Fotografia da causa'},
+                {id:'evidence_2',name:'laudo-causa.pdf',mime:'application/pdf',dataUrl:pdfDataUrl,caption:'Laudo técnico principal'}
+              ],
+              signatures:{regulator:null,claimant:null}
+            };
+          }
+
+          async function importBackup(page,data,name){
+            await page.setInputFiles('#backupInput',{name,mimeType:'application/json',buffer:Buffer.from(JSON.stringify(data))});
+            await page.waitForFunction((expected)=>document.querySelectorAll('#damageList .damage-card').length===expected, data.damages?.length || 0, {timeout:20000});
+            await page.waitForTimeout(700);
+          }
+
+          async function go(page,step){
+            await page.evaluate((target)=>{
+              const active=document.querySelector('.screen.active');
+              const button=active?.querySelector(`[data-go="${target}"]`) || document.querySelector(`[data-step="${Math.max(1,target-1)}"] [data-go="${target}"]`);
+              if(!button) throw new Error(`Botão para etapa ${target} não encontrado`);
+              button.click();
+            },step);
+            await page.waitForSelector(`.screen[data-step="${step}"].active`);
+          }
+
+          (async()=>{
+            const out='/tmp/v0630-validation';
+            const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH,args:['--no-sandbox','--disable-dev-shm-usage']});
+            const page=await browser.newPage({acceptDownloads:true,viewport:{width:1500,height:1100}});
+            const pageErrors=[]; const httpErrors=[]; const consoleErrors=[];
+            page.on('pageerror',error=>pageErrors.push(String(error)));
+            page.on('console',msg=>{if(msg.type()==='error')consoleErrors.push(msg.text())});
+            page.on('response',response=>{if(response.status()>=400&&!/favicon\.ico/i.test(response.url()))httpErrors.push({status:response.status(),url:response.url()})});
+            page.on('dialog',dialog=>dialog.accept());
+
+            await page.goto('http://127.0.0.1:8000/fast_track/v062.html?v=0630-ci',{waitUntil:'networkidle',timeout:120000});
+            await page.waitForSelector('.app-shell',{state:'visible'});
+            const initial=await page.evaluate(()=>({
+              report:Boolean(window.FastTrackV06Report),word:Boolean(window.FastTrackV06Word),docx:Boolean(window.docx),
+              docsInput:Boolean(document.getElementById('documentInput')),docsList:Boolean(document.getElementById('documentList')),noDocs:Boolean(document.getElementById('noDocuments')),
+              evidence:Boolean(document.getElementById('causeEvidenceInput')),opinionCount:document.querySelectorAll('#regulatorOpinion').length,
+              buttonAfterGallery:Boolean(document.getElementById('photoGallery').compareDocumentPosition(document.getElementById('addPhotoButton')) & Node.DOCUMENT_POSITION_FOLLOWING),
+              bankFields:['bankName','bankAgency','bankAccount'].every(id=>Boolean(document.getElementById(id)))
+            }));
+            if(!initial.report||!initial.word||!initial.docx||initial.docsInput||initial.docsList||initial.noDocs||!initial.evidence||initial.opinionCount!==1||!initial.buttonAfterGallery||!initial.bankFields){
+              throw new Error(`Estrutura inicial inválida: ${JSON.stringify(initial)}`);
+            }
+            if(/Levantamentos documentais/i.test(await page.locator('body').innerText())) throw new Error('Levantamentos Documentais ainda aparece no formulário.');
+
+            // Cria dados na sessão, salva e comprova a limpeza real após recarga.
+            await page.click('[data-action="load-example"]');
+            await page.setInputFiles('#photoInput',{name:'foto-sessao.png',mimeType:'image/png',buffer:pngBuffer});
+            await page.waitForSelector('#photoGallery .photo-card');
+            await page.fill('#photoGallery [data-photo-caption]','Foto temporária da sessão');
+            await page.setInputFiles('#causeEvidenceInput',[
+              {name:'evidencia-sessao.png',mimeType:'image/png',buffer:pngBuffer},
+              {name:'evidencia-sessao.pdf',mimeType:'application/pdf',buffer:pdfBuffer}
+            ]);
+            await page.waitForFunction(()=>document.querySelectorAll('#causeEvidenceList .cause-evidence-card').length===2);
+            await page.locator('#causeEvidenceList [data-evidence-caption]').nth(0).fill('Evidência visual persistente');
+            await page.locator('#causeEvidenceList [data-evidence-caption]').nth(1).fill('Arquivo persistente');
+            await page.evaluate(()=>document.querySelector('[data-action="save-draft"]').click());
+            await page.waitForTimeout(1300);
+            const beforeReload=await page.evaluate(()=>({photos:document.querySelectorAll('#photoGallery .photo-card').length,damages:document.querySelectorAll('#damageList .damage-card').length,evidence:document.querySelectorAll('#causeEvidenceList .cause-evidence-card').length}));
+            if(beforeReload.photos!==1||beforeReload.damages!==3||beforeReload.evidence!==2) throw new Error(`Preparação para recarga inválida: ${JSON.stringify(beforeReload)}`);
+
+            await page.reload({waitUntil:'networkidle',timeout:120000});
+            await page.waitForSelector('.app-shell',{state:'visible'});
+            let reset=await page.evaluate(()=>({
+              photos:document.querySelectorAll('#photoGallery .photo-card').length,
+              damages:document.querySelectorAll('#damageList .damage-card').length,
+              evidence:document.querySelectorAll('#causeEvidenceList .cause-evidence-card').length,
+              claimant:document.getElementById('claimantName').value,
+              financial:[...document.querySelectorAll('#financialSummary strong')].map(node=>node.textContent.trim())
+            }));
+            if(reset.photos!==0||reset.damages!==0||reset.evidence!==2||reset.claimant!=='Cooperado Exemplo'||reset.financial.some(value=>value!=='R$ 0,00'&&value!=='R$ 0,00')){
+              throw new Error(`Limpeza na recarga falhou: ${JSON.stringify(reset)}`);
+            }
+            await page.reload({waitUntil:'networkidle',timeout:120000});
+            await page.waitForSelector('.app-shell',{state:'visible'});
+            reset=await page.evaluate(()=>({photos:document.querySelectorAll('#photoGallery .photo-card').length,damages:document.querySelectorAll('#damageList .damage-card').length,evidence:document.querySelectorAll('#causeEvidenceList .cause-evidence-card').length}));
+            if(reset.photos!==0||reset.damages!==0||reset.evidence!==2) throw new Error(`Dados limpos foram restaurados na segunda recarga: ${JSON.stringify(reset)}`);
+
+            // Visualização e remoção das evidências persistentes.
+            await page.evaluate(()=>{window.__openedEvidence='';window.open=(url)=>{window.__openedEvidence=url;return null}});
+            await page.evaluate(()=>document.querySelector('#causeEvidenceList [data-action="view-evidence"]').click());
+            if(!(await page.evaluate(()=>String(window.__openedEvidence||'').startsWith('data:')))) throw new Error('Visualização da evidência não abriu o arquivo armazenado.');
+            await page.evaluate(()=>document.querySelectorAll('#causeEvidenceList [data-action="remove-evidence"]')[1].click());
+            await page.waitForFunction(()=>document.querySelectorAll('#causeEvidenceList .cause-evidence-card').length===1);
+
+            // Backup antigo: reconhecido, mas documentos legados não aparecem nem migram.
+            await importBackup(page,backup({legacyOnly:true}),'backup-legado.json');
+            const legacy=await page.evaluate(()=>({photos:document.querySelectorAll('#photoGallery .photo-card').length,damages:document.querySelectorAll('#damageList .damage-card').length,evidence:document.querySelectorAll('#causeEvidenceList .cause-evidence-card').length,docs:Boolean(document.getElementById('documentList'))}));
+            if(legacy.photos!==1||legacy.damages!==2||legacy.evidence!==0||legacy.docs) throw new Error(`Compatibilidade com backup antigo inválida: ${JSON.stringify(legacy)}`);
+
+            // Backup atual: importação explícita mantém fotos/danos/evidências durante a sessão.
+            await importBackup(page,backup(),'backup-atual.json');
+            await go(page,2); await go(page,3); await go(page,4);
+            let session=await page.evaluate(()=>({
+              photos:document.querySelectorAll('#photoGallery .photo-card').length,
+              damages:document.querySelectorAll('#damageList .damage-card').length,
+              evidence:document.querySelectorAll('#causeEvidenceList .cause-evidence-card').length,
+              buttonAfterGallery:Boolean(document.getElementById('photoGallery').compareDocumentPosition(document.getElementById('addPhotoButton')) & Node.DOCUMENT_POSITION_FOLLOWING)
+            }));
+            if(session.photos!==1||session.damages!==2||session.evidence!==2||!session.buttonAfterGallery) throw new Error(`Importação/navegação inválida: ${JSON.stringify(session)}`);
+
+            // Substitui e remove evidência, depois inclui novamente para a emissão.
+            const chooserPromise=page.waitForEvent('filechooser');
+            await page.locator('#causeEvidenceList [data-action="replace-evidence"]').nth(1).click();
+            const chooser=await chooserPromise;
+            await chooser.setFiles({name:'nota-causa.txt',mimeType:'text/plain',buffer:Buffer.from('Evidência textual substituta')});
+            await page.waitForFunction(()=>document.querySelector('#causeEvidenceList').innerText.includes('nota-causa.txt'));
+            await page.locator('#causeEvidenceList [data-action="remove-evidence"]').nth(1).click();
+            await page.waitForFunction(()=>document.querySelectorAll('#causeEvidenceList .cause-evidence-card').length===1);
+            await page.setInputFiles('#causeEvidenceInput',{name:'laudo-causa.pdf',mimeType:'application/pdf',buffer:pdfBuffer});
+            await page.waitForFunction(()=>document.querySelectorAll('#causeEvidenceList .cause-evidence-card').length===2);
+            await page.locator('#causeEvidenceList [data-evidence-caption]').nth(1).fill('Laudo técnico principal');
+
+            // Inclusões sucessivas mantêm o botão após a galeria e a navegação próxima da nova foto.
+            await page.setInputFiles('#photoInput',{name:'vistoria-adicional.png',mimeType:'image/png',buffer:pngBuffer});
+            await page.waitForFunction(()=>document.querySelectorAll('#photoGallery .photo-card').length===2);
+            await page.locator('#photoGallery [data-photo-caption]').nth(1).fill('Segunda fotografia da vistoria');
+            const photoFlow=await page.evaluate(()=>{
+              const cards=[...document.querySelectorAll('#photoGallery .photo-card')];
+              const last=cards[cards.length-1].getBoundingClientRect();
+              return {count:cards.length,buttonAfter:Boolean(document.getElementById('photoGallery').compareDocumentPosition(document.getElementById('addPhotoButton')) & Node.DOCUMENT_POSITION_FOLLOWING),lastNear:last.top<innerHeight&&last.bottom>0};
+            });
+            if(photoFlow.count!==2||!photoFlow.buttonAfter||!photoFlow.lastNear) throw new Error(`Fluxo do botão de fotos inválido: ${JSON.stringify(photoFlow)}`);
+
+            await go(page,5); await go(page,4);
+            session=await page.evaluate(()=>({photos:document.querySelectorAll('#photoGallery .photo-card').length,damages:document.querySelectorAll('#damageList .damage-card').length,evidence:document.querySelectorAll('#causeEvidenceList .cause-evidence-card').length}));
+            if(session.photos!==2||session.damages!==2||session.evidence!==2) throw new Error(`Navegação entre etapas perdeu dados da sessão: ${JSON.stringify(session)}`);
+            await go(page,5); await go(page,6); await go(page,7);
+            await page.waitForSelector('#reportPreview .report-page');
+
+            const preview=await page.evaluate(()=>{
+              const text=document.getElementById('reportPreview').innerText;
+              return {
+                text,
+                opinionCount:(text.match(/4\.2\. PARECER DO REGULADOR/g)||[]).length,
+                evidenceImages:document.querySelectorAll('#reportPreview .cause-evidence-report-image').length,
+                pages:document.querySelectorAll('#reportPreview .report-page').length,
+                overflows:[...document.querySelectorAll('#reportPreview .report-content')].map(el=>el.scrollHeight-el.clientHeight)
+              };
+            });
+            const forbidden=['LEVANTAMENTOS DOCUMENTAIS','DADOS CADASTRAIS','documento-antigo.pdf','BANCO TESTE NÃO EXIBIR'];
+            for(const value of forbidden) if(preview.text.includes(value)) throw new Error(`Conteúdo removido ainda aparece na prévia: ${value}`);
+            for(const required of ['4.2. PARECER DO REGULADOR','EVIDÊNCIAS DA CAUSA','Fotografia da causa','laudo-causa.pdf','Laudo técnico principal','5. DEMONSTRATIVO DE INDENIZAÇÃO','6. DECLARAÇÃO DE OUTROS SEGUROS','7. CRONOLOGIA','8. INFORMAÇÕES COMPLEMENTARES','Cooperado Teste V0630']){
+              if(!preview.text.includes(required)) throw new Error(`Conteúdo ausente na prévia: ${required}`);
+            }
+            if(preview.opinionCount!==1||preview.evidenceImages<1||preview.overflows.some(value=>value>2)) throw new Error(`Prévia inválida: ${JSON.stringify(preview)}`);
+            await page.locator('#reportPreview .report-page').first().screenshot({path:path.join(out,'preview-capa.png')});
+            const opinionPage=page.locator('#reportPreview .report-page').filter({hasText:'4.2. PARECER DO REGULADOR'}).first();
+            await opinionPage.screenshot({path:path.join(out,'preview-parecer-evidencias.png')});
+
+            await page.evaluate(()=>{window.print=()=>{window.__printCalled=true}});
+            await page.click('[data-action="export-pdf"]');
+            await page.waitForSelector('#printHost .report-page',{state:'attached'});
+            const printText=await page.locator('#printHost').innerText();
+            for(const value of forbidden) if(printText.includes(value)) throw new Error(`Conteúdo removido ainda aparece na impressão: ${value}`);
+            await page.emulateMedia({media:'print'});
+            await page.pdf({path:path.join(out,'Relatorio_Fast_Track_v0630_browser.pdf'),format:'A4',printBackground:true,preferCSSPageSize:true,margin:{top:'0',right:'0',bottom:'0',left:'0'}});
+            await page.emulateMedia({media:'screen'});
+
+            const downloadPromise=page.waitForEvent('download',{timeout:120000});
+            await page.click('[data-action="export-word"]');
+            const download=await downloadPromise;
+            const docxPath=path.join(out,download.suggestedFilename());
+            await download.saveAs(docxPath);
+            if(!fs.existsSync(docxPath)||fs.statSync(docxPath).size<15000) throw new Error(`DOCX inválido: ${docxPath}`);
+
+            if(pageErrors.length||httpErrors.length||consoleErrors.length) throw new Error(JSON.stringify({pageErrors,httpErrors,consoleErrors}));
+            fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({initial,beforeReload,reset,legacy,session,photoFlow,preview:{opinionCount:preview.opinionCount,evidenceImages:preview.evidenceImages,pages:preview.pages,overflows:preview.overflows},docxPath,docxBytes:fs.statSync(docxPath).size},null,2));
+            await browser.close();
+          })().catch(error=>{console.error(error);process.exit(1)});
+          NODE
+
+          NODE_PATH=/tmp/v0630-node/node_modules node "$OUT/test.js"
+
+      - name: Validate Word and PDF outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/v0630-validation
+          DOCX=$(find "$OUT" -maxdepth 1 -name '*.docx' -print -quit)
+          BROWSER_PDF="$OUT/Relatorio_Fast_Track_v0630_browser.pdf"
+          test -n "$DOCX" && test -s "$DOCX" && test -s "$BROWSER_PDF"
+          unzip -t "$DOCX"
+          mkdir -p "$OUT/docx" "$OUT/render" "$OUT/lo-profile"
+          unzip -q "$DOCX" -d "$OUT/docx"
+          libreoffice -env:UserInstallation="file://$OUT/lo-profile" --headless --convert-to pdf --outdir "$OUT/render" "$DOCX"
+          WORD_PDF=$(find "$OUT/render" -maxdepth 1 -name '*.pdf' -print -quit)
+          test -s "$WORD_PDF"
+          pdftotext -layout "$BROWSER_PDF" "$OUT/browser.txt"
+          pdftotext -layout "$WORD_PDF" "$OUT/word.txt"
+          unzip -p "$DOCX" word/document.xml > "$OUT/document.xml"
+
+          for TEXT in "$OUT/browser.txt" "$OUT/word.txt"; do
+            grep -q '4.2. PARECER DO REGULADOR' "$TEXT"
+            grep -q 'EVIDÊNCIAS DA CAUSA' "$TEXT"
+            grep -q 'laudo-causa.pdf' "$TEXT"
+            grep -q 'Laudo técnico principal' "$TEXT"
+            grep -q '5. DEMONSTRATIVO DE INDENIZAÇÃO' "$TEXT"
+            grep -q '6. DECLARAÇÃO DE OUTROS SEGUROS' "$TEXT"
+            grep -q '7. CRONOLOGIA' "$TEXT"
+            grep -q '8. INFORMAÇÕES COMPLEMENTARES' "$TEXT"
+            ! grep -q 'LEVANTAMENTOS DOCUMENTAIS' "$TEXT"
+            ! grep -q 'DADOS CADASTRAIS' "$TEXT"
+            ! grep -q 'documento-antigo.pdf' "$TEXT"
+            ! grep -q 'BANCO TESTE NÃO EXIBIR' "$TEXT"
+          done
+
+          grep -q '4.2. PARECER DO REGULADOR' "$OUT/document.xml"
+          grep -q 'EVIDÊNCIAS DA CAUSA' "$OUT/document.xml"
+          grep -q 'laudo-causa.pdf' "$OUT/document.xml"
+          ! grep -q 'LEVANTAMENTOS DOCUMENTAIS' "$OUT/document.xml"
+          ! grep -q 'DADOS CADASTRAIS' "$OUT/document.xml"
+          test "$(find "$OUT/docx/word/media" -maxdepth 1 -type f | wc -l)" -ge 8
+          pdfinfo "$BROWSER_PDF" > "$OUT/browser-pdfinfo.txt"
+          pdfinfo "$WORD_PDF" > "$OUT/word-pdfinfo.txt"
+          cat "$OUT/result.json"
+          cat "$OUT/browser-pdfinfo.txt"
+          cat "$OUT/word-pdfinfo.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fast-track-v0630-validation
+          path: /tmp/v0630-validation
+          if-no-files-found: warn
+
+      - name: Commit validated implementation and remove temporary files
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .github/v0630
+          rm -f .github/workflows/apply-v0630.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A fast_track .github
+          git commit -m 'feat(v0630): finalizar implementação v0630'
+          git push origin HEAD:feature/v0630-parecer-evidencias-reset
