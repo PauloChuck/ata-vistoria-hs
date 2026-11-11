@@ -124,14 +124,20 @@ textarea{resize:vertical;line-height:1.45}
 .report-footer-address{top:6.9mm}
 .report-footer-contact{top:13.4mm}
 .report-page-number{position:absolute;right:2.5mm;top:22.4mm;color:#000;font-family:Arial,sans-serif;font-size:10pt;line-height:1;font-style:italic;font-weight:400}
-.doc-title{font-family:"Arial Black",Arial,sans-serif;font-size:28pt;line-height:1;margin:8mm 0 1mm;font-weight:900}
-.doc-subtitle{font-family:"Arial Black",Arial,sans-serif;font-size:24pt;line-height:1;color:#29a8e0;margin:0 0 12mm;font-weight:900}
-.claim-table{width:95mm;margin:0 0 9mm auto;border-collapse:collapse;font-size:11pt}
-.claim-table td{border:0;padding:1.2mm 0}
-.claim-table td:first-child{width:52mm}
-.meta-table{width:172.6mm;border-collapse:collapse;table-layout:fixed}
-.meta-table th,.meta-table td{border:0;text-align:left;vertical-align:top;padding:3.2mm 0;font-size:12pt}
-.meta-table th{width:68mm;font-weight:800;padding-right:5mm}
+.cover-layout{width:172.6mm}
+.report-page.first .doc-title{font-family:"Arial Black",Arial,sans-serif;font-size:26pt;line-height:1;margin:13mm 0 3mm;font-weight:900;white-space:nowrap}
+.report-page.first .doc-subtitle{font-family:"Arial Black",Arial,sans-serif;font-size:24pt;line-height:1;color:#29a8e0;margin:0 0 10mm;font-weight:900;letter-spacing:-.5pt;white-space:nowrap}
+.report-page.first .claim-table{width:88mm;margin:0 0 11mm auto;border-collapse:collapse;table-layout:fixed;font-size:11pt}
+.report-page.first .claim-table .claim-label-col{width:58mm}
+.report-page.first .claim-table .claim-value-col{width:30mm}
+.report-page.first .claim-table td{border:0;padding:1mm 0;line-height:1;vertical-align:middle;white-space:nowrap;text-align:left}
+.report-page.first .meta-table{width:172.6mm;border-collapse:collapse;table-layout:fixed}
+.report-page.first .meta-table .meta-label-col{width:65.1mm}
+.report-page.first .meta-table .meta-shift-col{width:12.4mm}
+.report-page.first .meta-table .meta-value-col{width:95.1mm}
+.report-page.first .meta-table tr{height:11.5mm}
+.report-page.first .meta-table th,.report-page.first .meta-table td{border:0;text-align:left;vertical-align:middle;padding:0;font-size:12pt;line-height:1;word-break:normal;overflow-wrap:normal}
+.report-page.first .meta-table th{font-weight:800;padding-right:0}
 .doc-section{font-family:"Arial Black",Arial,sans-serif;font-size:14pt;line-height:1.5;margin:10.58mm 0 5.29mm;page-break-after:avoid;font-weight:900}
 .report-content>.doc-section:first-child{margin-top:0}
 .doc-subsection{font-family:Arial,sans-serif;font-size:12pt;font-weight:700;text-transform:uppercase;margin:8.82mm 0 3.53mm;page-break-after:avoid}

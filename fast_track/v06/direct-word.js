@@ -58,7 +58,7 @@
       Document,Packer,Paragraph,TextRun,Table,TableRow,TableCell,WidthType,AlignmentType,
       VerticalAlign,BorderStyle,Header,Footer,ImageRun,PageNumber,PageBreak,ShadingType,
       HorizontalPositionRelativeFrom,HorizontalPositionAlign,VerticalPositionRelativeFrom,
-      VerticalPositionAlign,TextWrappingType,TableLayoutType
+      VerticalPositionAlign,TextWrappingType,TableLayoutType,HeightRule
     } = d;
 
     const noBorder = borders(BorderStyle.NONE,'FFFFFF',0);
@@ -153,20 +153,77 @@ children:[
 
     const children = [];
 
-    // Capa
-    const claimTable = new Table({width:{size:55,type:WidthType.PERCENTAGE},alignment:AlignmentType.RIGHT,borders:noBorder,rows:[
-      new TableRow({children:[tcell('Sinistro Seguradora:',{width:60,align:AlignmentType.LEFT,border:noBorder,size:22}),tcell(f.insurerClaim || 'A INFORMAR',{width:40,align:AlignmentType.LEFT,border:noBorder,size:22})]}),
-      new TableRow({children:[tcell('Sinistro Horizon Servitas:',{width:60,align:AlignmentType.LEFT,border:noBorder,size:22}),tcell(f.hsClaim || 'A INFORMAR',{width:40,align:AlignmentType.LEFT,border:noBorder,size:22})]})
-    ]});
-    const metaRows = [
-      ['COMPANHIA SEGURADORA:',f.insurer],['SEGURADO:',f.insured],['COOPERADO:',f.claimantName],['LOCAL DO SINISTRO:',f.riskAddress],
-      ['APÓLICE DE SEGUROS:',f.policyNumber],['PRODUTO:',f.productName],['CORRETOR:',f.broker],['DATA DO SINISTRO:',REPORT().longDate(f.lossDate,true)],['COBERTURA:',f.coverageName]
-    ].map(([label,value]) => new TableRow({children:[tcell(label,{width:40,align:AlignmentType.LEFT,bold:true,border:noBorder,size:24}),tcell(value || 'A INFORMAR',{width:60,align:AlignmentType.LEFT,border:noBorder,size:24})]}));
+    // Capa — estrutura isolada do restante do relatório
+    const COVER_TABLE_WIDTH = 9786;
+    const COVER_COLUMNS = [3691,703,5392];
+    const COVER_ROW_HEIGHT = 650;
+    const compactCoverText = (value, fallback = '') => {
+      const normalized = text(value).replace(/\s+/g, ' ').trim();
+      return normalized || fallback;
+    };
+    const coverParagraph = (value,{bold=false,size=24}={}) => new Paragraph({
+      children:[new TextRun({text:compactCoverText(value,''),font:'Arial',size,bold,color:BLACK})],
+      alignment:AlignmentType.LEFT,
+      spacing:{before:0,after:0,line:240},
+      indent:{left:0,right:0},
+      keepLines:true
+    });
+    const coverCell = (value,{width,columnSpan=1,bold=false,size=24,left=0,right=0}={}) => new TableCell({
+      children:[coverParagraph(value,{bold,size})],
+      width:{size:width,type:WidthType.DXA},
+      columnSpan,
+      verticalAlign:VerticalAlign.CENTER,
+      borders:noBorder,
+      margins:{top:0,bottom:0,left,right}
+    });
+    const coverRow = (label,value,{shifted=false}={}) => new TableRow({
+      cantSplit:true,
+      height:{value:COVER_ROW_HEIGHT,rule:HeightRule.ATLEAST},
+      children:shifted
+        ? [coverCell(label,{width:COVER_COLUMNS[0]+COVER_COLUMNS[1],columnSpan:2,bold:true,right:40}),coverCell(compactCoverText(value),{width:COVER_COLUMNS[2],left:0})]
+        : [coverCell(label,{width:COVER_COLUMNS[0],bold:true,right:40}),coverCell(compactCoverText(value),{width:COVER_COLUMNS[1]+COVER_COLUMNS[2],columnSpan:2,left:0})]
+    });
+    const claimCell = (value,width) => new TableCell({
+      children:[new Paragraph({children:[new TextRun({text:compactCoverText(value),font:'Arial',size:22,color:BLACK})],alignment:AlignmentType.LEFT,spacing:{before:0,after:0,line:240},keepLines:true})],
+      width:{size:width,type:WidthType.DXA},
+      verticalAlign:VerticalAlign.CENTER,
+      borders:noBorder,
+      margins:{top:60,bottom:60,left:0,right:0}
+    });
+    const claimTable = new Table({
+      width:{size:4989,type:WidthType.DXA},
+      alignment:AlignmentType.RIGHT,
+      layout:TableLayoutType.FIXED,
+      columnWidths:[3288,1701],
+      borders:noBorder,
+      rows:[
+        new TableRow({cantSplit:true,children:[claimCell('Sinistro Seguradora:',3288),claimCell(f.insurerClaim || 'A INFORMAR',1701)]}),
+        new TableRow({cantSplit:true,children:[claimCell('Sinistro Horizon Servitas:',3288),claimCell(f.hsClaim || '',1701)]})
+      ]
+    });
+    const metaTable = new Table({
+      width:{size:COVER_TABLE_WIDTH,type:WidthType.DXA},
+      layout:TableLayoutType.FIXED,
+      columnWidths:COVER_COLUMNS,
+      borders:noBorder,
+      rows:[
+        coverRow('COMPANHIA SEGURADORA:',f.insurer),
+        coverRow('SEGURADO:',f.insured),
+        coverRow('COOPERADO:',f.claimantName),
+        coverRow('LOCAL DO SINISTRO:',f.riskAddress),
+        coverRow('APÓLICE DE SEGUROS:',f.policyNumber),
+        coverRow('PRODUTO:',f.productName),
+        coverRow('CORRETOR:',f.broker),
+        coverRow('DATA DO SINISTRO:',REPORT().longDate(f.lossDate,true),{shifted:true}),
+        coverRow('COBERTURA:',f.coverageName,{shifted:true})
+      ]
+    });
     children.push(
-      new Paragraph({children:[run('RELATÓRIO FAST TRACK DE CONTINGÊNCIA',{font:'Arial Black',size:56,bold:true})],alignment:AlignmentType.LEFT,spacing:{before:900,after:0,line:240}}),
-      new Paragraph({children:[run('RISCOS NOMEADOS EMPRESARIAL',{font:'Arial Black',size:48,bold:true,color:BLUE})],alignment:AlignmentType.LEFT,spacing:{after:700,line:240}}),
-      claimTable,new Paragraph({spacing:{after:180}}),
-      new Table({width:{size:100,type:WidthType.PERCENTAGE},borders:noBorder,rows:metaRows}),
+      new Paragraph({children:[new TextRun({text:'RELATÓRIO DE CONTINGÊNCIA',font:'Arial Black',size:52,bold:true,color:BLACK})],alignment:AlignmentType.LEFT,spacing:{before:340,after:0,line:240},keepLines:true}),
+      new Paragraph({children:[new TextRun({text:'RISCOS NOMEADOS EMPRESARIAL',font:'Arial Black',size:48,bold:true,color:BLUE,characterSpacing:-10})],alignment:AlignmentType.LEFT,spacing:{before:0,after:420,line:240},keepLines:true}),
+      claimTable,
+      new Paragraph({spacing:{after:180,line:20}}),
+      metaTable,
       pageBreak()
     );
 
