@@ -2,24 +2,8 @@ from pathlib import Path
 import subprocess
 
 
-def patch_report() -> None:
-    path = Path('fast_track/v06/direct-report.js')
-    text = path.read_text(encoding='utf-8')
-    marker = '<div class="doc-section">8. DADOS CADASTRAIS</div>'
-    if text.count(marker) != 1:
-        raise SystemExit(f'Marcador cadastral inválido no relatório: {text.count(marker)}')
-
-    start = text.index(marker)
-    line_start = text.rfind('\n', 0, start) + 1
-    indent = text[line_start:start]
-    next_marker = f'\n\n{indent}<div class="doc-section">9. CRONOLOGIA</div>'
-    end = text.index(next_marker, start)
-    old_block = text[line_start:end]
-    for required in ('<br>', 'Nome completo:', 'CPF:', 'Dados Bancários:'):
-        if required not in old_block:
-            raise SystemExit(f'Bloco cadastral anterior não reconhecido: {required}')
-
-    replacement = (
+def cadastral_html(indent: str) -> str:
+    return (
         f'{indent}<div class="doc-section">8. DADOS CADASTRAIS</div>\n'
         f'{indent}<div class="cadastral-data">\n'
         f'{indent}  <p class="cadastral-line"><strong>Nome completo:</strong> ${{esc(f.claimantName || \'\')}}</p>\n'
@@ -27,7 +11,38 @@ def patch_report() -> None:
         f'{indent}  <p class="cadastral-line"><strong>Dados Bancários:</strong> ${{esc(f.bankName || \'\')}} — AG: ${{esc(f.bankAgency || \'\')}} / CC: ${{esc(f.bankAccount || \'\')}}</p>\n'
         f'{indent}</div>'
     )
-    path.write_text(text[:line_start] + replacement + text[end:], encoding='utf-8')
+
+
+def patch_report() -> None:
+    path = Path('fast_track/v06/direct-report.js')
+    text = path.read_text(encoding='utf-8')
+    marker = '<div class="doc-section">8. DADOS CADASTRAIS</div>'
+    if text.count(marker) != 2:
+        raise SystemExit(f'Marcadores cadastrais inesperados no relatório: {text.count(marker)}')
+
+    # Bloco legado closingContent, mantido por compatibilidade.
+    function_start = text.index('  function closingContent(state) {')
+    function_end = text.index('\n  function createFlowPaginator()', function_start)
+    segment = text[function_start:function_end]
+    start = segment.index(marker)
+    absolute_start = function_start + start
+    line_start = text.rfind('\n', 0, absolute_start) + 1
+    indent = text[line_start:absolute_start]
+    next_marker = f'\n\n{indent}<div class="doc-section">9. CRONOLOGIA</div>'
+    end = text.index(next_marker, absolute_start)
+    old_block = text[line_start:end]
+    for required in ('<br>', 'Nome completo:', 'CPF:', 'Dados Bancários:'):
+        if required not in old_block:
+            raise SystemExit(f'Bloco closingContent anterior não reconhecido: {required}')
+    text = text[:line_start] + cadastral_html(indent) + text[end:]
+
+    # Bloco efetivamente usado pelo paginador da pré-visualização e do PDF.
+    old_inline = """      paginator.add(`<div class=\"doc-section\">8. DADOS CADASTRAIS</div><p class=\"doc-text doc-data\"><strong>Nome completo:</strong> ${esc(f.claimantName || '')}<br><strong>CPF:</strong> ${esc(f.claimantCpf || '')}<br><strong>Dados Bancários:</strong> ${esc(f.bankName || '')} — AG: ${esc(f.bankAgency || '')} / CC: ${esc(f.bankAccount || '')}</p>`);"""
+    new_inline = """      paginator.add(`<div class=\"doc-section\">8. DADOS CADASTRAIS</div><div class=\"cadastral-data\"><p class=\"cadastral-line\"><strong>Nome completo:</strong> ${esc(f.claimantName || '')}</p><p class=\"cadastral-line\"><strong>CPF:</strong> ${esc(f.claimantCpf || '')}</p><p class=\"cadastral-line\"><strong>Dados Bancários:</strong> ${esc(f.bankName || '')} — AG: ${esc(f.bankAgency || '')} / CC: ${esc(f.bankAccount || '')}</p></div>`);"""
+    if text.count(old_inline) != 1:
+        raise SystemExit(f'Bloco paginado cadastral anterior não reconhecido: {text.count(old_inline)}')
+    text = text.replace(old_inline, new_inline, 1)
+    path.write_text(text, encoding='utf-8')
 
 
 def patch_word() -> None:
