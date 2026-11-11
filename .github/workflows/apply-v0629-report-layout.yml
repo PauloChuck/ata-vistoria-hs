@@ -25,7 +25,13 @@ jobs:
 
           root=Path('.github/v0629')
           def unpack(prefix,destination):
-              encoded=''.join(path.read_text().strip() for path in sorted(root.glob(f'{prefix}.*.b64part')))
+              parts=[path.read_text().strip() for path in sorted(root.glob(f'{prefix}.*.b64part'))]
+              # The first layout payload acquired three trailing characters while being
+              # transferred through the contents API. Its intended chunk length is 3000.
+              if prefix == 'layout' and parts and len(parts[0]) > 3000:
+                  parts[0]=parts[0][:3000]
+              encoded=''.join(parts)
+              print(prefix,[len(part) for part in parts],len(encoded),len(encoded) % 4)
               Path(destination).write_bytes(gzip.decompress(base64.b64decode(encoded)))
 
           unpack('layout','fast_track/v06/direct-layout-0629.js')
