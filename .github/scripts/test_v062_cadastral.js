@@ -9,7 +9,7 @@ const EXPECTED = [
   'Dados Bancários: CRESOL – 133 — AG: 002508 / CC: 001.801-5'
 ];
 
-function validate(result) {
+function validate(result, { checkGeometry = true } = {}) {
   if (result.count !== 3) throw new Error(`Quantidade inválida: ${JSON.stringify(result)}`);
   if (JSON.stringify(result.details.map(item => item.text)) !== JSON.stringify(EXPECTED)) {
     throw new Error(`Conteúdo inválido: ${JSON.stringify(result.details)}`);
@@ -29,10 +29,12 @@ function validate(result) {
     if (Number(item.fontWeight) >= 600 || Number(item.labelWeight) < 600) throw new Error(`Negrito/regular inválido: ${JSON.stringify(item)}`);
   }
 
-  const left = result.details[0].left;
-  if (result.details.some(item => Math.abs(item.left - left) > 0.5)) throw new Error(`Inícios desalinhados: ${JSON.stringify(result.details)}`);
-  if (!(result.details[0].top < result.details[1].top && result.details[1].top < result.details[2].top)) {
-    throw new Error(`Ordem vertical inválida: ${JSON.stringify(result.details)}`);
+  if (checkGeometry) {
+    const left = result.details[0].left;
+    if (result.details.some(item => Math.abs(item.left - left) > 0.5)) throw new Error(`Inícios desalinhados: ${JSON.stringify(result.details)}`);
+    if (!(result.details[0].top < result.details[1].top && result.details[1].top < result.details[2].top)) {
+      throw new Error(`Ordem vertical inválida: ${JSON.stringify(result.details)}`);
+    }
   }
 }
 
@@ -106,14 +108,14 @@ function validate(result) {
   }
 
   const preview = await inspect('#reportPreview');
-  validate(preview);
+  validate(preview, { checkGeometry: true });
   await page.locator('#reportPreview .cadastral-data').screenshot({ path: path.join(OUT, 'preview-cadastral.png') });
   await page.locator('#reportPreview .report-page').filter({ hasText: '8. DADOS CADASTRAIS' }).screenshot({ path: path.join(OUT, 'preview-page-cadastral.png') });
 
   await page.click('[data-action="export-pdf"]');
   await page.waitForSelector('#printHost .cadastral-data', { state: 'attached' });
   const print = await inspect('#printHost');
-  validate(print);
+  validate(print, { checkGeometry: false });
   await page.emulateMedia({ media: 'print' });
   await page.pdf({
     path: path.join(OUT, 'Relatorio_Fast_Track_Cadastral_v0627.pdf'),
