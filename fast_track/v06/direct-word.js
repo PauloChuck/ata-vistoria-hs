@@ -157,7 +157,7 @@ children:[
     const COVER_TABLE_WIDTH = 9786;
     const COVER_COLUMNS = [3691,703,5392];
     const COVER_ROW_HEIGHT = 650;
-    const compactCoverText = (value, fallback = 'A INFORMAR') => {
+    const compactCoverText = (value, fallback = '') => {
       const normalized = text(value).replace(/\s+/g, ' ').trim();
       return normalized || fallback;
     };
@@ -198,7 +198,7 @@ children:[
       borders:noBorder,
       rows:[
         new TableRow({cantSplit:true,children:[claimCell('Sinistro Seguradora:',3288),claimCell(f.insurerClaim || 'A INFORMAR',1701)]}),
-        new TableRow({cantSplit:true,children:[claimCell('Sinistro Horizon Servitas:',3288),claimCell(f.hsClaim || 'A INFORMAR',1701)]})
+        new TableRow({cantSplit:true,children:[claimCell('Sinistro Horizon Servitas:',3288),claimCell(f.hsClaim || '',1701)]})
       ]
     });
     const metaTable = new Table({

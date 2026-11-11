@@ -114,7 +114,7 @@ const ASSETS = {
 
   function coverContent(state) {
     const f = state.fields || {};
-    const compact = (value, fallback = 'A INFORMAR') => {
+    const compact = (value, fallback = '') => {
       const normalized = String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
       return normalized || fallback;
     };
@@ -127,7 +127,7 @@ const ASSETS = {
         <table class="claim-table">
           <colgroup><col class="claim-label-col"><col class="claim-value-col"></colgroup>
           <tbody>
-            <tr><td>Sinistro Seguradora:</td><td>${esc(compact(f.insurerClaim))}</td></tr>
+            <tr><td>Sinistro Seguradora:</td><td>${esc(compact(f.insurerClaim, 'A INFORMAR'))}</td></tr>
             <tr><td>Sinistro Horizon Servitas:</td><td>${esc(compact(f.hsClaim))}</td></tr>
           </tbody>
         </table>
