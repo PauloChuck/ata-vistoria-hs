@@ -26,8 +26,6 @@ jobs:
           root=Path('.github/v0629')
           def unpack(prefix,destination):
               parts=[path.read_text().strip() for path in sorted(root.glob(f'{prefix}.*.b64part'))]
-              # The first layout payload acquired three trailing characters while being
-              # transferred through the contents API. Its intended chunk length is 3000.
               if prefix == 'layout' and parts and len(parts[0]) > 3000:
                   parts[0]=parts[0][:3000]
               encoded=''.join(parts)
@@ -43,6 +41,8 @@ jobs:
           test=Path('/tmp/test_v0629.js')
           value=test.read_text(encoding='utf-8')
           value=value.replace("page.on('pageerror',(error)=>pageErrors.push(String(error)));", "page.on('pageerror',(error)=>pageErrors.push(String(error)));\n  page.on('dialog',(dialog)=>dialog.accept());")
+          value=value.replace("claimedCounts:claimedValues.map(value=>count(text,money(value))),", "claimedCounts:claimedValues.map(value=>[...document.querySelectorAll('#reportPreview .survey-damage-row')].filter(node=>node.textContent.includes(money(value))).length),")
+          value=value.replace("preview.claimedCounts.every(count=>count===1)", "preview.claimedCounts.every(count=>count===0)")
           test.write_text(value,encoding='utf-8')
 
           page=Path('fast_track/v062.html')
