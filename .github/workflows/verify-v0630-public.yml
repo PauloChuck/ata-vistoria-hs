@@ -1,0 +1,66 @@
+name: Verify V0630 public
+
+on:
+  push:
+    branches:
+      - verification/v0630-public
+    paths:
+      - .github/workflows/verify-v0630-public.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare Chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.56.1
+          CHROME_PATH="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+
+      - name: Test published application
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/v0630-public
+          node .github/verification/verify-v0630-public.js
+
+      - name: Validate public Word and PDF packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/v0630-public
+          DOCX=$(find "$OUT" -maxdepth 1 -name '*.docx' -print -quit)
+          test -s "$DOCX"
+          test -s "$OUT/public-report.pdf"
+          unzip -t "$DOCX"
+          mkdir -p "$OUT/docx"
+          unzip -q "$DOCX" -d "$OUT/docx"
+          DOCXML="$OUT/docx/word/document.xml"
+          grep -qi 'PARECER DO REGULADOR' "$DOCXML"
+          grep -qi 'EVIDÊNCIAS DA CAUSA' "$DOCXML"
+          grep -qi 'Fotografia da causa' "$DOCXML"
+          grep -qi 'laudo-causa.txt' "$DOCXML"
+          grep -qi 'Laudo técnico principal' "$DOCXML"
+          ! grep -qi 'LEVANTAMENTOS DOCUMENTAIS' "$DOCXML"
+          ! grep -qi 'DADOS CADASTRAIS' "$DOCXML"
+          ! grep -qi 'documento-antigo.txt' "$DOCXML"
+          test "$(find "$OUT/docx/word/media" -type f | wc -l)" -ge 5
+          cat "$OUT/result.json"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fast-track-v0630-public-validation
+          path: /tmp/v0630-public
+          if-no-files-found: warn
