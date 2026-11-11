@@ -56,16 +56,18 @@ jobs:
             await page.waitForSelector('#damageList .damage-card',{state:'attached',timeout:30000});
             await page.evaluate(()=>document.querySelector('[data-go="7"]').click());
             await page.waitForSelector('.screen[data-step="7"].active',{timeout:30000});
-            await page.waitForSelector('#reportPreview .coverage-lines',{timeout:30000});
-            await page.waitForSelector('#reportPreview .survey-damage-list',{timeout:30000});
-            await page.waitForSelector('#reportPreview .indemnity-list',{timeout:30000});
-            await page.waitForSelector('#reportPreview .chronology-lines',{timeout:30000});
+            await page.waitForFunction(()=>[
+              '.coverage-clean',
+              '.survey-damage-list',
+              '.indemnity-clean-body',
+              '.chronology-clean'
+            ].every(selector=>document.querySelector(`#reportPreview ${selector}`)),{timeout:30000});
 
             const result=await page.evaluate(()=>({
-              coverage:Boolean(document.querySelector('#reportPreview .coverage-lines')),
+              coverage:Boolean(document.querySelector('#reportPreview .coverage-clean')),
               survey:Boolean(document.querySelector('#reportPreview .survey-damage-list')),
-              indemnity:Boolean(document.querySelector('#reportPreview .indemnity-list')),
-              chronology:Boolean(document.querySelector('#reportPreview .chronology-lines')),
+              indemnity:Boolean(document.querySelector('#reportPreview .indemnity-clean-body')),
+              chronology:Boolean(document.querySelector('#reportPreview .chronology-clean')),
               oldCoverageTables:document.querySelectorAll('#reportPreview table.coverage-table').length,
               oldDamageTables:document.querySelectorAll('#reportPreview table.damage-table').length,
               summaryLabels:[...document.querySelectorAll('#reportPreview .financial-summary-row span:first-child')].map(node=>node.textContent.trim()),
