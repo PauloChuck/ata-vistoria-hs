@@ -267,9 +267,11 @@ function damageContinuationContent(items, start) {
       <p class="doc-text">${other}</p>
 
       <div class="doc-section">8. DADOS CADASTRAIS</div>
-      <p class="doc-text"><strong>Nome completo:</strong> ${esc(f.claimantName || '')}<br>
-      <strong>CPF:</strong> ${esc(f.claimantCpf || '')}<br>
-      <strong>Dados Bancários:</strong> ${esc(f.bankName || '')} — AG: ${esc(f.bankAgency || '')} / CC: ${esc(f.bankAccount || '')}</p>
+      <div class="cadastral-data">
+        <p class="cadastral-line"><strong>Nome completo:</strong> ${esc(f.claimantName || '')}</p>
+        <p class="cadastral-line"><strong>CPF:</strong> ${esc(f.claimantCpf || '')}</p>
+        <p class="cadastral-line"><strong>Dados Bancários:</strong> ${esc(f.bankName || '')} — AG: ${esc(f.bankAgency || '')} / CC: ${esc(f.bankAccount || '')}</p>
+      </div>
 
       <div class="doc-section">9. CRONOLOGIA</div>
       <table class="doc-table chrono-table"><tbody>
@@ -517,7 +519,7 @@ shownOnPage += slice.length;
 ? `O cooperado declarou a existência de outro(s) seguro(s): ${esc(f.otherInsuranceDetails || '')}`
 : 'Declaração sobre outros seguros não informada.';
       paginator.add(`<div class="doc-section">7. DECLARAÇÃO DE OUTROS SEGUROS</div><p class="doc-text">${other}</p>`);
-      paginator.add(`<div class="doc-section">8. DADOS CADASTRAIS</div><p class="doc-text doc-data"><strong>Nome completo:</strong> ${esc(f.claimantName || '')}<br><strong>CPF:</strong> ${esc(f.claimantCpf || '')}<br><strong>Dados Bancários:</strong> ${esc(f.bankName || '')} — AG: ${esc(f.bankAgency || '')} / CC: ${esc(f.bankAccount || '')}</p>`);
+      paginator.add(`<div class="doc-section">8. DADOS CADASTRAIS</div><div class="cadastral-data"><p class="cadastral-line"><strong>Nome completo:</strong> ${esc(f.claimantName || '')}</p><p class="cadastral-line"><strong>CPF:</strong> ${esc(f.claimantCpf || '')}</p><p class="cadastral-line"><strong>Dados Bancários:</strong> ${esc(f.bankName || '')} — AG: ${esc(f.bankAgency || '')} / CC: ${esc(f.bankAccount || '')}</p></div>`);
       paginator.add(`<div class="doc-section">9. CRONOLOGIA</div><table class="doc-table chrono-table"><tbody>
         <tr><td class="left">Data da ocorrência</td><td>${esc(formatDate(f.lossDate))}</td></tr>
         <tr><td class="left">Data do aviso</td><td>${esc(formatDate(f.noticeDate))}</td></tr>
