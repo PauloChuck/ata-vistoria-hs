@@ -21,6 +21,13 @@ def validate_docx() -> None:
     def text(node):
         return ''.join((item.text or '') for item in node.findall('.//w:t', ns))
 
+    def is_bold(run):
+        bold = run.find('./w:rPr/w:b', ns)
+        if bold is None:
+            return False
+        value = bold.attrib.get(attr('val'))
+        return value is None or value.lower() not in {'0', 'false', 'off', 'no'}
+
     index = next(i for i, node in enumerate(nodes) if node.tag.endswith('}p') and text(node) == '8. DADOS CADASTRAIS')
     paragraphs = nodes[index + 1:index + 4]
     if len(paragraphs) != 3 or not all(paragraph.tag.endswith('}p') for paragraph in paragraphs):
@@ -44,7 +51,7 @@ def validate_docx() -> None:
         runs = paragraph.findall('./w:r', ns)
         if len(runs) != 2:
             raise SystemExit(f'Quantidade de runs inválida no parágrafo {number}: {len(runs)}')
-        if runs[0].find('./w:rPr/w:b', ns) is None or runs[1].find('./w:rPr/w:b', ns) is not None:
+        if not is_bold(runs[0]) or is_bold(runs[1]):
             raise SystemExit(f'Negrito/regular inválido no parágrafo {number}.')
         for run in runs:
             run_properties = run.find('./w:rPr', ns)
