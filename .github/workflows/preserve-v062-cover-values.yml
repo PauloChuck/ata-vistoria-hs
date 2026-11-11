@@ -1,0 +1,133 @@
+name: Preserve V062 cover values
+
+on:
+  push:
+    branches:
+      - fix/v062-cover-composition
+    paths:
+      - .github/workflows/preserve-v062-cover-values.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Preserve existing empty-value behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          report=Path('fast_track/v06/direct-report.js')
+          text=report.read_text(encoding='utf-8')
+          replacements=[
+            ("const compact = (value, fallback = 'A INFORMAR') => {","const compact = (value, fallback = '') => {"),
+            ("${esc(compact(f.insurerClaim))}","${esc(compact(f.insurerClaim, 'A INFORMAR'))}")
+          ]
+          for old,new in replacements:
+              if text.count(old)!=1:
+                  raise SystemExit(f'Replacement report inválido ({text.count(old)}): {old}')
+              text=text.replace(old,new,1)
+          report.write_text(text,encoding='utf-8')
+
+          word=Path('fast_track/v06/direct-word.js')
+          text=word.read_text(encoding='utf-8')
+          replacements=[
+            ("const compactCoverText = (value, fallback = 'A INFORMAR') => {","const compactCoverText = (value, fallback = '') => {"),
+            ("claimCell(f.hsClaim || 'A INFORMAR',1701)","claimCell(f.hsClaim || '',1701)")
+          ]
+          for old,new in replacements:
+              if text.count(old)!=1:
+                  raise SystemExit(f'Replacement word inválido ({text.count(old)}): {old}')
+              text=text.replace(old,new,1)
+          word.write_text(text,encoding='utf-8')
+          PY
+          node --check fast_track/v06/direct-report.js
+          node --check fast_track/v06/direct-word.js
+          git diff --check
+
+      - name: Validate blank fields in preview and Word
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.56.1
+          CHROME_PATH="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          OUT=/tmp/v062-cover-empty-values
+          mkdir -p "$OUT"
+          python3 -m http.server 8000 --bind 127.0.0.1 >"$OUT/http.log" 2>&1 &
+          PID=$!
+          trap 'kill $PID || true' EXIT
+          sleep 2
+          cat > "$OUT/test.js" <<'NODE'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+          const path = require('path');
+
+          (async()=>{
+            const out='/tmp/v062-cover-empty-values';
+            const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH,args:['--no-sandbox','--disable-dev-shm-usage']});
+            const page=await browser.newPage({acceptDownloads:true,viewport:{width:1500,height:1100}});
+            page.on('dialog',dialog=>dialog.accept());
+            await page.goto('http://127.0.0.1:8000/fast_track/v062.html?v=0626-empty-values',{waitUntil:'networkidle',timeout:120000});
+            await page.click('[data-action="load-example"]');
+            for(const id of ['insurerClaim','hsClaim','insured','claimantName','riskAddress']) await page.fill(`#${id}`,'');
+            for(const step of [2,3,4,5,6,7]){
+              await page.click(`[data-go="${step}"]`);
+              await page.waitForSelector(`.screen[data-step="${step}"].active`);
+            }
+            await page.waitForSelector('#reportPreview .report-page.first');
+            const result=await page.evaluate(()=>{
+              const cover=document.querySelector('#reportPreview .report-page.first');
+              const claim=[...cover.querySelectorAll('.claim-table tr')].map(row=>row.cells[1].textContent.trim());
+              const meta=[...cover.querySelectorAll('.meta-table tr')].map(row=>row.cells[row.cells.length-1].textContent.trim());
+              return {claim,meta,allText:cover.textContent};
+            });
+            if(result.claim[0]!=='A INFORMAR'||result.claim[1]!=='') throw new Error(`Sinistros vazios alterados: ${JSON.stringify(result.claim)}`);
+            if(result.meta[1]!==''||result.meta[2]!==''||result.meta[3]!=='') throw new Error(`Campos cadastrais vazios alterados: ${JSON.stringify(result.meta)}`);
+            if((result.allText.match(/A INFORMAR/g)||[]).length!==1) throw new Error('A INFORMAR foi aplicado fora do sinistro da seguradora.');
+
+            const pending=page.waitForEvent('download',{timeout:120000});
+            await page.click('[data-action="export-word"]');
+            const download=await pending;
+            const target=path.join(out,download.suggestedFilename());
+            await download.saveAs(target);
+            if(!fs.existsSync(target)||fs.statSync(target).size<15000) throw new Error('DOCX inválido');
+            fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(result,null,2));
+            await browser.close();
+          })().catch(error=>{console.error(error);process.exit(1)});
+          NODE
+          CHROME_PATH="$CHROME_PATH" NODE_PATH="$PWD/node_modules" node "$OUT/test.js"
+          DOCX=$(find "$OUT" -maxdepth 1 -name '*.docx' -print -quit)
+          mkdir -p "$OUT/docx"
+          unzip -q "$DOCX" -d "$OUT/docx"
+          COUNT=$(grep -o 'A INFORMAR' "$OUT/docx/word/document.xml" | wc -l)
+          test "$COUNT" -eq 1
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v062-cover-empty-values
+          path: /tmp/v062-cover-empty-values
+          if-no-files-found: warn
+
+      - name: Commit preservation fix
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/preserve-v062-cover-values.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add fast_track/v06/direct-report.js fast_track/v06/direct-word.js .github/workflows/preserve-v062-cover-values.yml
+          git commit -m 'fix(v06): preservar valores vazios na capa'
+          git push origin HEAD:fix/v062-cover-composition
