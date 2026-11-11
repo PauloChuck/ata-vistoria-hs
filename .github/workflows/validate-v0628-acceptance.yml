@@ -1,0 +1,62 @@
+name: Validate V0628 acceptance
+
+on:
+  push:
+    branches:
+      - feature/v062-editable-narratives-doc-intro
+    paths:
+      - .github/workflows/validate-v0628-acceptance.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.56.1
+          CHROME_PATH="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          if ! command -v pdftotext >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y poppler-utils
+          fi
+      - name: Run acceptance suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/v0628-acceptance
+          mkdir -p "$OUT"
+          python3 -m http.server 8000 --bind 127.0.0.1 >"$OUT/http.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          sleep 2
+          OUT="$OUT" TEST_URL="http://127.0.0.1:8000/fast_track/v062.html?v=0628-acceptance" NODE_PATH="$PWD/node_modules" node .github/scripts/test_v0628_acceptance.js
+          DOCX="$OUT/Relatorio_Fast_Track_v0628.docx"
+          PDF="$OUT/Relatorio_Fast_Track_v0628.pdf"
+          test -s "$DOCX"
+          test -s "$PDF"
+          unzip -t "$DOCX"
+          mkdir -p "$OUT/docx"
+          unzip -q "$DOCX" -d "$OUT/docx"
+          python3 .github/scripts/validate_v0628.py docx
+          pdftotext -layout "$PDF" "$OUT/pdf.txt"
+          python3 .github/scripts/validate_v0628.py pdf
+          pdfinfo "$PDF" > "$OUT/pdfinfo.txt"
+          cat "$OUT/acceptance-result.json"
+          cat "$OUT/pdfinfo.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fast-track-v0628-acceptance
+          path: /tmp/v0628-acceptance
+          if-no-files-found: warn
