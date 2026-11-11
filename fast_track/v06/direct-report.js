@@ -23,39 +23,51 @@ const ASSETS = {
     minimumFractionDigits:2, maximumFractionDigits:2
   });
 
+  const isValidIsoDate = (iso) => {
+    if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) return false;
+    const [year,month,day] = String(iso).split('-').map(Number);
+    const date = new Date(Date.UTC(year,month - 1,day));
+    return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+  };
+
   const formatDate = (iso) => {
-    if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) return '';
+    if (!isValidIsoDate(iso)) return '';
     const [y,m,d] = String(iso).split('-');
     return `${d}/${m}/${y}`;
   };
 
   const longDate = (iso, upper = false) => {
-    if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) return '';
+    if (!isValidIsoDate(iso)) return '';
     const [y,m,d] = String(iso).split('-').map(Number);
     const months = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
-    const text = `${String(d).padStart(2,'0')} de ${months[m - 1]} de ${y}`;
-    return upper ? text.toUpperCase() : text;
-  };
-
-  const dayFromDate = (iso) => {
-    if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) return '';
-    return String(iso).split('-')[2];
+    const value = `${String(d).padStart(2,'0')} de ${months[m - 1]} de ${y}`;
+    return upper ? value.toUpperCase() : value;
   };
 
   const occurrenceText = (lossDate) => {
-    const day = dayFromDate(lossDate);
-    if (!day) return 'A data do sinistro deve ser informada para gerar a descrição da ocorrência.';
-    const [year, month] = String(lossDate).split('-');
-    if (year !== '2026' || month !== '11') {
-      return 'A data informada diverge da contingência de novembro de 2026. Corrija a data para gerar o texto automático.';
-    }
-    return `No dia ${day} de novembro de 2026, uma tempestade severa atingiu a região do extremo oeste de Santa Catarina e Norte do Rio Grande do Sul, causando danos às instalações de engorda da propriedade.`;
+    const date = longDate(lossDate);
+    const dateText = date || '[data do sinistro]';
+    return `No dia ${dateText}, uma tempestade severa atingiu a região do extremo oeste de Santa Catarina e Norte do Rio Grande do Sul, causando danos às instalações de engorda da propriedade.`;
   };
 
   const inspectionText = (inspectionDate) => {
     const date = longDate(inspectionDate);
-    if (!date) return 'A data da vistoria deve ser informada.';
-    return `Em vistoria presencial realizada no dia ${date}, acompanhados do cooperado, foram evidenciados danos característicos da ação de tempos severos com passagem de ventos intensos.`;
+    const dateText = date || '[data da vistoria]';
+    return `Em vistoria presencial realizada no dia ${dateText}, acompanhados do cooperado, foram evidenciados danos característicos da ação de tempos severos com passagem de ventos intensos.`;
+  };
+
+  const effectiveOccurrenceText = (state) => {
+    const fields = state?.fields || {};
+    return Object.prototype.hasOwnProperty.call(fields,'occurrenceNarrative')
+      ? String(fields.occurrenceNarrative ?? '')
+      : occurrenceText(fields.lossDate);
+  };
+
+  const effectiveInspectionText = (state) => {
+    const fields = state?.fields || {};
+    return Object.prototype.hasOwnProperty.call(fields,'inspectionNarrative')
+      ? String(fields.inspectionNarrative ?? '')
+      : inspectionText(fields.inspectionDate);
   };
 
   const calculate = (state) => {
@@ -158,7 +170,7 @@ const ASSETS = {
     <p class="doc-caption">Localização da propriedade sinistrada.</p>
 
     <div class="doc-section">2. DESCRIÇÃO DA OCORRÊNCIA</div>
-    <p class="doc-text">${esc(occurrenceText(f.lossDate))}</p>
+    <p class="doc-text">${esc(effectiveOccurrenceText(state))}</p>
 
     <div class="doc-section">3. COBERTURA RECLAMADA</div>
     <table class="doc-table coverage-table"><thead><tr><th class="left">Cobertura</th><th>Limite de Indenização</th><th>Franquia</th></tr></thead>
@@ -206,7 +218,7 @@ function damageStartContent(state, items, start = 0) {
   return `
     <div class="doc-section">4. APURAÇÕES DA REGULAÇÃO</div>
     <div class="doc-subsection">4.1. LEVANTAMENTOS EM VISTORIA</div>
-    <p class="doc-text">${esc(inspectionText(f.inspectionDate))}</p>
+    <p class="doc-text">${esc(effectiveInspectionText(state))}</p>
     <div class="doc-subsection"><u>RELAÇÃO DE DANOS:</u></div>
     ${table}`;
 }
@@ -230,10 +242,13 @@ function damageContinuationContent(items, start) {
 
   function documentsContent(state, docs, continuation = false) {
     const f = state.fields || {};
-    const list = docs.length ? `<ol class="document-list">${docs.map(doc => `<li><strong>${esc(doc.type || doc.name || 'Documento')}</strong>${doc.description ? ` — ${esc(doc.description)}` : ''}</li>`).join('')}</ol>` : '<p class="doc-text">Documentos não apresentados até o momento.</p>';
+    const introduction = docs.length && !continuation ? '<p class="doc-text">Em vistoria foram coletados os documentos abaixo relacionados</p>' : '';
+    const list = docs.length
+      ? `<ol class="document-list">${docs.map(doc => `<li><strong>${esc(doc.type || doc.name || 'Documento')}</strong>${doc.description ? ` — ${esc(doc.description)}` : ''}</li>`).join('')}</ol>`
+      : `<p class="doc-text">${f.noDocuments ? 'Documentos não apresentados até o momento.' : 'Nenhum documento relacionado no momento.'}</p>`;
     return `
       <div class="doc-subsection">4.2. LEVANTAMENTOS DOCUMENTAIS${continuation ? ' — CONTINUAÇÃO' : ''}</div>
-      ${list}
+      ${introduction}${list}
       ${continuation ? '' : `<div class="doc-section">5. PARECER DO REGULADOR</div><p class="doc-text">${esc(f.regulatorOpinion || '')}</p>`}`;
   }
 
@@ -453,7 +468,7 @@ best = Math.min(20,words.length - offset);
 
       const damagePrefix = `<div class="doc-section">4. APURAÇÕES DA REGULAÇÃO</div>
         <div class="doc-subsection">4.1. LEVANTAMENTOS EM VISTORIA</div>
-        <p class="doc-text">${esc(inspectionText(f.inspectionDate))}</p>
+        <p class="doc-text">${esc(effectiveInspectionText(state))}</p>
         <div class="doc-subsection"><u>RELAÇÃO DE DANOS:</u></div>`;
       const damageContinuation = `<div class="doc-section">4.1. LEVANTAMENTOS EM VISTORIA — CONTINUAÇÃO</div>
         <div class="doc-subsection"><u>RELAÇÃO DE DANOS:</u></div>`;
@@ -488,10 +503,17 @@ shownOnPage += slice.length;
         }
       }
 
-      const documentPrefix = '<div class="doc-subsection">4.2. LEVANTAMENTOS DOCUMENTAIS</div>';
+      const documentHeading = '<div class="doc-subsection">4.2. LEVANTAMENTOS DOCUMENTAIS</div>';
       const documentContinuation = '<div class="doc-subsection">4.2. LEVANTAMENTOS DOCUMENTAIS — CONTINUAÇÃO</div>';
       const documentRows = docs.map(doc => `<li><strong>${esc(doc.type || doc.name || 'Documento')}</strong>${doc.description ? ` — ${esc(doc.description)}` : ''}</li>`);
-      paginator.addList({prefix:documentPrefix,continuationPrefix:documentContinuation,rows:documentRows});
+      if (f.noDocuments) {
+        paginator.add(`${documentHeading}<p class="doc-text">Documentos não apresentados até o momento.</p>`);
+      } else if (documentRows.length) {
+        const documentPrefix = `${documentHeading}<p class="doc-text">Em vistoria foram coletados os documentos abaixo relacionados</p>`;
+        paginator.addList({prefix:documentPrefix,continuationPrefix:documentContinuation,rows:documentRows});
+      } else {
+        paginator.add(`${documentHeading}<p class="doc-text">Nenhum documento relacionado no momento.</p>`);
+      }
 
       paginator.addTextSection('<div class="doc-section">5. PARECER DO REGULADOR</div>',f.regulatorOpinion || '','<div class="doc-section">5. PARECER DO REGULADOR — CONTINUAÇÃO</div>');
 
@@ -550,7 +572,7 @@ shownOnPage += slice.length;
   }
 
   window.FastTrackV06Report = {
-    ASSETS, esc, attr, money, plainMoney, formatDate, longDate, occurrenceText, inspectionText,
-    calculate, paginateDamageItems, buildContents, buildHTML
+    ASSETS, esc, attr, money, plainMoney, isValidIsoDate, formatDate, longDate, occurrenceText, inspectionText,
+    effectiveOccurrenceText, effectiveInspectionText, calculate, paginateDamageItems, buildContents, buildHTML
   };
 })();

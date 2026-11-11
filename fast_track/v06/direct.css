@@ -67,6 +67,14 @@ textarea{resize:vertical;line-height:1.45}
 .auto-text{border-left:4px solid var(--primary);padding:9px 13px;background:#f5fafc;margin:15px 0}
 .auto-text span{display:block;font-size:11px;text-transform:uppercase;font-weight:800;color:var(--primary-dark);letter-spacing:.05em}
 .auto-text p{margin:5px 0 0;line-height:1.55}
+.narrative-editor{border:1px solid var(--line);border-radius:16px;background:#fbfcfd;padding:15px;margin:17px 0}
+.narrative-editor-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.narrative-editor-head>div:first-child{flex:1 1 340px}
+.narrative-editor-head .field{margin-top:0;text-transform:uppercase}
+.narrative-editor-head .helper{margin-bottom:8px}
+.narrative-editor textarea{min-height:132px;overflow-y:hidden;resize:vertical;line-height:1.5}
+.narrative-editor .notice{margin:10px 0 0}
+.document-collection-intro{margin:14px 0 8px;line-height:1.5;color:var(--text)}
 .dynamic-card{border:1px solid var(--line);border-radius:16px;padding:15px;margin:12px 0;background:#fbfcfd}
 .dynamic-head{display:flex;justify-content:space-between;gap:12px;align-items:center}
 .dynamic-head strong{font-size:15px}

@@ -5,23 +5,28 @@
   const DB_NAME = 'HSFastTrackV06Direct';
   const STORE = 'state';
   const KEY = 'current';
-  const VERSION = '0.6.6';
+  const VERSION = '0.6.8';
   const $ = (id) => document.getElementById(id);
   const qsa = (selector, root = document) => Array.from(root.querySelectorAll(selector));
   const uid = (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const simpleFields = [
     'insurerClaim','hsClaim','insurer','insured','claimantName','claimantCpf','riskAddress',
     'policyNumber','productName','broker','lossDate','coverageName','inspectionDate',
-    'mapFit','mapPosX','mapPosY','noDocuments','regulatorOpinion','otherInsurance',
+    'occurrenceNarrative','inspectionNarrative','mapFit','mapPosX','mapPosY','noDocuments','regulatorOpinion','otherInsurance',
     'otherInsuranceDetails','bankName','bankAgency','bankAccount','noticeDate','scheduleDate',
     'reportCity','reportDate','regulatorName','regulatorCpf'
   ];
   const requiredBasic = [
     'insurer','insured','claimantName','claimantCpf','riskAddress','policyNumber','productName',
-    'broker','lossDate','coverageName','inspectionDate','regulatorOpinion','otherInsurance',
+    'broker','lossDate','coverageName','inspectionDate','occurrenceNarrative','inspectionNarrative','regulatorOpinion','otherInsurance',
     'bankName','bankAgency','bankAccount','noticeDate','scheduleDate','reportCity','reportDate',
     'regulatorName','regulatorCpf'
   ];
+
+  const narrativeConfigs = {
+    occurrence:{text:'occurrenceNarrative',mode:'occurrenceNarrativeMode',baseline:'occurrenceNarrativeDate',official:'lossDate',textarea:'occurrenceNarrative',linkedDate:'occurrenceLossDate',warning:'occurrenceNarrativeWarning',updateButton:'updateOccurrenceDateButton',generator:'occurrenceText',datePattern:/(No dia\s+)(\d{1,2}\s+de\s+[A-Za-zÀ-ÿ]+\s+de\s+\d{4})/i},
+    inspection:{text:'inspectionNarrative',mode:'inspectionNarrativeMode',baseline:'inspectionNarrativeDate',official:'inspectionDate',textarea:'inspectionNarrative',linkedDate:null,warning:'inspectionNarrativeWarning',updateButton:'updateInspectionDateButton',generator:'inspectionText',datePattern:/(realizada no dia\s+)(\d{1,2}\s+de\s+[A-Za-zÀ-ÿ]+\s+de\s+\d{4})/i}
+  };
 
   let state = createDefaultState();
   let saveTimer = null;
@@ -43,6 +48,8 @@
         claimantName:'',claimantCpf:'',riskAddress:'',policyNumber:'',productName:'RISCOS NOMEADOS',
         broker:'ALPER CONSULTORIA E CORRETORA DE SEGUROS S/A',lossDate:'',
         coverageName:'Vendaval / Granizo',inspectionDate:'2026-11-10',
+        occurrenceNarrative:REPORT().occurrenceText(''),occurrenceNarrativeMode:'default',occurrenceNarrativeDate:'',
+        inspectionNarrative:REPORT().inspectionText('2026-11-10'),inspectionNarrativeMode:'default',inspectionNarrativeDate:'2026-11-10',
         mapFit:'contain',mapPosX:'50',mapPosY:'50',noDocuments:false,
         regulatorOpinion:'Diante do exposto, o sinistro está amparado pela cobertura de Vendaval/Granizo da apólice.',
         otherInsurance:'',otherInsuranceDetails:'',bankName:'',bankAgency:'',bankAccount:'',
@@ -55,6 +62,136 @@
       documents:[],
       signatures:{regulator:null,claimant:null}
     };
+  }
+
+  const hasOwn = (object,key) => Object.prototype.hasOwnProperty.call(object || {},key);
+
+  function autoResizeTextarea(element) {
+    if (!element) return;
+    element.style.height = 'auto';
+    element.style.height = `${Math.max(132,element.scrollHeight)}px`;
+  }
+
+  function narrativeConfig(kind) {
+    return narrativeConfigs[kind];
+  }
+
+  function narrativeHasOfficialDate(kind, value = null) {
+    const config = narrativeConfig(kind);
+    const official = state.fields[config.official];
+    if (!REPORT().isValidIsoDate(official)) return false;
+    const source = String(value == null ? state.fields[config.text] : value);
+    const long = REPORT().longDate(official);
+    if (long && source.toLocaleLowerCase('pt-BR').includes(long.toLocaleLowerCase('pt-BR'))) return true;
+    const match = source.match(config.datePattern);
+    return Boolean(match && match[2] && match[2].toLocaleLowerCase('pt-BR') === long.toLocaleLowerCase('pt-BR'));
+  }
+
+  function narrativeNeedsDateReview(kind) {
+    const config = narrativeConfig(kind);
+    const fields = state.fields;
+    if (fields[config.mode] !== 'custom') return false;
+    if (narrativeHasOfficialDate(kind)) return false;
+    return String(fields[config.baseline] || '') !== String(fields[config.official] || '');
+  }
+
+  function syncNarrativeDefault(kind, force = false) {
+    const config = narrativeConfig(kind);
+    const fields = state.fields;
+    if (!force && fields[config.mode] === 'custom') return;
+    fields[config.mode] = 'default';
+    fields[config.text] = REPORT()[config.generator](fields[config.official]);
+    fields[config.baseline] = fields[config.official] || '';
+  }
+
+  function renderNarrativeControl(kind, forceValue = false) {
+    const config = narrativeConfig(kind);
+    const fields = state.fields;
+    const textarea = $(config.textarea);
+    if (textarea && (forceValue || document.activeElement !== textarea) && textarea.value !== String(fields[config.text] ?? '')) {
+      textarea.value = String(fields[config.text] ?? '');
+    }
+    autoResizeTextarea(textarea);
+    if (config.linkedDate) {
+      const linked = $(config.linkedDate);
+      if (linked && document.activeElement !== linked && linked.value !== String(fields[config.official] || '')) linked.value = fields[config.official] || '';
+    }
+    const needsReview = narrativeNeedsDateReview(kind);
+    const warning = $(config.warning);
+    if (warning) {
+      warning.textContent = needsReview
+        ? 'A data oficial foi alterada após a personalização do texto. Confira a data mencionada na narrativa ou use “Atualizar data no texto”.'
+        : '';
+      warning.classList.toggle('hidden',!needsReview);
+    }
+    const updateButton = $(config.updateButton);
+    if (updateButton) updateButton.classList.toggle('hidden',!needsReview || !REPORT().isValidIsoDate(fields[config.official]));
+  }
+
+  function renderNarrativeControls(forceValue = false) {
+    renderNarrativeControl('occurrence',forceValue);
+    renderNarrativeControl('inspection',forceValue);
+  }
+
+  function handleOfficialDateChange(kind) {
+    const config = narrativeConfig(kind);
+    if (state.fields[config.mode] !== 'custom') syncNarrativeDefault(kind,true);
+    renderNarrativeControl(kind,true);
+  }
+
+  function restoreNarrative(kind) {
+    syncNarrativeDefault(kind,true);
+    invalidateSignatures();
+    renderNarrativeControl(kind,true);
+    scheduleSave();
+  }
+
+  function updateNarrativeDate(kind) {
+    const config = narrativeConfig(kind);
+    const fields = state.fields;
+    const official = fields[config.official];
+    if (!REPORT().isValidIsoDate(official)) {
+      alert('Informe uma data oficial válida antes de atualizar a narrativa.');
+      return;
+    }
+    const current = String(fields[config.text] ?? '');
+    const replacement = REPORT().longDate(official);
+    let updated = current;
+    const previous = REPORT().longDate(fields[config.baseline]);
+    if (previous && current.toLocaleLowerCase('pt-BR').includes(previous.toLocaleLowerCase('pt-BR'))) {
+      const index = current.toLocaleLowerCase('pt-BR').indexOf(previous.toLocaleLowerCase('pt-BR'));
+      updated = current.slice(0,index) + replacement + current.slice(index + previous.length);
+    } else {
+      const match = current.match(config.datePattern);
+      if (match) updated = current.replace(config.datePattern,`$1${replacement}`);
+      else {
+        alert('Não foi possível identificar com segurança a data mencionada no texto. Faça a correção manualmente.');
+        return;
+      }
+    }
+    fields[config.text] = updated;
+    fields[config.mode] = 'custom';
+    fields[config.baseline] = official;
+    invalidateSignatures();
+    renderNarrativeControl(kind,true);
+    scheduleSave();
+  }
+
+  function normalizeNarrativeFields(fields,incoming,kind) {
+    const config = narrativeConfig(kind);
+    if (!hasOwn(incoming,config.text)) {
+      fields[config.mode] = 'default';
+      fields[config.text] = REPORT()[config.generator](fields[config.official]);
+      fields[config.baseline] = fields[config.official] || '';
+      return;
+    }
+    fields[config.text] = String(incoming[config.text] ?? '');
+    fields[config.mode] = hasOwn(incoming,config.mode) && ['default','custom'].includes(incoming[config.mode]) ? incoming[config.mode] : 'custom';
+    fields[config.baseline] = hasOwn(incoming,config.baseline) ? String(incoming[config.baseline] || '') : String(fields[config.official] || '');
+    if (fields[config.mode] === 'default') {
+      fields[config.text] = REPORT()[config.generator](fields[config.official]);
+      fields[config.baseline] = fields[config.official] || '';
+    }
   }
 
   function openDb() {
@@ -170,6 +307,7 @@
     renderDocuments();
     renderSignatures();
     updateDerived();
+    renderNarrativeControls(true);
   }
 
   function resolveCaseId() {
@@ -189,12 +327,11 @@
   function updateDerived() {
     updateCaseIdentity();
     const f = state.fields;
-    $('occurrenceAutoText').textContent = REPORT().occurrenceText(f.lossDate);
-    $('inspectionAutoText').textContent = REPORT().inspectionText(f.inspectionDate);
+    renderNarrativeControls(false);
 
     const lossWarn = $('lossDateWarning');
-    if (f.lossDate && !/^2026-11-\d{2}$/.test(f.lossDate)) {
-      lossWarn.textContent = 'A data do sinistro não pertence a novembro de 2026. Corrija a divergência antes da conclusão.';
+    if (f.lossDate && !REPORT().isValidIsoDate(f.lossDate)) {
+      lossWarn.textContent = 'Informe uma data de sinistro válida.';
       lossWarn.classList.remove('hidden');
     } else lossWarn.classList.add('hidden');
 
@@ -390,6 +527,8 @@
     $('documentList').innerHTML = state.documents.length
       ? state.documents.map(documentCard).join('')
       : '<div class="notice info">Nenhum documento anexado.</div>';
+    const intro = $('documentCollectionIntro');
+    if (intro) intro.classList.toggle('hidden',!state.documents.length || Boolean(state.fields.noDocuments));
   }
 
   function syncDocumentCard(card) {
@@ -463,10 +602,13 @@
 
   function renderChronologyWarning() {
     const f = state.fields;
-    const values = [f.lossDate,f.noticeDate,f.scheduleDate,f.inspectionDate].filter(Boolean);
+    const ids = ['lossDate','noticeDate','scheduleDate','inspectionDate'];
     let warning = '';
-    if (values.length === 4) {
-      const nums = values.map((v) => new Date(`${v}T00:00:00`).getTime());
+    const invalid = ids.find((id) => f[id] && !REPORT().isValidIsoDate(f[id]));
+    if (invalid) {
+      warning = 'Há uma data inválida na cronologia. Verifique ocorrência, aviso, agendamento e vistoria.';
+    } else if (ids.every((id) => f[id])) {
+      const nums = ids.map((id) => new Date(`${f[id]}T00:00:00`).getTime());
       if (!(nums[0] <= nums[1] && nums[1] <= nums[2] && nums[2] <= nums[3])) {
         warning = 'As datas da cronologia não estão em ordem. Verifique ocorrência, aviso, agendamento e vistoria.';
       }
@@ -487,7 +629,7 @@
         errors.push(`Preencha: ${label}.`);
       }
     });
-    if (f.lossDate && !/^2026-11-\d{2}$/.test(f.lossDate)) errors.push('A data do sinistro deve pertencer a novembro de 2026.');
+    for (const id of ['lossDate','noticeDate','scheduleDate','inspectionDate','reportDate']) { if (f[id] && !REPORT().isValidIsoDate(f[id])) { const dateLabel=document.querySelector('label[for=\"'+id+'\"]')?.textContent || id; errors.push(`Informe uma data válida em: ${dateLabel}.`); } }
     if (!state.map?.dataUrl) errors.push('Inclua a captura do Google Maps.');
     if (!state.damages.length) errors.push('Cadastre ao menos um item de dano.');
     state.damages.forEach((item,index) => {
@@ -526,7 +668,7 @@
         errors.push(`Preencha: ${label}.`);
       }
     });
-    if (f.lossDate && !/^2026-11-\d{2}$/.test(f.lossDate)) errors.push('A data do sinistro deve pertencer a novembro de 2026.');
+    for (const id of ['lossDate','noticeDate','scheduleDate','inspectionDate','reportDate']) { if (f[id] && !REPORT().isValidIsoDate(f[id])) { const dateLabel=document.querySelector('label[for=\"'+id+'\"]')?.textContent || id; errors.push(`Informe uma data válida em: ${dateLabel}.`); } }
     if (!state.map?.dataUrl) errors.push('Inclua a captura do Google Maps.');
     if (!state.damages.length) errors.push('Cadastre ao menos um item de dano.');
     state.damages.forEach((item,index) => {
@@ -629,10 +771,15 @@
 
   function normalizeState(data) {
     const base = createDefaultState();
+    const incomingFields = data.fields || {};
+    const fields = {...base.fields,...incomingFields};
+    normalizeNarrativeFields(fields,incomingFields,'occurrence');
+    normalizeNarrativeFields(fields,incomingFields,'inspection');
     return {
       ...base,
       ...data,
-      fields:{...base.fields,...(data.fields || {})},
+      version:VERSION,
+      fields,
       map:data.map || null,
       damages:Array.isArray(data.damages) ? data.damages.map(newDamage) : [],
       photos:Array.isArray(data.photos) ? data.photos : [],
@@ -672,11 +819,13 @@
     f.policyNumber=data.apolice || f.policyNumber;
     f.broker=data.corretor || f.broker;
     f.lossDate=data.dataSinistro || f.lossDate;
+    handleOfficialDateChange('occurrence');
     if (data.sinistro) {
       if (/^S/i.test(data.sinistro)) f.hsClaim=data.sinistro;
       else f.insurerClaim=data.sinistro;
     }
     f.inspectionDate=data.c5 || f.inspectionDate;
+    handleOfficialDateChange('inspection');
     f.noticeDate=data.c2 || f.noticeDate;
     f.scheduleDate=data.c4 || f.scheduleDate;
     if (Array.isArray(data.damage)) state.damages=data.damage.map(newDamage);
@@ -703,6 +852,8 @@
     });
     state=createDefaultState();
     state.fields=f;
+    syncNarrativeDefault('occurrence',true);
+    syncNarrativeDefault('inspection',true);
     state.damages=[
       newDamage({description:'Telhas e componentes de cobertura',quantity:'120',unit:'un.',age:'4',ageUnit:'anos',claimedTotal:'10000',assessedTotal:'10000'}),
       newDamage({description:'Cortinado lateral',quantity:'220',unit:'m²',age:'2',ageUnit:'anos',claimedTotal:'6480',assessedTotal:'6480'}),
@@ -761,7 +912,11 @@
     if (button.dataset.go) { go(Number(button.dataset.go)); return; }
     const action=button.dataset.action;
 
-    if (action==='import-v75') importV75();
+    if (action==='restore-occurrence-default') restoreNarrative('occurrence');
+    else if (action==='restore-inspection-default') restoreNarrative('inspection');
+    else if (action==='update-occurrence-date') updateNarrativeDate('occurrence');
+    else if (action==='update-inspection-date') updateNarrativeDate('inspection');
+    else if (action==='import-v75') importV75();
     else if (action==='load-example') loadExample();
     else if (action==='add-damage') { invalidateSignatures();state.damages.push(newDamage());renderDamages();scheduleSave(); }
     else if (action==='remove-damage') {
@@ -796,13 +951,43 @@
 
   document.addEventListener('input', (event) => {
     const target=event.target;
+    if (target.matches('[data-narrative]')) {
+      const kind=target.dataset.narrative;
+      const config=narrativeConfig(kind);
+      const fields=state.fields;
+      if (fields[config.mode] !== 'custom') fields[config.baseline]=fields[config.official] || '';
+      fields[config.mode]='custom';
+      fields[config.text]=target.value;
+      if (narrativeHasOfficialDate(kind,target.value)) fields[config.baseline]=fields[config.official] || '';
+      autoResizeTextarea(target);
+      invalidateSignatures();
+      renderNarrativeControl(kind,false);
+      scheduleSave();
+      return;
+    }
+    if (target.matches('[data-linked-date]')) {
+      const official=target.dataset.linkedDate;
+      const old=state.fields[official];
+      state.fields[official]=target.value;
+      const primary=$(official);
+      if (primary && primary.value!==target.value) primary.value=target.value;
+      if (old!==target.value) {
+        handleOfficialDateChange(official==='lossDate'?'occurrence':'inspection');
+        invalidateSignatures();
+      }
+      updateDerived();scheduleSave();
+      return;
+    }
     if (target.matches('[data-field]')) {
       const old=state.fields[target.id];
       state.fields[target.id]=target.type==='checkbox'?target.checked:target.value;
+      if (target.id==='lossDate' && old!==state.fields[target.id]) handleOfficialDateChange('occurrence');
+      if (target.id==='inspectionDate' && old!==state.fields[target.id]) handleOfficialDateChange('inspection');
       if (old!==state.fields[target.id] && target.id!=='mapPosX' && target.id!=='mapPosY') invalidateSignatures();
       if (['mapFit','mapPosX','mapPosY'].includes(target.id) && state.map) {
         state.map.fit=state.fields.mapFit;state.map.posX=state.fields.mapPosX;state.map.posY=state.fields.mapPosY;renderMap();
       }
+      if (target.id==='noDocuments') renderDocuments();
       updateDerived();scheduleSave();
     }
     const damageCard=target.closest('.damage-card');
