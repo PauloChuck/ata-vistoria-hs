@@ -1,0 +1,94 @@
+name: Verify V0629 public deployment
+
+on:
+  push:
+    branches:
+      - verification/v0629-public
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.56.1
+          CHROME_PATH="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+
+      - name: Verify public application
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/v0629-public
+          mkdir -p "$OUT"
+          cat > /tmp/verify-v0629-public.js <<'NODE'
+          const fs=require('fs');
+          const {chromium}=require('playwright');
+
+          (async()=>{
+            const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH,args:['--no-sandbox']});
+            const page=await browser.newPage({viewport:{width:1440,height:1000}});
+            const pageErrors=[];
+            const consoleErrors=[];
+            page.on('pageerror',error=>pageErrors.push(String(error)));
+            page.on('console',message=>{if(message.type()==='error') consoleErrors.push(message.text());});
+            page.on('dialog',dialog=>dialog.accept());
+
+            const url=`https://paulochuck.github.io/ata-vistoria-hs/fast_track/v062.html?v=0629-public-${Date.now()}`;
+            await page.goto(url,{waitUntil:'networkidle',timeout:60000});
+            await page.waitForFunction(()=>document.querySelector('#inspectionNarrative')?.value.length>0,{timeout:30000});
+
+            const resources=await page.evaluate(()=>performance.getEntriesByType('resource').map(entry=>entry.name));
+            for(const expected of ['direct-layout-0629.css?v=0629','direct-layout-0629.js?v=0629','direct-word-0629.js?v=0629','direct-app.js?v=0629']){
+              if(!resources.some(resource=>resource.includes(expected))) throw new Error(`Recurso público ausente: ${expected}`);
+            }
+
+            await page.click('[data-action="load-example"]');
+            await page.waitForSelector('#damageList .damage-card',{timeout:30000});
+            await page.evaluate(()=>document.querySelector('[data-go="7"]').click());
+            await page.waitForSelector('.screen[data-step="7"].active',{timeout:30000});
+            await page.waitForSelector('#reportPreview .coverage-lines',{timeout:30000});
+            await page.waitForSelector('#reportPreview .survey-damage-list',{timeout:30000});
+            await page.waitForSelector('#reportPreview .indemnity-list',{timeout:30000});
+            await page.waitForSelector('#reportPreview .chronology-lines',{timeout:30000});
+
+            const result=await page.evaluate(()=>({
+              coverage:Boolean(document.querySelector('#reportPreview .coverage-lines')),
+              survey:Boolean(document.querySelector('#reportPreview .survey-damage-list')),
+              indemnity:Boolean(document.querySelector('#reportPreview .indemnity-list')),
+              chronology:Boolean(document.querySelector('#reportPreview .chronology-lines')),
+              oldCoverageTables:document.querySelectorAll('#reportPreview table.coverage-table').length,
+              oldDamageTables:document.querySelectorAll('#reportPreview table.damage-table').length,
+              summaryLabels:[...document.querySelectorAll('#reportPreview .financial-summary-row span:first-child')].map(node=>node.textContent.trim()),
+              reportPages:document.querySelectorAll('#reportPreview .report-page').length,
+              bodyOverflow:document.documentElement.scrollWidth>document.documentElement.clientWidth
+            }));
+
+            const required=['Total de Prejuízos Reclamados','Total de Prejuízos Apurados','Franquia contratual','Prejuízo Indenizável'];
+            if(!required.every(label=>result.summaryLabels.includes(label))) throw new Error(`Rótulos financeiros divergentes: ${JSON.stringify(result.summaryLabels)}`);
+            if(result.oldCoverageTables||result.oldDamageTables) throw new Error('A página pública ainda contém as grades antigas.');
+            if(pageErrors.length) throw new Error(`Erros de página: ${pageErrors.join(' | ')}`);
+
+            await page.screenshot({path:`${process.env.OUT}/public-v0629.png`,fullPage:true});
+            fs.writeFileSync(`${process.env.OUT}/public-result.json`,JSON.stringify({url,result,pageErrors,consoleErrors},null,2));
+            console.log(JSON.stringify({url,result,pageErrors,consoleErrors},null,2));
+            await browser.close();
+          })().catch(error=>{console.error(error);process.exit(1);});
+          NODE
+          OUT="$OUT" NODE_PATH="$PWD/node_modules" node /tmp/verify-v0629-public.js
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fast-track-v0629-public-validation
+          path: /tmp/v0629-public
+          if-no-files-found: warn
