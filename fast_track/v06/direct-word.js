@@ -308,7 +308,24 @@ children:[
 
     // Encerramento
     const other = f.otherInsurance==='nao' ? 'O cooperado declara não possuir outros seguros contratados para os bens sinistrados.' : f.otherInsurance==='sim' ? `O cooperado declarou a existência de outro(s) seguro(s): ${f.otherInsuranceDetails || ''}` : 'Declaração sobre outros seguros não informada.';
-    const closing=[heading('7. DECLARAÇÃO DE OUTROS SEGUROS'),para(other),heading('8. DADOS CADASTRAIS'),para([run('Nome completo: ',{bold:true}),run(f.claimantName || ''),run('\nCPF: ',{bold:true}),run(f.claimantCpf || ''),run('\nDados Bancários: ',{bold:true}),run(`${f.bankName || ''} — AG: ${f.bankAgency || ''} / CC: ${f.bankAccount || ''}`)],{line:240}),heading('9. CRONOLOGIA')];
+    const cadastralParagraph = (label,value) => new Paragraph({
+      children:[
+        run(label,{font:'Arial',size:22,bold:true}),
+        run(value,{font:'Arial',size:22})
+      ],
+      alignment:AlignmentType.LEFT,
+      spacing:{before:0,after:160,line:240},
+      keepLines:true
+    });
+    const closing=[
+      heading('7. DECLARAÇÃO DE OUTROS SEGUROS'),
+      para(other),
+      heading('8. DADOS CADASTRAIS'),
+      cadastralParagraph('Nome completo: ',f.claimantName || ''),
+      cadastralParagraph('CPF: ',f.claimantCpf || ''),
+      cadastralParagraph('Dados Bancários: ',`${f.bankName || ''} — AG: ${f.bankAgency || ''} / CC: ${f.bankAccount || ''}`),
+      heading('9. CRONOLOGIA')
+    ];
     closing.push(new Table({width:{size:100,type:WidthType.PERCENTAGE},rows:[
       ['Data da ocorrência',REPORT().formatDate(f.lossDate)],['Data do aviso',REPORT().formatDate(f.noticeDate)],['Data do agendamento da vistoria',REPORT().formatDate(f.scheduleDate)],['Data da realização da vistoria',REPORT().formatDate(f.inspectionDate)]
     ].map(([label,date])=>new TableRow({cantSplit:true,children:[tcell(label,{width:72,align:AlignmentType.LEFT}),tcell(date,{width:28})]}))}));
