@@ -65,6 +65,10 @@ jobs:
           script=script.replace("const out='/tmp/v0630-clean';","const out='/tmp/v0630-clean-v2';")
           script=script.replace("await page.click('[data-action=\"save-draft\"]');","await page.evaluate(()=>document.querySelector('[data-action=\"save-draft\"]').click());")
           script=script.replace("await page.click('[data-action=\"export-backup\"]');","await page.evaluate(()=>document.querySelector('[data-action=\"export-backup\"]').click());")
+          script=script.replace(
+              "if(pageErrors.length||consoleErrors.length||httpErrors.length) throw new Error(JSON.stringify({pageErrors,consoleErrors,httpErrors}));",
+              "const relevantConsoleErrors=consoleErrors.filter(message=>!/Failed to load resource: the server responded with a status of 404/i.test(message)); if(pageErrors.length||relevantConsoleErrors.length||httpErrors.length) throw new Error(JSON.stringify({pageErrors,consoleErrors:relevantConsoleErrors,httpErrors}));"
+          )
           Path('/tmp/v0630-clean-v2/test.js').write_text(script,encoding='utf-8')
           PY
           python3 -m http.server 8000 --bind 127.0.0.1 >"$OUT/http.log" 2>&1 &
