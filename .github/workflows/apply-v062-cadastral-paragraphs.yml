@@ -43,6 +43,20 @@ jobs:
           set -euo pipefail
           OUT=/tmp/v062-cadastral-paragraphs
           mkdir -p "$OUT"
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/scripts/test_v062_cadastral.js')
+          text = path.read_text(encoding='utf-8')
+          replacements = [
+              ("await page.click('[data-go=\"6\"]');", "await page.click('.screen[data-step=\"7\"].active [data-go=\"6\"]');"),
+              ("await page.click('[data-go=\"7\"]');", "await page.click('.screen[data-step=\"6\"].active [data-go=\"7\"]');"),
+          ]
+          for old, new in replacements:
+              if text.count(old) != 1:
+                  raise SystemExit(f'Seletor de validação inesperado: {old} ({text.count(old)})')
+              text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
           python3 -m http.server 8000 --bind 127.0.0.1 >"$OUT/http.log" 2>&1 &
           PID=$!
           trap 'kill $PID || true' EXIT
