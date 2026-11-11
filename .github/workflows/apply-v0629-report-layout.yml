@@ -45,6 +45,14 @@ jobs:
           value=value.replace("preview.claimedCounts.every(count=>count===1)", "preview.claimedCounts.every(count=>count===0)")
           test.write_text(value,encoding='utf-8')
 
+          validator=Path('/tmp/validate_v0629.py')
+          value=validator.read_text(encoding='utf-8')
+          value=value.replace(
+              "for cell in indemnity.findall('./w:tr[position()>1]/w:tc',ns):\n    assert border_value(cell,'top') in (None,'nil','none') and border_value(cell,'bottom') in (None,'nil','none'), 'Linhas internas indevidas no demonstrativo'",
+              "for row in indemnity.findall('./w:tr',ns)[1:]:\n    for cell in row.findall('./w:tc',ns):\n        assert border_value(cell,'top') in (None,'nil','none') and border_value(cell,'bottom') in (None,'nil','none'), 'Linhas internas indevidas no demonstrativo'"
+          )
+          validator.write_text(value,encoding='utf-8')
+
           page=Path('fast_track/v062.html')
           html=page.read_text(encoding='utf-8')
           html=html.replace('v06/direct.css?v=0628','v06/direct.css?v=0629')
