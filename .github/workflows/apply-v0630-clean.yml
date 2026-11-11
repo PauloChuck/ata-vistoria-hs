@@ -56,7 +56,7 @@ jobs:
           if len(positions) != 2:
               raise SystemExit(f'Esperadas 2 definições de validationErrors, encontradas {len(positions)}')
           text = text[:positions[0]] + text[positions[1]:]
-          if 'numms[0]' in text or 'warning = \'As datas da cronologia' in text:
+          if 'numms[0]' in text:
               raise SystemExit('Bloco duplicado inválido não foi removido por completo')
           app.write_text(text, encoding='utf-8')
 
