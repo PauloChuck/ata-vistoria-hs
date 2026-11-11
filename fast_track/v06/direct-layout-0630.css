@@ -1,0 +1,274 @@
+/* Revisão 0629 — apresentação sem grades nas quatro seções aprovadas */
+.coverage-clean{
+  width:100%;
+  margin:2mm 0;
+  border-top:.5pt solid #555;
+  border-bottom:.5pt solid #555;
+  font-size:10pt;
+}
+.coverage-clean-row{
+  display:grid;
+  grid-template-columns:minmax(0,44fr) minmax(0,28fr) minmax(0,28fr);
+  align-items:stretch;
+}
+.coverage-clean-head{
+  border-bottom:.5pt solid #555;
+  font-weight:700;
+}
+.coverage-clean-row>div{
+  min-width:0;
+  padding:2.8mm 2mm;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  line-height:1.35;
+  overflow-wrap:anywhere;
+}
+.coverage-clean-row>div:first-child{
+  justify-content:flex-start;
+  text-align:left;
+}
+
+.survey-damage-list{
+  display:flex;
+  flex-direction:column;
+  gap:2.2mm;
+  margin:1mm 0 2mm;
+}
+.survey-damage-row{
+  display:grid;
+  grid-template-columns:26mm minmax(0,1fr) 34mm;
+  column-gap:4mm;
+  align-items:start;
+  padding:1mm 0;
+  line-height:1.35;
+  break-inside:avoid;
+  page-break-inside:avoid;
+}
+.survey-damage-quantity{
+  text-align:center;
+  font-weight:700;
+  white-space:normal;
+}
+.survey-damage-description{
+  min-width:0;
+  text-align:left;
+  overflow-wrap:anywhere;
+}
+.survey-damage-age{
+  text-align:right;
+  color:#444;
+  white-space:normal;
+}
+
+.indemnity-clean-head,
+.indemnity-clean-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 30mm 34mm 34mm;
+  column-gap:3mm;
+  align-items:center;
+}
+.indemnity-clean-head{
+  border-bottom:.5pt solid #555;
+  padding:0 0 1.6mm;
+  margin-top:1mm;
+  font-size:9.5pt;
+  font-weight:700;
+  line-height:1.25;
+}
+.indemnity-clean-head>div:first-child{text-align:left}
+.indemnity-clean-head>div:nth-child(2){text-align:center}
+.indemnity-clean-head>div:nth-child(3),
+.indemnity-clean-head>div:nth-child(4){text-align:right}
+.indemnity-clean-body{
+  display:flex;
+  flex-direction:column;
+  gap:0;
+}
+.indemnity-clean-row{
+  min-height:9mm;
+  padding:1.7mm 0;
+  font-size:9.5pt;
+  line-height:1.3;
+  break-inside:avoid;
+  page-break-inside:avoid;
+}
+.indemnity-clean-description{
+  min-width:0;
+  text-align:left;
+  overflow-wrap:anywhere;
+}
+.indemnity-clean-description small{
+  display:block;
+  margin-top:.7mm;
+  color:#555;
+  font-size:9pt;
+  line-height:1.2;
+}
+.indemnity-clean-quantity{text-align:center}
+.indemnity-clean-money{text-align:right;white-space:nowrap}
+.financial-summary-clean{
+  border-top:.5pt solid #555;
+  margin-top:2mm;
+  padding-top:1.7mm;
+}
+.financial-summary-row{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:8mm;
+  padding:1.1mm 0;
+  line-height:1.3;
+}
+.financial-summary-row span{text-align:left}
+.financial-summary-row strong{text-align:right;white-space:nowrap}
+.financial-summary-net,
+.financial-summary-net strong{
+  color:#29a8e0;
+  font-weight:800;
+}
+
+.chronology-clean{
+  width:100%;
+  margin:2mm 0;
+  border-top:.5pt solid #555;
+}
+.chronology-clean-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 38mm;
+  column-gap:6mm;
+  align-items:center;
+  border-bottom:.5pt solid #555;
+  padding:1.8mm 0;
+  line-height:1.3;
+  break-inside:avoid;
+  page-break-inside:avoid;
+}
+.chronology-clean-row>div:first-child{text-align:left}
+.chronology-clean-row>div:last-child{text-align:right;white-space:nowrap}
+
+/* Revisão 0630 — parecer 4.2, evidências da causa e fluxo da galeria */
+.photo-add-button{
+  margin-top:14px;
+}
+.opinion-evidence-panel{
+  border-top:1px solid var(--line);
+  padding-top:2px;
+}
+.opinion-evidence-panel h4{
+  font-size:15px;
+  margin:22px 0 6px;
+  color:var(--text);
+}
+.cause-evidence-list{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:14px;
+  margin-top:14px;
+}
+.cause-evidence-list>.notice{
+  grid-column:1/-1;
+  margin:0;
+}
+.cause-evidence-card{
+  border:1px solid var(--line);
+  border-radius:15px;
+  padding:12px;
+  background:#fbfcfd;
+  min-width:0;
+}
+.cause-evidence-thumb{
+  display:block;
+  width:100%;
+  height:230px;
+  object-fit:contain;
+  background:#e8edf0;
+  border-radius:10px;
+  margin-top:10px;
+}
+.cause-evidence-file{
+  min-height:150px;
+  margin-top:10px;
+  border:1px dashed #b8c7d0;
+  border-radius:10px;
+  background:#fff;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  padding:16px;
+  text-align:center;
+  overflow-wrap:anywhere;
+}
+.cause-evidence-file>span{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:52px;
+  min-height:38px;
+  padding:6px 9px;
+  border-radius:9px;
+  background:#e7f5fb;
+  color:var(--primary-dark);
+  font-weight:900;
+  font-size:12px;
+}
+.cause-evidence-file strong{overflow-wrap:anywhere}
+.cause-evidence-file small{color:var(--muted);overflow-wrap:anywhere}
+.cause-evidence-card textarea{min-height:82px}
+
+.cause-evidence-heading{
+  margin-top:7mm;
+}
+.cause-evidence-row-report{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:5mm;
+  margin:1mm 0 5mm;
+  break-inside:avoid;
+  page-break-inside:avoid;
+}
+.cause-evidence-cell-report{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start;
+  break-inside:avoid;
+  page-break-inside:avoid;
+}
+.cause-evidence-cell-report img{
+  display:block;
+  width:100%;
+  height:66mm;
+  object-fit:contain;
+  background:#fff;
+}
+.cause-evidence-cell-report .doc-caption{
+  min-height:9mm;
+}
+.cause-evidence-file-report{
+  padding:2mm 0;
+  border-bottom:.5pt solid #aaa;
+  line-height:1.35;
+  break-inside:avoid;
+  page-break-inside:avoid;
+}
+.cause-evidence-file-report strong,
+.cause-evidence-file-report span{
+  display:block;
+  overflow-wrap:anywhere;
+}
+.cause-evidence-file-report span{
+  margin-top:.8mm;
+  color:#444;
+  font-size:10pt;
+}
+
+@media(max-width:760px){
+  .cause-evidence-list{grid-template-columns:1fr}
+}
+.cause-evidence-row-report.single{grid-template-columns:1fr}
+.cause-evidence-row-report.single .cause-evidence-cell-report{width:100%;max-width:130mm;margin:0 auto}
