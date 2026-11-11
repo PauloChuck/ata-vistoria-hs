@@ -53,7 +53,7 @@ jobs:
             }
 
             await page.click('[data-action="load-example"]');
-            await page.waitForSelector('#damageList .damage-card',{timeout:30000});
+            await page.waitForSelector('#damageList .damage-card',{state:'attached',timeout:30000});
             await page.evaluate(()=>document.querySelector('[data-go="7"]').click());
             await page.waitForSelector('.screen[data-step="7"].active',{timeout:30000});
             await page.waitForSelector('#reportPreview .coverage-lines',{timeout:30000});
