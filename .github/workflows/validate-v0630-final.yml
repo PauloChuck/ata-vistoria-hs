@@ -1,0 +1,128 @@
+name: Validate V0630 final
+
+on:
+  push:
+    branches:
+      - feature/v0630-parecer-evidencias-reset
+    paths:
+      - .github/workflows/validate-v0630-final.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Static checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check fast_track/v06/direct-app-0630.js
+          node --check fast_track/v06/direct-layout-0630.js
+          node --check fast_track/v06/direct-word-0630.js
+          grep -q 'direct-app-0630.js?v=0630' fast_track/v062.html
+          grep -q 'direct-layout-0630.js?v=0630' fast_track/v062.html
+          grep -q 'direct-word-0630.js?v=0630' fast_track/v062.html
+          grep -q 'id="causeEvidenceInput"' fast_track/v062.html
+          grep -q 'id="causeEvidenceList"' fast_track/v062.html
+          grep -q 'id="addPhotoButton"' fast_track/v062.html
+          ! grep -q 'id="documentInput"' fast_track/v062.html
+          ! grep -q 'id="documentList"' fast_track/v062.html
+          ! grep -q 'id="noDocuments"' fast_track/v062.html
+          ! grep -qi 'LEVANTAMENTOS DOCUMENTAIS' fast_track/v06/direct-layout-0630.js
+          ! grep -qi 'DADOS CADASTRAIS' fast_track/v06/direct-layout-0630.js
+          ! grep -qi 'LEVANTAMENTOS DOCUMENTAIS' fast_track/v06/direct-word-0630.js
+          ! grep -qi 'DADOS CADASTRAIS' fast_track/v06/direct-word-0630.js
+
+      - name: Prepare browser and document tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/v0630-node /tmp/v0630-final
+          cd /tmp/v0630-node
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.56.1
+          CHROME_PATH="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          if ! command -v libreoffice >/dev/null 2>&1 || ! command -v pdftotext >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y libreoffice-writer poppler-utils
+          fi
+
+      - name: Functional acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/v0630-final
+          python3 - <<'PY'
+          from pathlib import Path
+          source=Path('.github/workflows/validate-v0630-production.yml').read_text(encoding='utf-8')
+          start=source.index("          cat > \"$OUT/test.js\" <<'NODE'\n") + len("          cat > \"$OUT/test.js\" <<'NODE'\n")
+          end=source.index("\n          NODE\n",start)
+          script=source[start:end]
+          script=script.replace("await page.waitForSelector('#photoGallery .photo-card');","await page.waitForSelector('#photoGallery .photo-card',{state:'attached'});")
+          script=script.replace("await page.waitForSelector('#causeEvidenceList .cause-evidence-card');","await page.waitForSelector('#causeEvidenceList .cause-evidence-card',{state:'attached'});")
+          Path('/tmp/v0630-final/test.js').write_text(script,encoding='utf-8')
+          PY
+          python3 -m http.server 8000 --bind 127.0.0.1 >"$OUT/http.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          sleep 2
+          NODE_PATH=/tmp/v0630-node/node_modules node "$OUT/test.js"
+
+      - name: Validate Word and PDF
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/v0630-final
+          DOCX=$(find "$OUT" -maxdepth 1 -name '*.docx' -print -quit)
+          PDF_BROWSER=$(find "$OUT" -maxdepth 1 -name '*browser.pdf' -print -quit)
+          test -s "$DOCX"
+          test -s "$PDF_BROWSER"
+          unzip -t "$DOCX"
+          mkdir -p "$OUT/docx" "$OUT/render" "$OUT/lo-profile"
+          unzip -q "$DOCX" -d "$OUT/docx"
+          pdftotext -layout "$PDF_BROWSER" "$OUT/browser.txt"
+          libreoffice -env:UserInstallation="file://$OUT/lo-profile" --headless --convert-to pdf --outdir "$OUT/render" "$DOCX"
+          PDF_WORD=$(find "$OUT/render" -maxdepth 1 -name '*.pdf' -print -quit)
+          test -s "$PDF_WORD"
+          pdftotext -layout "$PDF_WORD" "$OUT/word.txt"
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          out=Path('/tmp/v0630-final')
+          document=(out/'docx/word/document.xml').read_text(encoding='utf-8',errors='ignore')
+          texts=[(out/'browser.txt').read_text(encoding='utf-8',errors='ignore'),(out/'word.txt').read_text(encoding='utf-8',errors='ignore'),document]
+          forbidden=['LEVANTAMENTOS DOCUMENTAIS','DADOS CADASTRAIS','documento-antigo.pdf','BANCO TESTE NÃO EXIBIR']
+          required=['PARECER DO REGULADOR','EVIDÊNCIAS DA CAUSA','Fotografia da causa','laudo-causa.pdf','Laudo técnico principal','DEMONSTRATIVO DE INDENIZAÇÃO','DECLARAÇÃO DE OUTROS SEGUROS','CRONOLOGIA','INFORMAÇÕES COMPLEMENTARES']
+          for idx,text in enumerate(texts):
+              upper=text.upper()
+              for value in forbidden:
+                  if value.upper() in upper:
+                      raise SystemExit(f'Conteúdo removido encontrado na saída {idx}: {value}')
+              for value in required:
+                  if value.upper() not in upper:
+                      raise SystemExit(f'Conteúdo esperado ausente na saída {idx}: {value}')
+          if sum(text.upper().count('PARECER DO REGULADOR') for text in texts[:2]) != 2:
+              raise SystemExit('O parecer não aparece exatamente uma vez em cada saída renderizada.')
+          media=list((out/'docx/word/media').glob('*'))
+          if len(media)<5:
+              raise SystemExit(f'Quantidade insuficiente de mídias no DOCX: {len(media)}')
+          result=(out/'result.json').read_text(encoding='utf-8')
+          if '"photos": 0' not in result or '"damages": 0' not in result or '"evidence": 1' not in result:
+              raise SystemExit('A validação de limpeza na recarga não foi registrada corretamente.')
+          print('Validação final V0630 concluída.')
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fast-track-v0630-final-validation
+          path: /tmp/v0630-final
+          if-no-files-found: warn
