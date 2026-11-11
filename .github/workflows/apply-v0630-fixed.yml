@@ -1,0 +1,82 @@
+name: Apply V0630 fixed payload
+
+on:
+  push:
+    branches:
+      - feature/v0630-parecer-evidencias-reset
+    paths:
+      - .github/workflows/apply-v0630-fixed.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct and verify payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat \
+            .github/v0630fixed/part.000 \
+            .github/v0630fixed/part.001 \
+            .github/v0630fixed/part.002 \
+            .github/v0630fixed/part.003 \
+            .github/v0630fixed/part.004 \
+            .github/v0630fixed/tail.000 \
+            .github/v0630fixed/tail.001 \
+            .github/v0630fixed/tail.002 \
+            .github/v0630fixed/tail.003 \
+            .github/v0630fixed/tail.004 \
+            .github/v0630fixed/tail.005 \
+            .github/v0630fixed/tail.006 \
+            .github/v0630fixed/tail.007 \
+            > /tmp/v0630-payload.b64
+          echo 'bde010756db34bea6bee6ab89e905bccea926fce7bc86612f9157bda59ceeb89  /tmp/v0630-payload.b64' | sha256sum -c -
+          base64 -d /tmp/v0630-payload.b64 > /tmp/v0630-payload.tar.gz
+          echo 'b407119e4d9bf1a70495b2ddcc7ba4580926b4090e94c02998749e48ceca520d  /tmp/v0630-payload.tar.gz' | sha256sum -c -
+          tar -tzf /tmp/v0630-payload.tar.gz
+          tar -xzf /tmp/v0630-payload.tar.gz -C .
+
+      - name: Static validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check fast_track/v06/direct-app-0630.js
+          node --check fast_track/v06/direct-layout-0630.js
+          node --check fast_track/v06/direct-word-0630.js
+          grep -q 'direct-app-0630.js?v=0630' fast_track/v062.html
+          grep -q 'direct-layout-0630.js?v=0630' fast_track/v062.html
+          grep -q 'direct-word-0630.js?v=0630' fast_track/v062.html
+          grep -q 'id="causeEvidenceInput"' fast_track/v062.html
+          grep -q 'id="causeEvidenceList"' fast_track/v062.html
+          grep -q 'id="addPhotoButton"' fast_track/v062.html
+          ! grep -q 'id="documentInput"' fast_track/v062.html
+          ! grep -q 'id="documentList"' fast_track/v062.html
+          ! grep -q 'id="noDocuments"' fast_track/v062.html
+          ! grep -qi 'LEVANTAMENTOS DOCUMENTAIS' fast_track/v06/direct-layout-0630.js
+          ! grep -qi 'DADOS CADASTRAIS' fast_track/v06/direct-layout-0630.js
+          ! grep -qi 'LEVANTAMENTOS DOCUMENTAIS' fast_track/v06/direct-word-0630.js
+          ! grep -qi 'DADOS CADASTRAIS' fast_track/v06/direct-word-0630.js
+          grep -q '4.2. PARECER DO REGULADOR' fast_track/v06/direct-layout-0630.js
+          grep -q 'EVIDÊNCIAS DA CAUSA' fast_track/v06/direct-layout-0630.js
+          grep -q 'state.photos = \[\]' fast_track/v06/direct-app-0630.js
+          grep -q 'state.damages = \[\]' fast_track/v06/direct-app-0630.js
+
+      - name: Commit production files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add fast_track
+          git diff --cached --stat
+          git commit -m 'feat(v0630): parecer, evidências e nova sessão de vistoria'
+          git push origin HEAD:feature/v0630-parecer-evidencias-reset
