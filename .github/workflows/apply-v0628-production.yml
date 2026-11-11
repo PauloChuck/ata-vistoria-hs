@@ -1,0 +1,54 @@
+name: Apply V0628 production patch
+
+on:
+  push:
+    branches:
+      - feature/v062-editable-narratives-doc-intro
+    paths:
+      - .github/workflows/apply-v0628-production.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply patch and commit production files
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('.github/scripts/patch_v0628.py')
+          text=path.read_text(encoding='utf-8')
+          old="    result, count = re.subn(pattern, replacement, text, count=1, flags=flags)"
+          new="    result, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=flags)"
+          if old in text:
+              path.write_text(text.replace(old,new,1),encoding='utf-8')
+          PY
+          python3 .github/scripts/patch_v0628.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          path=Path('fast_track/v06/direct-app.js')
+          text=path.read_text(encoding='utf-8')
+          replacement="    for (const id of ['lossDate','noticeDate','scheduleDate','inspectionDate','reportDate']) { if (f[id] && !REPORT().isValidIsoDate(f[id])) { const dateLabel=document.querySelector('label[for=\\\"'+id+'\\\"]')?.textContent || id; errors.push(`Informe uma data válida em: ${dateLabel}.`); } }"
+          text,count=re.subn(r"    for \(const id of \['lossDate','noticeDate','scheduleDate','inspectionDate','reportDate'\]\) \{ if \(f\[id\] && !REPORT\(\)\.isValidIsoDate\(f\[id\]\)\) errors\.push\(`Informe uma data válida em: .*?\); \}",lambda _m:replacement,text)
+          if count < 1:
+              raise SystemExit('Não foi possível corrigir a validação das datas.')
+          path.write_text(text,encoding='utf-8')
+          PY
+          node --check fast_track/v06/direct-app.js
+          node --check fast_track/v06/direct-report.js
+          node --check fast_track/v06/direct-word.js
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add fast_track/v062.html fast_track/v06.html fast_track/v06/direct.css fast_track/v06/direct-app.js fast_track/v06/direct-report.js fast_track/v06/direct-word.js
+          git commit -m 'feat(v06): implementar narrativas editáveis e introdução documental'
+          git push origin HEAD:feature/v062-editable-narratives-doc-intro
