@@ -1,0 +1,30 @@
+name: Kick V0630 validation
+
+on:
+  push:
+    branches:
+      - feature/v0630-parecer-evidencias-reset
+    paths:
+      - .github/workflows/kick-v0630.yml
+
+permissions:
+  contents: write
+
+jobs:
+  kick:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Trigger current validation workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '\n# payload corrigido e revalidação solicitada\n' >> .github/workflows/apply-v0630.yml
+          rm -f .github/workflows/kick-v0630.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/apply-v0630.yml .github/workflows/kick-v0630.yml
+          git commit -m 'chore(v0630): reexecutar validação com payload corrigido'
+          git push origin HEAD:feature/v0630-parecer-evidencias-reset
