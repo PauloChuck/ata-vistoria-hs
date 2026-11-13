@@ -32,20 +32,21 @@
     </section>`;
   }
 
-  function technicalStartContent(state) {
+  function technicalStartBlocks(state) {
     const f = state.fields || {};
     const map = state.map || {};
     const cooperatorBlock = window.FastTrackCooperators?.reportHtml?.(state,{esc}) || '';
-    return `
+    const local = `
       <div class="doc-section">1. LOCAL DO SINISTRO</div>
       <p class="doc-text">Trata-se de propriedade rural destinada a engorda de animais (matérias-primas) do segurado.</p>
-      ${cooperatorBlock}
+      ${cooperatorBlock}`;
+    const mapBlock = `
       <div class="map-report">${map.dataUrl ? `<img src="${attr(map.dataUrl)}" style="object-fit:${map.fit || 'contain'};object-position:${Number(map.posX ?? 50)}% ${Number(map.posY ?? 50)}%">` : '<span>Imagem de localização não informada.</span>'}</div>
-      <p class="doc-caption">Localização da propriedade sinistrada.</p>
-
+      <p class="doc-caption">Localização da propriedade sinistrada.</p>`;
+    const occurrence = `
       <div class="doc-section">2. DESCRIÇÃO DA OCORRÊNCIA</div>
-      <p class="doc-text">${esc(effectiveOccurrenceText(state))}</p>
-
+      <p class="doc-text">${esc(effectiveOccurrenceText(state))}</p>`;
+    const coverage = `
       <div class="doc-section">3. COBERTURA RECLAMADA</div>
       <div class="coverage-clean" role="table" aria-label="Cobertura reclamada">
         <div class="coverage-clean-row coverage-clean-head" role="row">
@@ -59,6 +60,7 @@
           <div role="cell">15% com mínimo<br>de ${money(3000)}</div>
         </div>
       </div>`;
+    return [local,mapBlock,occurrence,coverage];
   }
 
   function surveyRow(item) {
@@ -288,7 +290,9 @@
     const paginator = createFlowPaginator();
 
     try {
-      paginator.add(technicalStartContent(state));
+      for (const block of technicalStartBlocks(state)) {
+        paginator.add(block);
+      }
 
       const damagePrefix = `<div class="doc-section">4. APURAÇÕES DA REGULAÇÃO</div>
         <div class="doc-subsection">4.1. LEVANTAMENTOS EM VISTORIA</div>
