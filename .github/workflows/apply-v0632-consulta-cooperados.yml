@@ -39,7 +39,7 @@ jobs:
           node --check fast_track/v06/direct-word-0632.js
           grep -q 'Utilizar dados deste local' fast_track/v06/cooperators-0632.js
           grep -q 'cooperatorBaseInput' fast_track/v062.html
-          grep -q 'DADOS CONFIRMADOS DO LOCAL' fast_track/v06/direct-layout-0632.js
+          grep -q 'cooperatorBlock' fast_track/v06/direct-layout-0632.js
           grep -q 'DADOS CONFIRMADOS DO LOCAL' fast_track/v06/direct-word-0632.js
 
       - name: Commit generated revision
