@@ -1,0 +1,40 @@
+name: Fix V0632 units
+
+on:
+  push:
+    branches:
+      - feature/v0632-consulta-cooperados
+    paths:
+      - .github/workflows/fix-v0632-units.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply unit formatting fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/fix_v0632_units.py
+          node --check fast_track/v06/cooperators-0632.js
+          grep -q 'function valueWithUnit' fast_track/v06/cooperators-0632.js
+
+      - name: Commit fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/scripts/fix_v0632_units.py .github/workflows/fix-v0632-units.yml
+          git add fast_track/v06/cooperators-0632.js
+          git commit -m 'fix(v0632): preservar unidades sem duplicar valores'
+          git push origin HEAD:feature/v0632-consulta-cooperados
