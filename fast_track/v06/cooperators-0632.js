@@ -953,6 +953,7 @@
       <div class="cooperator-result-head"><div><h4>${esc(record.name || 'Nome não informado')}</h4><div class="cooperator-badges">${badges}</div></div><button class="btn primary" type="button" data-action="use-cooperator-record" data-record-id="${attr(record.id)}">Utilizar dados deste local</button></div>
       <div class="cooperator-result-grid">
         <div><span>Município</span><strong>${esc(record.municipality || 'Não informado')}</strong></div>
+        <div><span>Local / propriedade</span><strong>${esc(record.localIdentification || 'Não informado')}</strong></div>
         <div><span>Coordenadas</span><strong>${esc(coordinates)}</strong></div>
         <div><span>Instalação</span><strong>${esc(record.installationCode || `${record.installations.length || 0} registro(s)`)}</strong></div>
         <div><span>Origem / referência</span><strong>${esc(source)}</strong></div>
