@@ -1,0 +1,54 @@
+name: Apply V0632 consulta de cooperados
+
+on:
+  push:
+    branches:
+      - feature/v0632-consulta-cooperados
+    paths:
+      - .github/workflows/apply-v0632-consulta-cooperados.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate revision 0632
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp fast_track/v06/direct-app-0631.js fast_track/v06/direct-app-0632.js
+          cp fast_track/v06/direct-layout-0631.js fast_track/v06/direct-layout-0632.js
+          cp fast_track/v06/direct-layout-0631.css fast_track/v06/direct-layout-0632.css
+          cp fast_track/v06/direct-word-0631.js fast_track/v06/direct-word-0632.js
+          python3 .github/scripts/patch_v0632_module.py
+          python3 .github/scripts/patch_v0632_html.py
+          python3 .github/scripts/patch_v0632_app.py
+          python3 .github/scripts/patch_v0632_outputs.py
+          python3 .github/scripts/patch_v0632_css.py
+          node --check fast_track/v06/cooperators-0632.js
+          node --check fast_track/v06/direct-app-0632.js
+          node --check fast_track/v06/direct-layout-0632.js
+          node --check fast_track/v06/direct-word-0632.js
+          grep -q 'Utilizar dados deste local' fast_track/v06/cooperators-0632.js
+          grep -q 'cooperatorBaseInput' fast_track/v062.html
+          grep -q 'DADOS CONFIRMADOS DO LOCAL' fast_track/v06/direct-layout-0632.js
+          grep -q 'DADOS CONFIRMADOS DO LOCAL' fast_track/v06/direct-word-0632.js
+
+      - name: Commit generated revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/scripts/patch_v0632_module.py .github/scripts/patch_v0632_html.py .github/scripts/patch_v0632_app.py .github/scripts/patch_v0632_outputs.py .github/scripts/patch_v0632_css.py .github/workflows/apply-v0632-consulta-cooperados.yml
+          git add fast_track/v06.html fast_track/v062.html fast_track/v06/cooperators-0632.js fast_track/v06/direct-app-0632.js fast_track/v06/direct-layout-0632.js fast_track/v06/direct-layout-0632.css fast_track/v06/direct-word-0632.js
+          git commit -m 'feat(v0632): integrar consulta local de cooperados'
+          git push origin HEAD:feature/v0632-consulta-cooperados
