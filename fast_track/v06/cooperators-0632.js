@@ -996,12 +996,16 @@
     return `<div><label class="field">${esc(label)}</label>${element}</div>`;
   }
 
+  function installationFieldInput(label,key,value) {
+    return `<div><label class="field">${esc(label)}</label><input data-installation-field="${attr(key)}" value="${attr(value || '')}"></div>`;
+  }
+
   function installationCard(item,index,total) {
     return `<div class="cooperator-installation-card" data-installation-id="${attr(item.id)}">
       <div class="dynamic-head"><label class="cooperator-installation-check"><input type="checkbox" data-installation-field="involved" ${item.involved ? 'checked' : ''}> Relacionada ao sinistro</label><button class="small-btn danger" type="button" data-action="remove-cooperator-installation" data-installation-id="${attr(item.id)}">Remover</button></div>
-      <div class="grid2">${fieldInput('Código ou identificação','code',item.code)}${fieldInput('Tipo de instalação','type',item.type)}</div>
-      <div class="grid2">${fieldInput('Área ou metragem','area',item.area)}${fieldInput('Unidade da área','areaUnit',item.areaUnit)}</div>
-      <div class="grid2">${fieldInput(item.capacityConcept || 'Capacidade/quantidade','capacity',item.capacity)}${fieldInput('Unidade / conceito','capacityUnit',item.capacityUnit)}</div>
+      <div class="grid2">${installationFieldInput('Código ou identificação','code',item.code)}${installationFieldInput('Tipo de instalação','type',item.type)}</div>
+      <div class="grid2">${installationFieldInput('Área ou metragem','area',item.area)}${installationFieldInput('Unidade da área','areaUnit',item.areaUnit)}</div>
+      <div class="grid2">${installationFieldInput(item.capacityConcept || 'Capacidade/quantidade','capacity',item.capacity)}${installationFieldInput('Unidade / conceito','capacityUnit',item.capacityUnit)}</div>
       ${total > 1 && !item.involved ? '<p class="helper">Marque somente as instalações relacionadas ao evento.</p>' : ''}
     </div>`;
   }
@@ -1040,11 +1044,11 @@
     </div>`;
   }
 
-  function selectionChanged({autofill=true}={}) {
+  function selectionChanged({autofill=true,renderNow=false}={}) {
     const state = controller.getState();
     if (state.cooperatorSelection) state.cooperatorSelection.updatedAt = new Date().toISOString();
     controller.onSelectionChanged(state.cooperatorSelection,{autofill});
-    renderSelection();
+    if (renderNow) renderSelection();
   }
 
   async function importHtmlFile(file) {
@@ -1106,12 +1110,12 @@
         const selection = controller.getState().cooperatorSelection;
         if (!selection) return;
         selection.confirmed.installations.push(normalizeInstallation({id:stableId(`manual:${Date.now()}`),involved:true},selection.confirmed.installations.length));
-        selectionChanged({autofill:false});
+        selectionChanged({autofill:false,renderNow:true});
       } else if (action === 'remove-cooperator-installation') {
         const selection = controller.getState().cooperatorSelection;
         if (!selection) return;
         selection.confirmed.installations = selection.confirmed.installations.filter((item) => item.id !== button.dataset.installationId);
-        selectionChanged({autofill:false});
+        selectionChanged({autofill:false,renderNow:true});
       }
     });
 
