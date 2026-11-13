@@ -153,6 +153,17 @@
     return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(parsed.value);
   }
 
+  function valueWithUnit(value, unit) {
+    const source = String(value == null ? '' : value).trim();
+    const suffix = String(unit == null ? '' : unit).trim();
+    if (!source) return 'Não informado';
+    if (!suffix) return source;
+    const normalizedSource = normalizeText(source);
+    const normalizedSuffix = normalizeText(suffix);
+    if (normalizedSuffix && (normalizedSource === normalizedSuffix || normalizedSource.endsWith(` ${normalizedSuffix}`))) return source;
+    return `${source} ${suffix}`;
+  }
+
   function parseLocaleNumber(value) {
     if (typeof value === 'number' && Number.isFinite(value)) return {value,ambiguous:false,raw:String(value)};
     const raw = String(value == null ? '' : value).trim();
@@ -876,16 +887,16 @@
     if (!selection) return null;
     const c = selection.confirmed;
     const coordinates = [c.latitude,c.longitude].filter((value) => String(value || '').trim()).join(' / ') || 'Não informado';
-    const area = [c.area,c.areaUnit].filter(Boolean).join(' ') || 'Não informado';
-    const capacity = [c.capacity,c.capacityUnit].filter(Boolean).join(' ') || 'Não informado';
+    const area = valueWithUnit(c.area,c.areaUnit);
+    const capacity = valueWithUnit(c.capacity,c.capacityUnit);
     const sourceParts = [selection.source?.baseLabel || [c.cooperative,c.activity].filter(Boolean).join(' — '),c.sourceCategory && `Origem: ${c.sourceCategory}`,c.sourceReference && `Referência: ${c.sourceReference}`,c.situation && `Situação: ${c.situation}`].filter(Boolean);
     const version = selection.baseVersion?.versionLabel || selection.baseVersion?.fileName || 'Não informado';
     const installations = (c.installations || []).filter((item) => item.involved).map((item,index) => ({
       index:index + 1,
       code:notInformed(item.code),
       type:notInformed(item.type),
-      area:[item.area,item.areaUnit].filter(Boolean).join(' ') || 'Não informado',
-      capacity:[item.capacity,item.capacityUnit].filter(Boolean).join(' ') || 'Não informado',
+      area:valueWithUnit(item.area,item.areaUnit),
+      capacity:valueWithUnit(item.capacity,item.capacityUnit),
       capacityConcept:notInformed(item.capacityConcept)
     }));
     return {
