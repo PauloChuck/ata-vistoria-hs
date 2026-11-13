@@ -1,0 +1,130 @@
+name: Validate V0632 consulta de cooperados
+
+on:
+  push:
+    branches:
+      - feature/v0632-consulta-cooperados
+    paths:
+      - .github/workflows/validate-v0632-consulta-cooperados.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Static checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check fast_track/v06/cooperators-0632.js
+          node --check fast_track/v06/direct-app-0632.js
+          node --check fast_track/v06/direct-layout-0632.js
+          node --check fast_track/v06/direct-word-0632.js
+          node --check .github/scripts/validate_v0632.js
+          test "$(grep -c 'id=\"cooperatorBaseInput\"' fast_track/v062.html)" -eq 1
+          test "$(grep -c 'id=\"cooperatorSearch\"' fast_track/v062.html)" -eq 1
+          grep -q 'class LiteralParser' fast_track/v06/cooperators-0632.js
+          grep -q 'Utilizar dados deste local' fast_track/v06/cooperators-0632.js
+          grep -q 'VR de benfeitorias' fast_track/v06/cooperators-0632.js
+          grep -q 'VR de animais' fast_track/v06/cooperators-0632.js
+          ! grep -Eq 'eval\s*\(|new Function\s*\(' fast_track/v06/cooperators-0632.js
+
+      - name: Prepare browser and document tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/v0632-node /tmp/v0632-validation
+          cd /tmp/v0632-node
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.56.1
+          CHROME_PATH="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          if ! command -v libreoffice >/dev/null 2>&1 || ! command -v pdftotext >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y libreoffice-writer poppler-utils
+          fi
+
+      - name: Browser acceptance and exports
+        shell: bash
+        env:
+          V0632_OUT: /tmp/v0632-validation
+        run: |
+          set -euo pipefail
+          python3 -m http.server 8000 --bind 127.0.0.1 >"$V0632_OUT/http.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          sleep 2
+          NODE_PATH=/tmp/v0632-node/node_modules node .github/scripts/validate_v0632.js
+
+      - name: Validate Word and PDF contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/v0632-validation
+          DOCX="$OUT/Relatorio_Fast_Track_V0632.docx"
+          PDF_BROWSER="$OUT/Relatorio_Fast_Track_V0632.pdf"
+          test -s "$DOCX"
+          test -s "$PDF_BROWSER"
+          unzip -t "$DOCX"
+          mkdir -p "$OUT/docx" "$OUT/render" "$OUT/lo-profile"
+          unzip -q "$DOCX" -d "$OUT/docx"
+          pdftotext -layout "$PDF_BROWSER" "$OUT/browser.txt"
+          libreoffice -env:UserInstallation="file://$OUT/lo-profile" --headless --convert-to pdf --outdir "$OUT/render" "$DOCX"
+          PDF_WORD=$(find "$OUT/render" -maxdepth 1 -name '*.pdf' -print -quit)
+          test -s "$PDF_WORD"
+          pdftotext -layout "$PDF_WORD" "$OUT/word.txt"
+          pdftoppm -png -r 105 "$PDF_WORD" "$OUT/render/page" >/dev/null 2>&1
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, re
+          out=Path('/tmp/v0632-validation')
+          browser=(out/'browser.txt').read_text(encoding='utf-8',errors='ignore')
+          word=(out/'word.txt').read_text(encoding='utf-8',errors='ignore')
+          xml=(out/'docx/word/document.xml').read_text(encoding='utf-8',errors='ignore')
+          def norm(value): return re.sub(r'\s+',' ',value).strip().upper()
+          required=['DADOS CONFIRMADOS DO LOCAL','JOSÉ DA SILVA','LINHA ALFA — PROPRIEDADE CONFIRMADA','VR DE BENFEITORIAS','1.250.000,00','VR DE ANIMAIS','250.000,00','AURORA — AVES DE CORTE','BASE 2026-10','AV-01','VERSÃO DA BASE UTILIZADA']
+          forbidden=['AV-02','LINHA LAR','ENDOSSO 018/2026','9.999.999,00']
+          for name,source in [('PDF do navegador',browser),('PDF do Word',word)]:
+              value=norm(source)
+              for item in required:
+                  if norm(item) not in value: raise SystemExit(f'{name}: conteúdo ausente: {item}')
+              for item in forbidden:
+                  if norm(item) in value: raise SystemExit(f'{name}: conteúdo não selecionado presente: {item}')
+              if value.count('VR DE BENFEITORIAS') != 1 or value.count('VR DE ANIMAIS') != 1:
+                  raise SystemExit(f'{name}: VRs ausentes ou duplicados')
+          xmln=norm(xml)
+          for item in ['DADOS CONFIRMADOS DO LOCAL','VR DE BENFEITORIAS','VR DE ANIMAIS','AV-01']:
+              if norm(item) not in xmln: raise SystemExit(f'OOXML: conteúdo ausente: {item}')
+          result=json.loads((out/'browser-result.json').read_text(encoding='utf-8'))
+          assert result['baseCounts']['aurora'] == 3
+          assert result['baseCounts']['lar'] == 1
+          assert result['backupSelection']['confirmed']['vrBuildings'] == 'R$ 1.250.000,00'
+          assert result['backupSelection']['original']['vrBuildings'] == 'R$ 1.200.000,00'
+          assert len([i for i in result['backupSelection']['confirmed']['installations'] if i['involved']]) == 1
+          pages=list((out/'render').glob('page-*.png'))
+          summary=(
+              f"Bases reconhecidas: {len(result['baseCounts'])}\n"
+              f"Registros Aurora: {result['baseCounts']['aurora']}\n"
+              f"Páginas da prévia: {result['preview']['pages']}\n"
+              f"Instalações selecionadas: 1 de 2\n"
+              f"VR de benfeitorias e animais separados: sim\n"
+              f"Atualização da base preservou o relatório confirmado: sim\n"
+              f"Páginas renderizadas do Word: {len(pages)}\n"
+          )
+          (out/'validation-summary.txt').write_text(summary,encoding='utf-8')
+          print(summary)
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fast-track-v0632-validation
+          path: /tmp/v0632-validation
+          if-no-files-found: warn
