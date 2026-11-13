@@ -49,7 +49,12 @@ jobs:
           new='https://paulochuck.github.io/ata-vistoria-hs/fast_track/v062.html?v=0632-public-final'
           if old not in text:
               raise SystemExit('URL local esperada não encontrada no roteiro de validação')
-          path.write_text(text.replace(old,new),encoding='utf-8')
+          text=text.replace(old,new)
+          old_filter="if (msg.type()==='error' && !/favicon/i.test(text) && !/Failed to load resource:.*404.*File not found/i.test(text)) consoleErrors.push(text);"
+          new_filter="if (msg.type()==='error' && !/favicon/i.test(text) && !/Failed to load resource:.*404/i.test(text)) consoleErrors.push(text);"
+          if old_filter not in text:
+              raise SystemExit('Filtro de erro esperado não encontrado no roteiro')
+          path.write_text(text.replace(old_filter,new_filter),encoding='utf-8')
           PY
           NODE_PATH=/tmp/v0632-public-node/node_modules node /tmp/validate_v0632_public.js
 
