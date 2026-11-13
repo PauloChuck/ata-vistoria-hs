@@ -1,4 +1,4 @@
-name: Validate V0632 final V2
+name: Validate V0632 final V3
 
 on:
   push:
@@ -92,6 +92,7 @@ jobs:
           xml = (out / 'docx/word/document.xml').read_text(encoding='utf-8', errors='ignore')
 
           def norm(value):
+              value = re.sub(r'(?<=\w)-\s+(?=\w)', '-', value)
               return re.sub(r'\s+', ' ', value).strip().upper()
 
           required = [
@@ -146,6 +147,8 @@ jobs:
           assert not result['pageErrors'] and not result['consoleErrors'] and not result['httpErrors']
 
           pages = list((out / 'render').glob('page-*.png'))
+          if not pages:
+              raise SystemExit('Nenhuma página foi renderizada a partir do Word')
           summary = (
               f"Bases reconhecidas: {len(result['baseCounts'])}\n"
               f"Registros totais do teste: {sum(result['baseCounts'].values())}\n"
@@ -163,6 +166,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: fast-track-v0632-validation-final-v2
+          name: fast-track-v0632-validation-final-v3
           path: /tmp/v0632-validation
           if-no-files-found: warn
