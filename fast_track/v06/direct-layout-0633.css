@@ -1,0 +1,293 @@
+/* Revisão 0629 — apresentação sem grades nas quatro seções aprovadas */
+.coverage-clean{
+  width:100%;
+  margin:2mm 0;
+  border-top:.5pt solid #555;
+  border-bottom:.5pt solid #555;
+  font-size:10pt;
+}
+.coverage-clean-row{
+  display:grid;
+  grid-template-columns:minmax(0,44fr) minmax(0,28fr) minmax(0,28fr);
+  align-items:stretch;
+}
+.coverage-clean-head{
+  border-bottom:.5pt solid #555;
+  font-weight:700;
+}
+.coverage-clean-row>div{
+  min-width:0;
+  padding:2.8mm 2mm;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  line-height:1.35;
+  overflow-wrap:anywhere;
+}
+.coverage-clean-row>div:first-child{
+  justify-content:flex-start;
+  text-align:left;
+}
+
+.survey-damage-list{
+  display:flex;
+  flex-direction:column;
+  gap:2.2mm;
+  margin:1mm 0 2mm;
+}
+.survey-damage-row{
+  display:grid;
+  grid-template-columns:26mm minmax(0,1fr) 34mm;
+  column-gap:4mm;
+  align-items:start;
+  padding:1mm 0;
+  line-height:1.35;
+  break-inside:avoid;
+  page-break-inside:avoid;
+}
+.survey-damage-quantity{
+  text-align:center;
+  font-weight:700;
+  white-space:normal;
+}
+.survey-damage-description{
+  min-width:0;
+  text-align:left;
+  overflow-wrap:anywhere;
+}
+.survey-damage-age{
+  text-align:right;
+  color:#444;
+  white-space:normal;
+}
+
+.indemnity-clean-head,
+.indemnity-clean-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 30mm 34mm 34mm;
+  column-gap:3mm;
+  align-items:center;
+}
+.indemnity-clean-head{
+  border-bottom:.5pt solid #555;
+  padding:0 0 1.6mm;
+  margin-top:1mm;
+  font-size:9.5pt;
+  font-weight:700;
+  line-height:1.25;
+}
+.indemnity-clean-head>div:first-child{text-align:left}
+.indemnity-clean-head>div:nth-child(2){text-align:center}
+.indemnity-clean-head>div:nth-child(3),
+.indemnity-clean-head>div:nth-child(4){text-align:right}
+.indemnity-clean-body{
+  display:flex;
+  flex-direction:column;
+  gap:0;
+}
+.indemnity-clean-row{
+  min-height:9mm;
+  padding:1.7mm 0;
+  font-size:9.5pt;
+  line-height:1.3;
+  break-inside:avoid;
+  page-break-inside:avoid;
+}
+.indemnity-clean-description{
+  min-width:0;
+  text-align:left;
+  overflow-wrap:anywhere;
+}
+.indemnity-clean-description small{
+  display:block;
+  margin-top:.7mm;
+  color:#555;
+  font-size:9pt;
+  line-height:1.2;
+}
+.indemnity-clean-quantity{text-align:center}
+.indemnity-clean-money{text-align:right;white-space:nowrap}
+.financial-summary-clean{
+  border-top:.5pt solid #555;
+  margin-top:2mm;
+  padding-top:1.7mm;
+}
+.financial-summary-row{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:8mm;
+  padding:1.1mm 0;
+  line-height:1.3;
+}
+.financial-summary-row span{text-align:left}
+.financial-summary-row strong{text-align:right;white-space:nowrap}
+.financial-summary-net,
+.financial-summary-net strong{
+  color:#29a8e0;
+  font-weight:800;
+}
+
+.chronology-clean{
+  width:100%;
+  margin:2mm 0;
+  border-top:.5pt solid #555;
+}
+.chronology-clean-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 38mm;
+  column-gap:6mm;
+  align-items:center;
+  border-bottom:.5pt solid #555;
+  padding:1.8mm 0;
+  line-height:1.3;
+  break-inside:avoid;
+  page-break-inside:avoid;
+}
+.chronology-clean-row>div:first-child{text-align:left}
+.chronology-clean-row>div:last-child{text-align:right;white-space:nowrap}
+
+/* Revisão 0630 — parecer 4.2, evidências da causa e fluxo da galeria */
+.photo-add-button{
+  margin-top:14px;
+}
+.opinion-evidence-panel{
+  border-top:1px solid var(--line);
+  padding-top:2px;
+}
+.opinion-evidence-panel h4{
+  font-size:15px;
+  margin:22px 0 6px;
+  color:var(--text);
+}
+.cause-evidence-list{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:14px;
+  margin-top:14px;
+}
+.cause-evidence-list>.notice{
+  grid-column:1/-1;
+  margin:0;
+}
+.cause-evidence-card{
+  border:1px solid var(--line);
+  border-radius:15px;
+  padding:12px;
+  background:#fbfcfd;
+  min-width:0;
+}
+.cause-evidence-thumb{
+  display:block;
+  width:100%;
+  height:230px;
+  object-fit:contain;
+  background:#e8edf0;
+  border-radius:10px;
+  margin-top:10px;
+}
+.cause-evidence-file{
+  min-height:150px;
+  margin-top:10px;
+  border:1px dashed #b8c7d0;
+  border-radius:10px;
+  background:#fff;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  padding:16px;
+  text-align:center;
+  overflow-wrap:anywhere;
+}
+.cause-evidence-file>span{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:52px;
+  min-height:38px;
+  padding:6px 9px;
+  border-radius:9px;
+  background:#e7f5fb;
+  color:var(--primary-dark);
+  font-weight:900;
+  font-size:12px;
+}
+.cause-evidence-file strong{overflow-wrap:anywhere}
+.cause-evidence-file small{color:var(--muted);overflow-wrap:anywhere}
+.cause-evidence-card textarea{min-height:82px}
+
+.cause-evidence-heading{
+  margin-top:7mm;
+}
+.cause-evidence-row-report{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:5mm;
+  margin:1mm 0 5mm;
+  break-inside:avoid;
+  page-break-inside:avoid;
+}
+.cause-evidence-cell-report{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start;
+  break-inside:avoid;
+  page-break-inside:avoid;
+}
+.cause-evidence-cell-report img{
+  display:block;
+  width:100%;
+  height:66mm;
+  object-fit:contain;
+  background:#fff;
+}
+.cause-evidence-cell-report .doc-caption{
+  min-height:9mm;
+}
+.cause-evidence-file-report{
+  padding:2mm 0;
+  border-bottom:.5pt solid #aaa;
+  line-height:1.35;
+  break-inside:avoid;
+  page-break-inside:avoid;
+}
+.cause-evidence-file-report strong,
+.cause-evidence-file-report span{
+  display:block;
+  overflow-wrap:anywhere;
+}
+.cause-evidence-file-report span{
+  margin-top:.8mm;
+  color:#444;
+  font-size:10pt;
+}
+
+@media(max-width:760px){
+  .cause-evidence-list{grid-template-columns:1fr}
+}
+.cause-evidence-row-report.single{grid-template-columns:1fr}
+.cause-evidence-row-report.single .cause-evidence-cell-report{width:100%;max-width:130mm;margin:0 auto}
+
+/* Revisão 0632 — consulta local de cooperados e dados confirmados do risco */
+.cooperator-lookup-panel{border:1px solid var(--line);border-radius:18px;background:#f8fbfc;padding:18px;margin:20px 0}
+.cooperator-lookup-head{align-items:center}.cooperator-lookup-head .file-button{white-space:nowrap}
+.cooperator-base-status{margin:14px 0;padding:13px 15px;border-left:4px solid var(--primary);background:#fff;border-radius:10px;line-height:1.45}
+.cooperator-base-status span,.cooperator-base-status small,.cooperator-base-status p{display:block;margin-top:4px;color:var(--muted)}.cooperator-base-status p{margin-bottom:0;font-size:12px}.cooperator-base-warnings{margin-top:8px}.cooperator-base-warnings ul{margin:8px 0 0;padding-left:20px}
+.cooperator-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px}.cooperator-result-card{border:1px solid var(--line);border-radius:15px;background:#fff;padding:14px;min-width:0}
+.cooperator-result-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.cooperator-result-head h4{margin:0 0 7px;font-size:16px;overflow-wrap:anywhere}.cooperator-result-head .btn{flex:0 0 auto}.cooperator-badges{display:flex;flex-wrap:wrap;gap:6px}.cooperator-badge{display:inline-flex;padding:4px 8px;border-radius:999px;background:#e7f5fb;color:var(--primary-dark);font-size:11px;font-weight:800}
+.cooperator-result-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:13px}.cooperator-result-grid div{min-width:0}.cooperator-result-grid span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}.cooperator-result-grid strong{display:block;margin-top:3px;font-size:13px;overflow-wrap:anywhere}.cooperator-result-warning{margin-top:12px;padding:9px 10px;border-radius:9px;background:#fff8e9;color:#785316;font-size:12px}
+.cooperator-selected-host{margin-top:18px}.cooperator-selected{border-top:1px solid var(--line);padding-top:18px}.cooperator-installations-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin:18px 0 10px}.cooperator-installations-head h4{margin:0}.cooperator-installation-card{border:1px solid var(--line);border-radius:14px;background:#fff;padding:13px;margin:10px 0}.cooperator-installation-check{font-weight:800;display:flex;align-items:center;gap:8px}
+.cooperator-original{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:#fff;padding:10px 12px}.cooperator-original summary{cursor:pointer;font-weight:800}.cooperator-original-meta{display:flex;justify-content:space-between;gap:12px;margin:10px 0;color:var(--muted)}.cooperator-original pre{max-height:320px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#f5f7f8;padding:12px;border-radius:9px;font-size:11px}
+.location-data-block{margin:2mm 0 4mm;break-inside:auto;page-break-inside:auto}.location-data-row{display:grid;grid-template-columns:48mm minmax(0,1fr);column-gap:5mm;align-items:start;padding:.8mm 0;line-height:1.35;break-inside:avoid;page-break-inside:avoid}.location-data-row strong{text-align:left}.location-data-row span{text-align:left;overflow-wrap:anywhere}.location-installations{margin-top:2mm;line-height:1.35}.location-installation-item{display:grid;grid-template-columns:7mm minmax(0,1fr);gap:2mm;padding:1mm 0;break-inside:avoid;page-break-inside:avoid}.location-installation-item small{color:#444;font-size:9.5pt}.location-source-note{margin:2mm 0 0;text-align:left;font-size:9.5pt;color:#444}
+@media(max-width:900px){.cooperator-results{grid-template-columns:1fr}.cooperator-result-head,.cooperator-installations-head{flex-direction:column}.cooperator-result-head .btn{width:100%}}@media(max-width:620px){.cooperator-result-grid{grid-template-columns:1fr}.cooperator-lookup-panel{padding:13px}.cooperator-original-meta{flex-direction:column}}
+
+/* Revisão 0633 — leitura explícita das seis bases e associações controladas */
+.cooperator-reference-card{background:#f7f8fa;border-style:dashed}.cooperator-reference-card .cooperator-result-head .btn:disabled{opacity:.7;cursor:not-allowed}
+.cooperator-related{margin:18px 0}.cooperator-related-card{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;border:1px solid var(--line);border-radius:13px;background:#fff;padding:12px;margin:9px 0}.cooperator-related-card>div:first-child{min-width:0}.cooperator-related-card strong,.cooperator-related-card span,.cooperator-related-card small{display:block;overflow-wrap:anywhere}.cooperator-related-card span{margin-top:4px;color:var(--muted);font-size:12px}.cooperator-related-card small{margin-top:5px;color:#555}.cooperator-related-card .small-actions{justify-content:flex-end;flex:0 1 52%}
+.cooperator-extra-field{min-width:0}.cooperator-extra-action{display:flex;gap:8px;align-items:stretch}.cooperator-extra-action input{min-width:0;flex:1}.cooperator-extra-action .small-btn{flex:0 0 auto;max-width:220px;white-space:normal}
+@media(max-width:760px){.cooperator-related-card,.cooperator-extra-action{flex-direction:column}.cooperator-related-card .small-actions,.cooperator-extra-action .small-btn{width:100%;max-width:none}.cooperator-related-card .small-actions{flex-basis:auto}}
