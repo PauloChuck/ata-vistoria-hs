@@ -27,7 +27,7 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          import base64, binascii, gzip, io, struct, tarfile, zlib
+          import base64, binascii, io, struct, tarfile, zlib
 
           root=Path('.github/v0633-payload')
           read=lambda name:(root/name).read_text(encoding='utf-8').strip()
@@ -64,7 +64,6 @@ jobs:
               'fast_track/v06/cooperators-0633.js',
               'fast_track/v06/direct-layout-0633.css',
               'fast_track/v062.html',
-              '.github/scripts/validate_v0633.js',
           }
           with tarfile.open(fileobj=io.BytesIO(payload),mode='r:') as tar:
               members=tar.getmembers()
@@ -84,7 +83,6 @@ jobs:
 
           test -f fast_track/v06/cooperators-0633.js
           node --check fast_track/v06/cooperators-0633.js
-          node --check .github/scripts/validate_v0633.js
           grep -q 'registrosEndosso' fast_track/v06/cooperators-0633.js
           grep -q 'larPostura' fast_track/v06/cooperators-0633.js
           grep -q 'qtdeLotacao' fast_track/v06/cooperators-0633.js
@@ -92,6 +90,7 @@ jobs:
           grep -q 'cooperators-0633.js?v=0633' fast_track/v062.html
           grep -q 'direct-layout-0633.css?v=0633' fast_track/v062.html
 
+          rm -f .github/scripts/validate_v0633.js
           rm -rf .github/v0633-payload .github/workflows/bootstrap-v0633.yml .github/workflows/diagnose-v0633.yml
 
       - name: Commit implementation
