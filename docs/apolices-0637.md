@@ -1,5 +1,7 @@
 # Apólices e Coberturas — V0.6.3.7
 
+Documento histórico. A seleção operacional foi substituída pelo [fluxo rápido da V0.6.3.8](apolices-0638.md), sem exigir confirmação de vínculo individual para aplicar a apólice.
+
 O atendimento passa a usar uma versão contratual própria. A escolha da propriedade e a data do sinistro só preenchem o contrato automaticamente quando existe um único vínculo individual confirmado e temporalmente compatível. Grupo, cooperativa afiliada, contratante e cooperado são campos distintos.
 
 ## Uso
