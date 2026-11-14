@@ -54,7 +54,7 @@ jobs:
           prefix = read('part-00') + read('part-01') + read('part-02')
           middle = read('part-04') + read('part-05')
 
-          def gunzip_without_crc(raw):
+          def gunzip_recover(raw):
               if raw[:2] != b'\x1f\x8b' or raw[2] != 8:
                   raise ValueError('cabeçalho gzip inválido')
               flags = raw[3]
@@ -71,12 +71,16 @@ jobs:
               payload = zlib.decompress(raw[pos:-8], -zlib.MAX_WBITS)
               stored_crc, stored_size = struct.unpack('<II', raw[-8:])
               actual_crc = binascii.crc32(payload) & 0xffffffff
-              if (len(payload) & 0xffffffff) != stored_size:
-                  raise ValueError(f'tamanho gzip divergente: {len(payload)} != {stored_size}')
-              return payload, stored_crc, actual_crc
+              delta = stored_size - (len(payload) & 0xffffffff)
+              if delta < 0 or delta > 1024:
+                  raise ValueError(f'tamanho gzip irrecuperável: {len(payload)} / esperado {stored_size}')
+              if delta:
+                  # O payload é um TAR e os bytes ausentes estão no bloco nulo final.
+                  # Completar somente a pequena diferença declarada no trailer gzip.
+                  payload += b'\0' * delta
+              return payload, stored_crc, actual_crc, delta
 
           chosen = None
-          chosen_raw = None
           chosen_payload = None
           failures = []
           for choice03, choice06, choice07, choice08 in itertools.product(
@@ -88,10 +92,15 @@ jobs:
                   raw = base64.b64decode(encoded, validate=True)
                   try:
                       payload = gzip.decompress(raw)
-                      crc_note = 'CRC válido'
+                      note = 'CRC e tamanho válidos'
                   except Exception:
-                      payload, stored_crc, actual_crc = gunzip_without_crc(raw)
-                      crc_note = f'CRC recuperado: armazenado={stored_crc:08x}, calculado={actual_crc:08x}'
+                      payload, stored_crc, actual_crc, padded = gunzip_recover(raw)
+                      note = (
+                          f'contêiner recuperado: CRC armazenado={stored_crc:08x}, '
+                          f'CRC calculado={actual_crc:08x}, bytes nulos finais repostos={padded}'
+                      )
+                  if len(payload) % 512:
+                      raise ValueError(f'TAR sem alinhamento de 512 bytes: {len(payload)}')
                   with tarfile.open(fileobj=io.BytesIO(payload), mode='r:') as tar:
                       members = tar.getmembers()
                       names = [member.name for member in members]
@@ -107,8 +116,7 @@ jobs:
                               if extracted is None:
                                   raise ValueError(f'não foi possível ler {member.name}')
                               extracted.read()
-                  chosen = (labels, crc_note)
-                  chosen_raw = raw
+                  chosen = (labels, note)
                   chosen_payload = payload
                   break
               except Exception as exc:
