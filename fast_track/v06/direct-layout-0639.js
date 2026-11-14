@@ -43,8 +43,8 @@
     const occurrence = `
       <div class="doc-section">2. DESCRIÇÃO DA OCORRÊNCIA</div>
       <p class="doc-text">${esc(effectiveOccurrenceText(state))}</p>`;
-    const coverage = window.FastTrackPolicies.reportRows(state).map(([label,value],i)=>({policy:true,title:i===0?'3. COBERTURA RECLAMADA':'',label,value}));
-    return [{local,card},mapBlock,occurrence,...coverage];
+    const coverage = {policy:true,rows:window.FastTrackPolicies.reportRows(state)};
+    return [{local,card},mapBlock,occurrence,coverage];
   }
 
   function surveyRow(item) {
@@ -276,7 +276,14 @@
 
     try {
       for (const block of technicalStartBlocks(state)) {
-        if (block.policy) { paginator.addTextSection(`${block.title ? `<div class="doc-section">${esc(block.title)}</div>` : ''}<div class="policy-report-title">${esc(block.label)}</div>`,block.value);continue; }
+        if (block.policy) {
+          const header='<div class="coverage-report-row coverage-report-header" role="row"><div role="columnheader">Cobertura</div><div role="columnheader">Limite de Indenização</div><div role="columnheader">Franquia</div></div>';
+          const prefix=`<div class="doc-section">3. COBERTURA RECLAMADA</div>${header}`;
+          const rows=block.rows.map(row=>`<div class="coverage-report-row" role="row">${row.map(value=>`<div role="cell">${esc(value)}</div>`).join('')}</div>`);
+          if (rows.length) paginator.addRecordList({prefix,continuationPrefix:prefix,rows,wrapClass:'coverage-report-table'});
+          else paginator.add(prefix);
+          continue;
+        }
         if (typeof block === 'string') { paginator.add(block); continue; }
         const {local,card} = block;
         if (!card) { paginator.add(local); continue; }

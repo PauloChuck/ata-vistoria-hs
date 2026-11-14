@@ -333,9 +333,17 @@
     } else technical.push(para('Imagem de localização não informada.',{alignment:AlignmentType.CENTER}));
     technical.push(heading('2. DESCRIÇÃO DA OCORRÊNCIA'),...narrativeParagraphs(REPORT().effectiveOccurrenceText(state)),heading('3. COBERTURA RECLAMADA'));
 
-    for (const [label,value] of window.FastTrackPolicies.reportRows(state)) {
-      technical.push(para(label,{bold:true,keepNext:true}),...narrativeParagraphs(value));
-    }
+    const coverageRows=window.FastTrackPolicies.reportRows(state);
+    const coverageCells=(values,header=false)=>values.map((value,index)=>tcell(String(value).split('\n'),{
+      width:[40,30,30][index],align:index===0?AlignmentType.LEFT:AlignmentType.CENTER,
+      bold:header,keepNext:header && coverageRows.length>0,border:horizontalBorder({bottom:true}),
+      size:22,line:270,margins:{top:100,bottom:100,left:80,right:80}
+    }));
+    technical.push(new Table({width:{size:9072,type:WidthType.DXA},layout:TableLayoutType.FIXED,
+      columnWidths:[3628,2722,2722],borders:noBorder,rows:[
+        new TableRow({tableHeader:true,cantSplit:true,children:coverageCells(['Cobertura','Limite de Indenização','Franquia'],true)}),
+        ...coverageRows.map(row=>new TableRow({cantSplit:true,children:coverageCells(row)}))
+      ]}));
 
     technical.push(heading('4. APURAÇÕES DA REGULAÇÃO'),subheading('4.1. LEVANTAMENTOS EM VISTORIA'),...narrativeParagraphs(REPORT().effectiveInspectionText(state)),subheading('RELAÇÃO DE DANOS:'));
     const damageItems = state.damages || [];

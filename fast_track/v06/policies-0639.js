@@ -73,6 +73,12 @@
   const insureds = r => [...new Map(activeVersions(r).map(v=>[insuredKey(v.data),{key:insuredKey(v.data),name:v.data.operacao.segurado_razao_social,group:v.data.operacao.empresa_grupo_exibicao,cnpj:v.data.operacao.segurado_cnpj}])).values()];
   const current = s => s.contract || null;
   const selected = s => { const c=current(s); return c ? c.data.coberturas.filter(x=>(c.coverageIds || []).includes(x.id)) : []; };
+  const selectedSublimits = s => { const c=current(s); return c ? c.data.sublimites.filter(x=>(c.sublimitIds || []).includes(x.id)) : []; };
+  const displayName = c => text(c.nome_sugerido_seletor) || text(c.nome_contratual);
+  function updateCoverageName(state) {
+    state.fields.coverageName=[...selected(state),...selectedSublimits(state)].map(displayName).join('; ');
+    state.contract.autoFields.coverageName=state.fields.coverageName;
+  }
   function clearAutomatic(state) {
     const c=state.contract;
     for (const k of contractFields) state.fields[k]='';
@@ -89,7 +95,7 @@
     const o=data.operacao,values={companyGroup:o.empresa_grupo_exibicao,affiliatedCooperative:o.cooperativa_afiliada || '',insured:o.segurado_razao_social,insuredCnpj:o.segurado_cnpj,insurer:o.seguradora_lider,policyNumber:o.numero_apolice,productName:o.produto || '',coverageName:''};
     Object.assign(state.fields,values);
     state.policyInsuredKey=insuredKey(data);
-    state.contract={schemaVersion:2,id:version.id,versionId:version.versionId,savedAt:version.savedAt,appliedAt:new Date().toISOString(),selection:{mode:'case_choice',source,insuredKey:state.policyInsuredKey},data,documents:(version.pdfs || []).map(p=>({documentId:p.documentId,name:p.name,sha256:p.sha256})),coverageIds:[],autoFields:copy(values),manualFields:{},review:{},cause:''};
+    state.contract={schemaVersion:2,id:version.id,versionId:version.versionId,savedAt:version.savedAt,appliedAt:new Date().toISOString(),selection:{mode:'case_choice',source,insuredKey:state.policyInsuredKey},data,documents:(version.pdfs || []).map(p=>({documentId:p.documentId,name:p.name,sha256:p.sha256})),coverageIds:[],sublimitIds:[],autoFields:copy(values),manualFields:{},review:{},cause:''};
     return state.contract;
   }
   function selectInsured(state,registry,key) {
@@ -105,9 +111,14 @@
     const c=current(state); if (!c) throw Error('Selecione uma apólice.');
     const accepted=unique(ids).filter(id=>c.data.coberturas.some(x=>x.id===id));
     c.coverageIds=accepted; c.review={};
-    state.fields.coverageName=selected(state).map(x=>x.nome_contratual).join('; ');
-    c.autoFields.coverageName=state.fields.coverageName;
+    updateCoverageName(state);
     for (const d of state.damages || []) { if (!accepted.includes(d.coverageId)) d.coverageId=''; d.sublimitId=''; }
+  }
+
+  function chooseSublimits(state,ids) {
+    const c=current(state); if (!c) throw Error('Selecione uma apólice.');
+    c.sublimitIds=unique(ids).filter(id=>c.data.sublimites.some(x=>x.id===id));
+    updateCoverageName(state);
   }
 
   function normalizeSnapshot(snapshot) {
@@ -115,6 +126,9 @@
     const c=copy(snapshot);c.data=validate(c.data);
     if (![1,2].includes(c.schemaVersion) || !c.versionId || !Array.isArray(c.coverageIds) || !Array.isArray(c.documents)) throw Error('Versão contratual do atendimento inválida.');
     if (c.id!==c.data.operacao.id || c.coverageIds.some(id=>!c.data.coberturas.some(x=>x.id===id))) throw Error('Cobertura da versão contratual inválida.');
+    if (c.sublimitIds==null) c.sublimitIds=[];
+    if (!Array.isArray(c.sublimitIds) || c.sublimitIds.some(id=>!c.data.sublimites.some(x=>x.id===id))) throw Error('Sublimite da versão contratual inválido.');
+    c.coverageIds=unique(c.coverageIds);c.sublimitIds=unique(c.sublimitIds);
     c.autoFields=c.autoFields || {};c.manualFields=c.manualFields || {};c.review=c.review || {};return c;
   }
 
@@ -134,33 +148,43 @@
     if (f.tipo==='sem_franquia') return 'Sem franquia, conforme referência cadastrada.';
     return f.texto_original || 'Franquia pendente de estruturação.';
   }
+  // Report projection only: the immutable contract snapshot keeps all source details.
+  function reportLimit(c) {
+    const entries=[];
+    const add=(label,value)=>{if (amount(value)!=null) entries.push(`${label}: ${money(value)}`);};
+    add('LMI',c.lmi_brl);
+    add('Por evento',c.sublimite_por_evento_brl);
+    add('Por evento ou unidade/local',c.limite_evento_ou_teto_unidade_brl);
+    add('Por evento',c.limites?.por_evento_brl);
+    add('Por unidade/local',c.limites?.por_unidade_brl);
+    add('Agregado',c.agregado_brl);
+    add('Agregado',c.limites?.agregado_brl);
+    const values=unique(entries);
+    if (values.length===1 && values[0].startsWith('LMI: ')) return values[0].slice(5);
+    return values.join('\n') || 'Não informado';
+  }
+  function reportDeductible(f) {
+    if (!f) return 'Não informada';
+    if (f.aplicacao_condicionada) {
+      const rule=f.aplicacao_condicionada;
+      const other=typeof f.demais_eventos==='object' ? reportDeductible(f.demais_eventos)
+        : /^(?:sem franquia|não (?:há|ha|se aplica) franquia)[.\s]*$/i.test(text(f.demais_eventos)) ? 'Sem franquia' : 'Não informada';
+      return `${text(rule.evento) || 'Aplicação condicionada'}: ${reportDeductible(rule)}${f.demais_eventos ? `\nDemais eventos: ${other}` : ''}`;
+    }
+    if (f.tipo==='sem_franquia') return 'Sem franquia';
+    if (f.tipo==='temporal') return amount(f.dias)==null ? 'Não informada' : `${f.dias} dias`;
+    if (f.tipo==='percentual_com_minimo') {
+      const percent=amount(f.percentual),minimum=amount(f.minimo_brl);
+      return `${percent==null ? 'Percentual não informado' : `${percent.toLocaleString('pt-BR')}%`}${minimum==null ? '; mínimo não informado' : ` com mínimo de ${money(minimum)}`}`;
+    }
+    return 'Não informada';
+  }
   function reportRows(state) {
-    const c=current(state);
-    if (!c) return [['Situação','Selecione a apólice e a cobertura para transcrever os dados contratuais.']];
-    const o=c.data.operacao,v=o.vigencia, rows=[['Identificação contratual',[o.empresa_grupo_exibicao,o.segurado_razao_social,`CNPJ ${o.segurado_cnpj}`,o.seguradora_lider,`Apólice ${o.numero_apolice}`,o.produto].filter(Boolean).join(' · ')],['Vigência',`${v.inicio_data_escrita} às ${v.inicio_hora_escrita} até ${v.fim_data_escrita} às ${v.fim_hora_escrita}. ${v.fuso || ''}`],['Versão utilizada',`${c.versionId} · cadastrada em ${c.savedAt}. Escolha contratual do atendimento${c.schemaVersion===1?' preservada da versão anterior':''}; não declara comprovação de inclusão do local ou de amparo.`]];
-    if (!selected(state).length) rows.push(['Cobertura reclamada','Seleção pendente.']);
-    for (const cov of selected(state)) {
-      rows.push([cov.nome_contratual,[cov.codigo_contratual,...limits(cov)].filter(Boolean).join(' · ')],['Franquia',deductibleText(cov.franquia)]);
-      if (cov.eventos_previstos?.length) rows.push(['Eventos da mesma cobertura',`${cov.eventos_previstos.join(', ')}. ${cov.observacao_eventos || ''}`]);
-      if (cov.atividades_expressamente_indicadas) rows.push(['Atividades indicadas',cov.atividades_expressamente_indicadas.join(', ')]);
-      if (Object.hasOwn(cov,'periodo_indenitario_meses')) rows.push(['Período indenitário',cov.periodo_indenitario_meses==null ? 'Pendente de conciliação documental.' : `${cov.periodo_indenitario_meses} meses`]);
-      for (const note of cov.observacoes || []) rows.push(['Condição / observação',note]);
-      if (cov.condicao) rows.push(['Condição',cov.condicao]);
-      rows.push(['Fonte',sourceText(cov.fontes)]);
-    }
-    rows.push(['Causa do dano',c.cause || 'A definir pelo regulador; não inferida pela cobertura selecionada.']);
-    const used=unique((state.damages || []).map(d=>d.sublimitId).filter(Boolean));
-    for (const sub of c.data.sublimites) {
-      rows.push([`${used.includes(sub.id)?'Sublimite selecionado':'Sublimite a conferir'} — ${sub.nome_contratual}`,[...limits(sub),sub.texto_limite,sub.condicao,sub.vinculo_cobertura,deductibleText(sub.franquia),sourceText(sub.fontes)].filter(Boolean).join(' · ')]);
-    }
-    if (c.data.limites_gerais?.lmg_nominal_especificacao_brl!=null) rows.push(['LMG nominal da especificação',`${money(c.data.limites_gerais.lmg_nominal_especificacao_brl)}. ${c.data.limites_gerais.pendencia || ''}`]);
-    rows.push(['Limites e amparo','Agregado não representa saldo disponível nem limite individual. VR de benfeitorias e animais permanecem separados. Seleção contratual não substitui análise de amparo nem altera o parecer.']);
-    for (const p of c.data.pendencias_documentais) rows.push([`Pendência — ${p.campo}`,`${p.descricao} ${p.impacto || ''} ${sourceText(p.fontes)}`]);
-    for (const [key,val] of Object.entries(c.manualFields || {})) rows.push(['Ajuste manual preservado',`${key}: ${val}. Confira a identificação divergente antes de concluir.`]);
-    return rows;
+    // Only explicit case-level choices; legacy damage metadata never selects a row.
+    return [...selected(state),...selectedSublimits(state)].map(c=>[displayName(c),reportLimit(c),reportDeductible(c.franquia)]);
   }
   const calculate = state => window.FastTrackSettlement.calculate(state);
-  const api={copy,uid,amount,money,date,stamp,validate,emptyRegistry,restore,activeVersions,saveVersion,insuredKey,insureds,forInsured,selectInsured,current,selected,apply,reconcile,clearAutomatic,chooseCoverages,normalizeSnapshot,limits,deductibleText,sourceText,reportRows,calculate};
+  const api={copy,uid,amount,money,date,stamp,validate,emptyRegistry,restore,activeVersions,saveVersion,insuredKey,insureds,forInsured,selectInsured,current,selected,selectedSublimits,displayName,apply,reconcile,clearAutomatic,chooseCoverages,chooseSublimits,normalizeSnapshot,limits,deductibleText,sourceText,reportLimit,reportDeductible,reportRows,calculate};
   window.FastTrackPolicies=api;
   if (window.FastTrackV06Report) window.FastTrackV06Report.calculate=calculate;
 })();

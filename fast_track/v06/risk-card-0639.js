@@ -85,7 +85,10 @@
       const o=contract.data.operacao;
       addPair([field('Empresa / grupo',o.empresa_grupo_exibicao),field('Cooperativa afiliada',state.fields.affiliatedCooperative || o.cooperativa_afiliada || '')]);
       addPair([field('Segurado contratante',o.segurado_razao_social),field('Apólice',o.numero_apolice)]);
-      addPair([field('Cobertura reclamada',window.FastTrackPolicies.selected(state).map(x=>x.nome_contratual).join('; '))]);
+      const names=window.FastTrackPolicies.reportRows(state).map(row=>row[0]);
+      const joined=names.join('; ');
+      // Long selections may continue between entries, never as one oversized card row.
+      for (const value of joined.length>600 ? names : [joined]) addPair([field('Cobertura reclamada',value)]);
     }
     if (!selection.composition) groups.push({kind:'source',lines:source});
     return {

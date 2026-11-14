@@ -1,0 +1,7 @@
+/* Shared compact projection in the case summary, report preview and print/PDF. */
+.coverage-report-row{display:grid;grid-template-columns:minmax(0,40fr) minmax(0,30fr) minmax(0,30fr);border:0;border-bottom:1px solid #b5bdc3;break-inside:avoid;page-break-inside:avoid;font-family:Arial,sans-serif;font-size:11pt;line-height:1.4}
+.coverage-report-row>div{padding:7px 6px;border:0;white-space:pre-line;word-break:normal;overflow-wrap:normal;hyphens:none;text-align:center;align-self:center;min-width:0}
+.coverage-report-row>div:first-child{text-align:left}
+.coverage-report-header{font-weight:700;break-after:avoid;page-break-after:avoid}
+#policyCase .coverage-report-table,#policyCoverageSummary .coverage-report-table{overflow-x:auto}
+#policyCase .coverage-report-row,#policyCoverageSummary .coverage-report-row{min-width:520px}

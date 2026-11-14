@@ -15,6 +15,7 @@
   const version=id=>registry.versions.find(v=>v.versionId===id);
   const current=P.current;
   const rowsHTML=rows=>rows.map(([a,b])=>`<div class="policy-fact"><strong>${esc(a)}</strong><p>${esc(b)}</p></div>`).join('');
+  const reportHTML=s=>`<div class="coverage-report-table" role="table" aria-label="Cobertura reclamada"><div class="coverage-report-row coverage-report-header" role="row">${['Cobertura','Limite de Indenização','Franquia'].map(v=>`<div role="columnheader">${esc(v)}</div>`).join('')}</div>${P.reportRows(s).map(row=>`<div class="coverage-report-row" role="row">${row.map(v=>`<div role="cell">${esc(v)}</div>`).join('')}</div>`).join('')}</div>`;
   const inputNumber=id=>{const v=$(id)?.value;return v===''?null:Number(v);};
   function renderLibrary() {
     $('policyLibrary').innerHTML=P.activeVersions(registry).map(v=>`<article class="policy-entry"><strong>${esc(label(v))}</strong><p>${esc(v.data.operacao.segurado_razao_social)} · ${v.data.coberturas.length} coberturas · ${v.pdfs.length} PDFs locais</p><small>Versão ${esc(v.versionId)} · ${esc(v.savedAt)}</small><div class="inline-actions"><button class="btn secondary" type="button" data-policy="edit" data-version="${esc(v.versionId)}">Consultar / atualizar</button></div></article>`).join('') || '<p>Nenhuma apólice cadastrada neste navegador.</p>';
@@ -60,8 +61,8 @@
     $('policyCase').innerHTML=`<h3>Contrato do atendimento</h3><p class="notice info">${esc(msg)}</p>
       <label class="field" for="policyInsuredChoice">Segurado / empresa</label><select id="policyInsuredChoice">${option('','Todos os segurados — escolher diretamente a apólice',selectedKey)}${people.map(p=>option(p.key,[p.name,p.group].filter(Boolean).join(' · '),selectedKey)).join('')}</select>
       <label class="field" for="policyChoice">Apólice</label><select id="policyChoice">${option('','Selecione uma apólice',selectedVersion)}${choices.map(v=>option(v.versionId,`${selectedKey?'':v.data.operacao.segurado_razao_social+' · '}${contractLabel(v)}`,selectedVersion)).join('')}${c&&!choices.some(v=>v.versionId===c.versionId)?option(c.versionId,`${contractLabel(c)} — versão preservada neste atendimento`,c.versionId):''}</select>
-      ${c?`<h4>Cobertura reclamada</h4><div id="policyCoverageChoices">${c.data.coberturas.map(cov=>`<label class="policy-check"><input type="checkbox" data-policy-coverage="${esc(cov.id)}"${c.coverageIds.includes(cov.id)?' checked':''}>${esc(cov.nome_sugerido_seletor || cov.nome_contratual)}</label>`).join('')}</div>${field('policyCause','Causa do dano — informada pelo regulador',c.cause)}<details><summary>Dados contratuais que irão para o relatório</summary>${rowsHTML(P.reportRows(s))}</details>`:''}`;
-    $('policyCoverageSummary').innerHTML=rowsHTML(P.reportRows(s));
+      ${c?`<h4>Cobertura reclamada</h4><div id="policyCoverageChoices">${c.data.coberturas.map(cov=>`<label class="policy-check"><input type="checkbox" data-policy-coverage="${esc(cov.id)}"${c.coverageIds.includes(cov.id)?' checked':''}>${esc(cov.nome_sugerido_seletor || cov.nome_contratual)}</label>`).join('')}</div>${c.data.sublimites.length?`<h4>Sublimites reclamados (opcional)</h4><div id="policySublimitChoices">${c.data.sublimites.map(sub=>`<label class="policy-check"><input type="checkbox" data-policy-sublimit="${esc(sub.id)}"${(c.sublimitIds || []).includes(sub.id)?' checked':''}>${esc(P.displayName(sub))}</label>`).join('')}</div>`:''}${field('policyCause','Causa do dano — informada pelo regulador',c.cause)}<details><summary>Coberturas que irão para o relatório</summary>${reportHTML(s)}</details>`:''}`;
+    $('policyCoverageSummary').innerHTML=reportHTML(s);
     for (const d of document.querySelectorAll('#policyCase details')) if (opened.includes(d.querySelector('summary')?.textContent)) d.open=true;
   }
   function changed() { hooks.onChange();renderCase(true); }
@@ -140,6 +141,7 @@
           changed();
         }
         if (el.matches('[data-policy-coverage]')) { P.chooseCoverages(state(),Array.from(document.querySelectorAll('[data-policy-coverage]:checked')).map(x=>x.dataset.policyCoverage));changed(); }
+        if (el.matches('[data-policy-sublimit]')) { P.chooseSublimits(state(),Array.from(document.querySelectorAll('[data-policy-sublimit]:checked')).map(x=>x.dataset.policySublimit));changed(); }
         if (el.id==='policyCause') { current(state()).cause=el.value;changed(); }
       } catch(err) { notify(err.message,true); }
       finally { if (el.type==='file') el.value=''; }
