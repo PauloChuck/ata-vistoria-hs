@@ -49,11 +49,35 @@ jobs:
           from pathlib import Path
           path=Path('.github/scripts/validate_v0633_runtime.js')
           text=path.read_text(encoding='utf-8')
+          old_go="""async function go(page, step) {
+            await page.evaluate((target) => {
+              const current = document.querySelector('.screen.active');
+              const button = current?.querySelector(`[data-go="${target}"]`);
+              if (!button) throw new Error(`Navegação para a etapa ${target} não encontrada`);
+              button.click();
+            }, step);
+            await page.waitForSelector(`.screen[data-step="${step}"].active`);
+          }"""
+          new_go="""async function go(page, step) {
+            for (let guard=0; guard<12; guard+=1) {
+              const current=await page.locator('.screen.active').getAttribute('data-step');
+              const currentStep=Number(current);
+              if (currentStep===Number(step)) return;
+              const next=currentStep < Number(step) ? currentStep+1 : currentStep-1;
+              const button=page.locator(`.screen.active [data-go="${next}"]`).first();
+              if (await button.count()===0) throw new Error(`Navegação da etapa ${currentStep} para ${next} não encontrada`);
+              await button.click();
+              await page.waitForSelector(`.screen[data-step="${next}"].active`);
+            }
+            throw new Error(`Não foi possível alcançar a etapa ${step}`);
+          }"""
+          if old_go not in text:
+              raise SystemExit('Função de navegação original não localizada')
+          text=text.replace(old_go,new_go,1)
           replacements={
               "const elioCardText=await elioCard.innerText();": "const elioCardText=await elioCard.innerText();\n  const elioCardTextNormalized=elioCardText.toLocaleUpperCase('pt-BR');",
               "['JABORA','-27,097108','-51,864781','Lotação máxima da pocilga','490 suínos','R$ 294.000,00','Renovação']) assert(elioCardText.includes(expected)": "['JABORA','-27,097108','-51,864781','LOTAÇÃO MÁXIMA DA POCILGA','490 SUÍNOS','R$ 294.000,00','RENOVAÇÃO']) assert(elioCardTextNormalized.includes(expected)",
               "assert(elioCardText.includes('Não informado')": "assert(elioCardTextNormalized.includes('NÃO INFORMADO')",
-              "  await page.setInputFiles('#mapInput'": "  await go(page,2);\n  await page.setInputFiles('#mapInput'",
           }
           for old,new in replacements.items():
               if old not in text:
