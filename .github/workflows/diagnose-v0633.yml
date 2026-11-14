@@ -18,51 +18,45 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: feature/v0633-six-base-importer
-      - name: Compare payload chunks
+      - name: Inspect recovered TAR
         shell: bash
         run: |
+          set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import base64, binascii, io, struct, tarfile, zlib
+
           root=Path('.github/v0633-payload')
-          def read(n): return (root/n).read_text().strip()
-          def lcp(a,b):
-              i=0
-              for x,y in zip(a,b):
-                  if x!=y: break
-                  i+=1
-              return i
-          def lcs(a,b):
-              i=0
-              for x,y in zip(a[::-1],b[::-1]):
-                  if x!=y: break
-                  i+=1
-              return i
-          def show(a_name,b_name):
-              a,b=read(a_name),read(b_name)
-              same=sum(x==y for x,y in zip(a,b))
-              print(f'{a_name}({len(a)}) vs {b_name}({len(b)}): lcp={lcp(a,b)} lcs={lcs(a,b)} same={same}/{min(len(a),len(b))}')
-              print(' A head/tail',a[:24],a[-24:])
-              print(' B head/tail',b[:24],b[-24:])
-          for p in ['03','06','07','08']:
-              orig=read('part-'+p)
-              print('\nPART',p,'len',len(orig),'head',orig[:32],'tail',orig[-32:])
-          show('part-03','fix-03-0')
-          show('part-03','fix-03-1')
-          show('part-03','fix-03b-0')
-          show('part-03','fix-03b-1')
-          for p in ['06','07','08']:
-              show('part-'+p,'fix-'+p+'-0')
-              show('part-'+p,'fix-'+p+'-1')
-          print('\nHALF comparisons')
-          for p in ['03','06','07','08']:
-              orig=read('part-'+p)
-              fixes=[]
-              for suffix in ['0','1']:
-                  n=f'fix-{p}-{suffix}'
-                  if (root/n).exists(): fixes.append((n,read(n)))
-              for name,f in fixes:
-                  for start in range(0,len(orig),1500):
-                      seg=orig[start:start+len(f)]
-                      if len(seg)!=len(f): continue
-                      print(f'{name} vs {p}[{start}:{start+len(f)}]: lcp={lcp(f,seg)} lcs={lcs(f,seg)} same={sum(x==y for x,y in zip(f,seg))}/{len(f)}')
+          read=lambda n:(root/n).read_text(encoding='utf-8').strip()
+          encoded=(
+              read('part-00')+read('part-01')+read('part-02')+
+              read('fix-03-0')+read('fix-03b-0')+read('fix-03b-1')+
+              read('part-04')+read('part-05')+
+              read('fix-06-0')+read('fix-06-1')+
+              read('fix-07-0')+read('fix-07-1')+
+              read('fix-08-0')+read('fix-08-1')
+          )
+          raw=base64.b64decode(encoded,validate=True)
+          flags=raw[3]
+          pos=10
+          if flags & 4:
+              xlen=struct.unpack_from('<H',raw,pos)[0]; pos+=2+xlen
+          if flags & 8: pos=raw.index(b'\0',pos)+1
+          if flags & 16: pos=raw.index(b'\0',pos)+1
+          if flags & 2: pos+=2
+          payload=zlib.decompress(raw[pos:-8],-zlib.MAX_WBITS)
+          stored_crc,stored_size=struct.unpack('<II',raw[-8:])
+          delta=stored_size-len(payload)
+          payload+=b'\0'*max(0,delta)
+          print('raw bytes',len(raw),'payload',len(payload),'delta',delta)
+          print('crc stored/calculated',f'{stored_crc:08x}',f'{binascii.crc32(payload[:stored_size-delta])&0xffffffff:08x}')
+          with tarfile.open(fileobj=io.BytesIO(payload),mode='r:') as tar:
+              members=tar.getmembers()
+              print('members',len(members))
+              for member in members:
+                  print(repr(member.name),member.size,member.type)
+                  if member.isfile() and member.size < 200000:
+                      blob=tar.extractfile(member).read()
+                      if member.name.endswith(('.js','.html','.css','.json','.yml','.yaml')):
+                          print('  head:',blob[:120].decode('utf-8','replace').replace('\n','\\n'))
           PY
