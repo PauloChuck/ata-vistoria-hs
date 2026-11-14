@@ -1,0 +1,68 @@
+name: Diagnose V0633 payload
+
+on:
+  push:
+    branches:
+      - feature/v0633-six-base-importer
+    paths:
+      - .github/workflows/diagnose-v0633.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/v0633-six-base-importer
+      - name: Compare payload chunks
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('.github/v0633-payload')
+          def read(n): return (root/n).read_text().strip()
+          def lcp(a,b):
+              i=0
+              for x,y in zip(a,b):
+                  if x!=y: break
+                  i+=1
+              return i
+          def lcs(a,b):
+              i=0
+              for x,y in zip(a[::-1],b[::-1]):
+                  if x!=y: break
+                  i+=1
+              return i
+          def show(a_name,b_name):
+              a,b=read(a_name),read(b_name)
+              same=sum(x==y for x,y in zip(a,b))
+              print(f'{a_name}({len(a)}) vs {b_name}({len(b)}): lcp={lcp(a,b)} lcs={lcs(a,b)} same={same}/{min(len(a),len(b))}')
+              print(' A head/tail',a[:24],a[-24:])
+              print(' B head/tail',b[:24],b[-24:])
+          for p in ['03','06','07','08']:
+              orig=read('part-'+p)
+              print('\nPART',p,'len',len(orig),'head',orig[:32],'tail',orig[-32:])
+          show('part-03','fix-03-0')
+          show('part-03','fix-03-1')
+          show('part-03','fix-03b-0')
+          show('part-03','fix-03b-1')
+          for p in ['06','07','08']:
+              show('part-'+p,'fix-'+p+'-0')
+              show('part-'+p,'fix-'+p+'-1')
+          print('\nHALF comparisons')
+          for p in ['03','06','07','08']:
+              orig=read('part-'+p)
+              fixes=[]
+              for suffix in ['0','1']:
+                  n=f'fix-{p}-{suffix}'
+                  if (root/n).exists(): fixes.append((n,read(n)))
+              for name,f in fixes:
+                  for start in range(0,len(orig),1500):
+                      seg=orig[start:start+len(f)]
+                      if len(seg)!=len(f): continue
+                      print(f'{name} vs {p}[{start}:{start+len(f)}]: lcp={lcp(f,seg)} lcs={lcs(f,seg)} same={sum(x==y for x,y in zip(f,seg))}/{len(f)}')
+          PY
