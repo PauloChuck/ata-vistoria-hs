@@ -1,0 +1,11 @@
+node_modules/
+private/
+local-data/
+artifacts/
+test-results/
+playwright-report/
+*.pdf
+*.docx
+*cadastro-referencia*.json
+Backup_privado*.json
+Preferencia_privada*.json

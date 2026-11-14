@@ -1,0 +1,11 @@
+name: Fast Track checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test property selection, risk card, signatures and contracts
+        run: node --test tests/*.test.cjs
