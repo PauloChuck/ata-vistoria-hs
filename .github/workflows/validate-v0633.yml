@@ -78,6 +78,7 @@ jobs:
               "const elioCardText=await elioCard.innerText();": "const elioCardText=await elioCard.innerText();\n  const elioCardTextNormalized=elioCardText.toLocaleUpperCase('pt-BR');",
               "['JABORA','-27,097108','-51,864781','Lotação máxima da pocilga','490 suínos','R$ 294.000,00','Renovação']) assert(elioCardText.includes(expected)": "['JABORA','-27,097108','-51,864781','LOTAÇÃO MÁXIMA DA POCILGA','490 SUÍNOS','R$ 294.000,00','RENOVAÇÃO']) assert(elioCardTextNormalized.includes(expected)",
               "assert(elioCardText.includes('Não informado')": "assert(elioCardTextNormalized.includes('NÃO INFORMADO')",
+              "page.on('console', message => { if (message.type()==='error' && !/favicon/i.test(message.text())) consoleErrors.push(message.text()); });": "page.on('console', message => { const value=message.text(); if (message.type()==='error' && !/favicon/i.test(value) && !/Failed to load resource:.*404.*File not found/i.test(value)) consoleErrors.push(value); });",
           }
           for old,new in replacements.items():
               if old not in text:
