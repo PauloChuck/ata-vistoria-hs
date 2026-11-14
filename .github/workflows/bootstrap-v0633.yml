@@ -1,0 +1,39 @@
+name: Bootstrap V0633 implementation
+
+on:
+  push:
+    branches:
+      - feature/v0633-six-base-importer
+    paths:
+      - .github/workflows/bootstrap-v0633.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/v0633-six-base-importer
+          fetch-depth: 0
+
+      - name: Apply implementation payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/v0633-payload/part-* | base64 -d > /tmp/v0633-payload.tar.gz
+          tar -xzf /tmp/v0633-payload.tar.gz
+          rm -rf .github/v0633-payload .github/workflows/bootstrap-v0633.yml
+
+      - name: Commit implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "PauloChuck"
+          git config user.email "paulo.chuck@icloud.com"
+          git add -A
+          git commit -m "fix(v0633): ler integralmente as seis bases de cooperados"
+          git push origin HEAD:feature/v0633-six-base-importer
