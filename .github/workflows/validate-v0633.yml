@@ -53,6 +53,7 @@ jobs:
               "const elioCardText=await elioCard.innerText();": "const elioCardText=await elioCard.innerText();\n  const elioCardTextNormalized=elioCardText.toLocaleUpperCase('pt-BR');",
               "['JABORA','-27,097108','-51,864781','Lotação máxima da pocilga','490 suínos','R$ 294.000,00','Renovação']) assert(elioCardText.includes(expected)": "['JABORA','-27,097108','-51,864781','LOTAÇÃO MÁXIMA DA POCILGA','490 SUÍNOS','R$ 294.000,00','RENOVAÇÃO']) assert(elioCardTextNormalized.includes(expected)",
               "assert(elioCardText.includes('Não informado')": "assert(elioCardTextNormalized.includes('NÃO INFORMADO')",
+              "  await page.setInputFiles('#mapInput'": "  await go(page,2);\n  await page.setInputFiles('#mapInput'",
           }
           for old,new in replacements.items():
               if old not in text:
