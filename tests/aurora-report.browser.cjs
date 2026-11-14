@@ -1,0 +1,61 @@
+// Only approved institutional identity is real; cases, source terms and images are synthetic.
+const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),assert=require('node:assert/strict');
+const {chromium}=require('playwright'),fixture=require('./aurora-report-fixture.cjs');
+const root=path.resolve(__dirname,'..'),out=process.env.FT_OUT;
+if(!out||path.resolve(out)===root||path.resolve(out).startsWith(root+path.sep))throw Error('Set private FT_OUT outside repository');
+fs.mkdirSync(out,{recursive:true});
+const server=http.createServer((req,res)=>{const f=path.resolve(root,'.'+new URL(req.url,'http://localhost').pathname);if(!f.startsWith(root+path.sep))return res.writeHead(403).end();try{res.setHeader('Content-Type',f.endsWith('.js')?'text/javascript':f.endsWith('.css')?'text/css':'text/html');res.end(fs.readFileSync(f));}catch{res.writeHead(404).end();}});
+const result={checks:[],exports:[],errors:[],success:false},norm=s=>s.replace(/\s+/g,' ').trim();
+(async()=>{
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const browser=await chromium.launch({executablePath:process.env.FT_BROWSER,headless:true});
+ const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true}),page=await context.newPage();
+ page.on('pageerror',e=>result.errors.push(String(e)));page.on('dialog',d=>d.accept());
+ if(process.env.FT_DOCX_LIB)await page.route('https://cdn.jsdelivr.net/**',r=>r.fulfill({path:process.env.FT_DOCX_LIB,contentType:'text/javascript'}));
+ const action=async a=>page.locator(`[data-action="${a}"]`).first().evaluate(e=>e.click());
+ const step=async n=>page.locator(`[data-go="${n}"]`).first().evaluate(e=>e.click());
+ const backup=async()=>{const previous=await page.locator('.screen.active').getAttribute('data-step');await step(7);const w=page.waitForEvent('download');await page.locator('[data-action="export-backup"]').click();const s=JSON.parse(fs.readFileSync(await(await w).path(),'utf8'));await step(previous);return s;};
+ const restore=async s=>{await page.locator('#backupInput').setInputFiles({name:'synthetic.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(s))});await page.waitForFunction(()=>document.querySelector('#backupInput').value==='');await step(1);};
+ async function verify(tag,names,{profile=true,coverName,exportFiles=true}={}){
+  const s=await backup(),expected=await page.evaluate(s=>FastTrackPolicies.reportRows(s),s);assert.deepEqual(expected.map(r=>r[0]),names);await step(7);
+  await page.waitForFunction(()=>[...document.querySelectorAll('#reportPreview img')].every(i=>i.complete&&i.naturalWidth));
+  assert.deepEqual(await page.locator('#reportPreview .coverage-report-table .coverage-report-row').evaluateAll(rs=>rs.map(r=>[...r.children].map(c=>c.textContent))),expected);
+  const report=await page.locator('#reportPreview').innerText();assert(!report.includes('IMAGENS E ARQUIVOS'));assert(report.includes('ABERTURA DOCUMENTAL DE TESTE'));assert(report.includes('REPORTAGEM DE TESTE'));assert(report.includes('DOCUMENTO EM IMAGEM'));assert(report.includes('arquivo-teste.txt'));
+  const cover=await page.locator('#reportPreview .meta-table').evaluate(t=>({rows:[...t.rows].map(r=>[...r.cells].map(c=>c.textContent)),cells:[...t.querySelectorAll('th,td')].map(c=>({font:getComputedStyle(c).fontFamily,size:getComputedStyle(c).fontSize,weight:getComputedStyle(c).fontWeight,left:c.getBoundingClientRect().left,vertical:getComputedStyle(c).borderLeftWidth,overflow:c.scrollWidth>c.clientWidth+1})),profile:t.classList.contains('aurora-cover')}));
+  assert.equal(cover.profile,profile);
+  if(profile){
+   const expectedCover=await page.evaluate(s=>FastTrackAuroraReport.coverRows(s).map(r=>r.map(v=>String(v??'').replace(/\s+/g,' ').trim().toLocaleUpperCase('pt-BR'))),s);assert.deepEqual(cover.rows,expectedCover);
+   assert.equal(cover.rows.at(-1)[1],coverName);assert(cover.cells.every((c,i)=>c.font.includes('Arial')&&c.size==='16px'&&c.weight===(i%2?'400':'700')&&c.vertical==='0px'&&!c.overflow),'cover typography');
+   const values=cover.cells.filter((_,i)=>i%2);assert(values.every(v=>Math.abs(v.left-values[0].left)<1),'cover second column');
+  }
+  const styling=await page.locator('#reportPreview .coverage-report-row').evaluateAll(rs=>rs.map(r=>({size:getComputedStyle(r).fontSize,line:getComputedStyle(r).borderBottomColor,vertical:getComputedStyle(r).borderLeftWidth,cells:[...r.children].map(c=>({align:getComputedStyle(c).textAlign,overflow:c.scrollWidth>c.clientWidth+1}))})));
+  assert(styling.every(r=>r.size===(profile?'16px':'14.6667px')&&(!profile||r.line==='rgb(0, 0, 0)')&&r.vertical==='0px'&&r.cells.every((c,i)=>!c.overflow&&c.align===(i?'center':'left'))));
+  const pictures=await page.locator('#reportPreview .report-content img').evaluateAll(imgs=>imgs.map(i=>({outline:getComputedStyle(i).outlineStyle,width:getComputedStyle(i).outlineWidth,color:getComputedStyle(i).outlineColor,offset:getComputedStyle(i).outlineOffset,ratio:i.getBoundingClientRect().width/i.getBoundingClientRect().height,natural:i.naturalWidth/i.naturalHeight,padding:getComputedStyle(i).padding,shadow:getComputedStyle(i).boxShadow})));
+  assert.equal(pictures.length,6);assert(pictures.every(i=>i.outline==='solid'&&i.width==='1px'&&i.color==='rgb(0, 0, 0)'&&i.offset==='-1px'&&Math.abs(i.ratio-i.natural)<0.015&&i.padding==='0px'&&i.shadow==='none'),'attached image framing');
+  assert(await page.locator('#reportPreview .report-logo,#reportPreview .report-watermark,#reportPreview .report-footer-mark').evaluateAll(imgs=>imgs.every(i=>getComputedStyle(i).outlineStyle==='none')),'institutional images unframed');
+  const layout=await page.locator('#reportPreview .report-content').evaluateAll(cs=>cs.map(c=>({overflow:c.scrollHeight>c.clientHeight+1||c.scrollWidth>c.clientWidth+1,headings:[...c.querySelectorAll('.doc-section')].filter(h=>h.textContent==='3. COBERTURA RECLAMADA').map(h=>!!h.nextElementSibling?.classList.contains('coverage-report-header')&&!!h.nextElementSibling?.nextElementSibling?.querySelector('.coverage-report-row'))})));
+  assert(layout.every(c=>!c.overflow&&c.headings.every(Boolean)),'report pagination');
+  const calc=await page.evaluate(s=>FastTrackSettlement.calculate(s),s);assert.equal(calc.deductible,3000);assert.equal(calc.net,9430);
+  if(exportFiles){let w=page.waitForEvent('download');await page.locator('[data-action="export-word"]').click();await(await w).saveAs(path.join(out,tag+'.docx'));await page.evaluate(()=>window.print=()=>{});await page.locator('[data-action="export-pdf"]').click();await page.pdf({path:path.join(out,tag+'.pdf'),format:'A4',printBackground:true,preferCSSPageSize:true});fs.writeFileSync(path.join(out,tag+'.json'),JSON.stringify(s,null,2));result.exports.push({tag,rows:expected,cover:cover.rows,profile,pages:layout.length,calculation:calc});}
+  await step(1);return s;
+ }
+ try{
+  await page.goto(`http://127.0.0.1:${server.address().port}/fast_track/v062.html`);await page.waitForFunction(()=>document.querySelector('#saveStatus').textContent);await action('load-example');let s=await backup();
+  s=await page.evaluate(({s,data,selection})=>{
+   FastTrackPolicies.apply(s,FastTrackPolicies.saveVersion(FastTrackPolicies.emptyRegistry(),data).version);
+   const rs=['A','B'].map((id,i)=>({id,name:'Pessoa sintética',activity:i?'Suínos':'Aves',municipality:'Cidade de teste',vrBuildings:String(100000+i*100000),vrAnimals:String(50000+i*30000),raw:{id}}));
+   const c=FastTrackProperty.create(rs,'Propriedade sintética');rs.forEach(r=>FastTrackProperty.assign(c,[r.id],{kind:'new',label:'Instalação '+r.id,applicable:true}));c.complete=true;selection.composition=c;s.cooperatorSelection=FastTrackProperty.sync(selection);
+   const makeImage=(w,h,label)=>{const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;const x=canvas.getContext('2d');x.fillStyle='#e5edf2';x.fillRect(0,0,w,h);x.fillStyle='#172c3b';x.font='28px Arial';x.fillText(label,30,60);return canvas.toDataURL();};
+   s.map={dataUrl:makeImage(1000,600,'MAPA SINTÉTICO'),fit:'contain',posX:50,posY:50};s.photos=[{id:'photo-1',dataUrl:makeImage(1100,600,'FOTO HORIZONTAL'),caption:'FOTO HORIZONTAL'},{id:'photo-2',dataUrl:makeImage(600,1000,'FOTO VERTICAL'),caption:'FOTO VERTICAL'}];s.causeEvidence=[{id:'e1',name:'reportagem.png',mime:'image/png',dataUrl:makeImage(900,500,'REPORTAGEM'),caption:'REPORTAGEM DE TESTE'},{id:'e2',name:'documento.png',mime:'image/png',dataUrl:makeImage(1800,2400,'DOCUMENTO'),caption:'DOCUMENTO EM IMAGEM'},{id:'e3',name:'arquivo-teste.txt',mime:'text/plain',dataUrl:'data:text/plain;base64,VEVTVEU=',caption:'Arquivo de teste'}];
+   Object.assign(s.fields,{claimantName:'Cooperado sintético',riskAddress:'Localidade de teste, município de teste/SC',regulatorName:'Regulador de Teste',regulatorCpf:'529.982.247-25',documentaryNarrative:'ABERTURA DOCUMENTAL DE TESTE',broker:'Corretor original preservado',insurerClaim:'TEST-CLAIM-001',hsClaim:'TEST-HS-001'});FastTrackSignatures.set(s,'regulator',{dataUrl:makeImage(700,250,'ASSINATURA SINTÉTICA'),width:700,height:250},{type:'uploaded'});return s;
+  },{s,data:fixture.contract(),selection:fixture.selection()});
+  s.damages=[fixture.damage(12430)];await restore(s);await page.locator('[data-policy-coverage="vendaval_b"]').check();await page.locator('#policyCause').fill('Vendaval');await page.locator('#policyCause').press('Tab');const single=await verify('aurora-unica',['Vendaval / Granizo'],{coverName:'VENDAVAL'});
+  await page.locator('#policyCause').fill('');await page.locator('#policyCause').press('Tab');await verify('combinada',['Vendaval / Granizo'],{coverName:'VENDAVAL / GRANIZO',exportFiles:false});
+  for(const id of ['danos_eletricos','alagamento'])await page.locator(`[data-policy-coverage="${id}"]`).check();for(const id of ['ruptura_caixa_agua','vinilona_grupo_02'])await page.locator(`[data-policy-sublimit="${id}"]`).check();
+  const multi=await verify('aurora-multipla',['Vendaval / Granizo','Danos Elétricos','Alagamento','Ruptura / explosão de caixa d’água','Galpão de Vinilona'],{coverName:'VENDAVAL / GRANIZO; DANOS ELÉTRICOS; ALAGAMENTO; RUPTURA / EXPLOSÃO DE CAIXA D’ÁGUA; GALPÃO DE VINILONA'});
+  await action('save-draft');await page.reload();await page.waitForFunction(()=>document.querySelector('#saveStatus').textContent);const saved=await backup();for(const key of ['contract','damages','cooperatorSelection','map','photos','causeEvidence','signatures','signatureDetails'])assert.deepEqual(saved[key],multi[key],key);await restore(saved);assert.deepEqual((await backup()).contract.data,single.contract.data);
+  assert.equal(await page.locator('#causeEvidenceInput').count(),1);assert.equal(await page.locator('[data-action="replace-evidence"]').count(),3);assert.equal(await page.locator('[data-action="remove-evidence"]').count(),3);
+  const other=structuredClone(single);other.contract.data.operacao.numero_apolice='ANOTHER-POLICY';other.fields.policyNumber='ANOTHER-POLICY';await restore(other);await verify('outra-apolice',['Vendaval / Granizo - Modalidade B'],{profile:false});
+  assert.deepEqual(result.errors,[]);result.checks.push('Exact profile binding; approved cover data and short event name; only selected coverages/sublimits','Arial 12, two aligned cover columns, black horizontal rules, preserved page groups','Black 0.75 pt image outlines without padding or distortion; logos and watermark unchanged; section 4.2 retains content and controls','Other policy keeps its own names/limits/deductibles; snapshot, images, property VRs, signatures, backups and single settlement unchanged');result.success=true;
+ }catch(e){result.failure=String(e);await page.screenshot({path:path.join(out,'failure.png'),fullPage:true}).catch(()=>{});throw e;}finally{fs.writeFileSync(path.join(out,'aurora-browser-results.json'),JSON.stringify(result,null,2));await browser.close();server.close();console.log(JSON.stringify({...result,exports:result.exports.map(x=>({tag:x.tag,pages:x.pages,rows:x.rows.length}))},null,2));}
+})().catch(e=>{console.error(e);server.close();process.exitCode=1;});

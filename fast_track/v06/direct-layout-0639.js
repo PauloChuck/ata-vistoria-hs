@@ -237,7 +237,7 @@
 
   function photoRowContent(items, start) {
     const cells = items.map((photo,index) => `<div class="photo-cell-report">
-      <img src="${attr(photo.dataUrl)}" alt="">
+      <div class="report-image-frame"><img src="${attr(photo.dataUrl)}" alt=""></div>
       <p class="doc-caption">Figura ${start + index + 1} — ${esc(photo.caption || '')}</p>
     </div>`).join('');
     return `<div class="photo-row-report">${cells}</div>`;
@@ -251,7 +251,7 @@
 
   function evidenceImageRowContent(items) {
     const cells = items.map((entry) => `<div class="cause-evidence-cell-report">
-      <img src="${attr(entry.item.dataUrl)}" alt="">
+      <div class="report-image-frame"><img src="${attr(entry.item.dataUrl)}" alt=""></div>
       <p class="doc-caption">Evidência ${entry.index + 1} — ${esc(entry.item.caption || entry.item.name || 'Imagem')}</p>
     </div>`).join('');
     return `<div class="cause-evidence-row-report${items.length === 1 ? ' single' : ''}">${cells}</div>`;
@@ -271,15 +271,19 @@
     const calc = calculate(state);
     const originalPages = originalBuildContents(state);
     const originalCover = originalPages[0] || {html:'', first:true};
-    const cover={...originalCover,html:originalCover.html.replace(/<table class="claim-table">[\s\S]*?<\/table>/,window.FastTrackPresentation.claimHtml(state))};
+    const aurora=window.FastTrackAuroraReport?.matches(state);
+    const displayState=aurora?{...state,fields:window.FastTrackAuroraReport.coverFields(state)}:state;
+    const cover={...originalCover,html:originalCover.html.replace(/<table class="claim-table">[\s\S]*?<\/table>/,window.FastTrackPresentation.claimHtml(displayState))};
+    if (aurora) cover.html=cover.html.replace(/<table class="meta-table">[\s\S]*?<\/table>/,window.FastTrackAuroraReport.coverHTML(state));
     const paginator = createFlowPaginator();
 
     try {
       for (const block of technicalStartBlocks(state)) {
         if (block.policy) {
-          const header='<div class="coverage-report-row coverage-report-header" role="row"><div role="columnheader">Cobertura</div><div role="columnheader">Limite de Indenização</div><div role="columnheader">Franquia</div></div>';
+          const profileClass=aurora?' aurora-coverage':'';
+          const header=`<div class="coverage-report-row coverage-report-header${profileClass}" role="row"><div role="columnheader">Cobertura</div><div role="columnheader">Limite de Indenização</div><div role="columnheader">Franquia</div></div>`;
           const prefix=`<div class="doc-section">3. COBERTURA RECLAMADA</div>${header}`;
-          const rows=block.rows.map(row=>`<div class="coverage-report-row" role="row">${row.map(value=>`<div role="cell">${esc(value)}</div>`).join('')}</div>`);
+          const rows=block.rows.map(row=>`<div class="coverage-report-row${profileClass}" role="row">${row.map(value=>`<div role="cell">${esc(value)}</div>`).join('')}</div>`);
           if (rows.length) paginator.addRecordList({prefix,continuationPrefix:prefix,rows,wrapClass:'coverage-report-table'});
           else paginator.add(prefix);
           continue;
@@ -349,16 +353,10 @@
 
       paginator.addTextSection('<div class="doc-subsection">4.2. LAVANTAMENTOS DOCUMENTAIS</div>',f.documentaryNarrative || '','<div class="doc-subsection">4.2. LAVANTAMENTOS DOCUMENTAIS — CONTINUAÇÃO</div>');
 
-      const evidenceHeading = '<div class="doc-subsection cause-evidence-heading">IMAGENS E ARQUIVOS</div>';
       if (!evidence.length) {
-        paginator.add(`${evidenceHeading}<p class="doc-text">Nenhuma imagem ou arquivo anexado.</p>`);
+        paginator.add('<p class="doc-text">Nenhuma imagem ou arquivo anexado.</p>');
       } else {
         const indexedEvidence = evidence.map((item,index) => ({item,index}));
-        const firstEntry = indexedEvidence[0];
-        const firstBlock = isImageEvidence(firstEntry.item) && firstEntry.item.dataUrl
-          ? evidenceImageRowContent([firstEntry])
-          : evidenceFileRowContent(firstEntry);
-        paginator.add(evidenceHeading,{keepWithNext:firstBlock});
         let offset = 0;
         while (offset < indexedEvidence.length) {
           const entry = indexedEvidence[offset];
@@ -375,7 +373,7 @@
           }
           if (!paginator.fits(row) && !paginator.isEmpty()) {
             paginator.newPage();
-            paginator.push('<div class="doc-subsection">4.2. LAVANTAMENTOS DOCUMENTAIS — IMAGENS E ARQUIVOS (CONTINUAÇÃO)</div>');
+            paginator.push('<div class="doc-subsection">4.2. LAVANTAMENTOS DOCUMENTAIS — CONTINUAÇÃO</div>');
           }
           paginator.push(row);
         }

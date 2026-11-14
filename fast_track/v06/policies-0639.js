@@ -181,7 +181,8 @@
   }
   function reportRows(state) {
     // Only explicit case-level choices; legacy damage metadata never selects a row.
-    return [...selected(state),...selectedSublimits(state)].map(c=>[displayName(c),reportLimit(c),reportDeductible(c.franquia)]);
+    const rows=[...selected(state),...selectedSublimits(state)].map(c=>window.FastTrackAuroraReport?.coverageRow(state,c) || [displayName(c),reportLimit(c),reportDeductible(c.franquia)]);
+    return window.FastTrackAuroraReport?.matches(state) ? rows.filter((row,i)=>rows.findIndex(r=>JSON.stringify(r)===JSON.stringify(row))===i) : rows;
   }
   const calculate = state => window.FastTrackSettlement.calculate(state);
   const api={copy,uid,amount,money,date,stamp,validate,emptyRegistry,restore,activeVersions,saveVersion,insuredKey,insureds,forInsured,selectInsured,current,selected,selectedSublimits,displayName,apply,reconcile,clearAutomatic,chooseCoverages,chooseSublimits,normalizeSnapshot,limits,deductibleText,sourceText,reportLimit,reportDeductible,reportRows,calculate};

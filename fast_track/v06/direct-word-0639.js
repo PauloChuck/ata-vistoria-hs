@@ -66,6 +66,7 @@
 
     const none = {style:BorderStyle.NONE,color:'FFFFFF',size:0};
     const thin = {style:BorderStyle.SINGLE,color:'666666',size:4};
+    const attachmentOutline={type:'solidFill',solidFillType:'rgb',value:'000000',width:9525,cap:'flat',compoundLine:'sng',align:'in'};
     const noBorder = {top:none,bottom:none,left:none,right:none,insideHorizontal:none,insideVertical:none};
     const horizontalBorder = ({top=false,bottom=false}={}) => ({
       top:top ? thin : none,
@@ -77,6 +78,7 @@
     });
 
     const f = state.fields || {};
+    const aurora=window.FastTrackAuroraReport?.matches(state);
     const calc = REPORT().calculate(state);
     const riskCard = window.FastTrackRiskCard?.data(state) || null;
     const logo = await canvasBytes(REPORT().ASSETS.logo,620,240,{background:'#ffffff'});
@@ -286,7 +288,8 @@
         ? [coverCell(label,{width:COVER_COLUMNS[0]+COVER_COLUMNS[1],columnSpan:2,bold:true,right:40}),coverCell(compactCoverText(value),{width:COVER_COLUMNS[2],left:0})]
         : [coverCell(label,{width:COVER_COLUMNS[0],bold:true,right:40}),coverCell(compactCoverText(value),{width:COVER_COLUMNS[1]+COVER_COLUMNS[2],columnSpan:2,left:0})]
     });
-    const claim=window.FastTrackPresentation.claimData(state);
+    const claimState=aurora?{...state,fields:window.FastTrackAuroraReport.coverFields(state)}:state;
+    const claim=window.FastTrackPresentation.claimData(claimState);
     if (!claim.fits) throw new Error(window.FastTrackPresentation.claimError(state));
     const claimWidth=Math.round(claim.widthMm*1440/25.4),labelWidth=Math.round(claim.labelMm*1440/25.4);
     const claimCell = (value,width) => new TableCell({
@@ -297,7 +300,10 @@
       width:{size:claimWidth,type:WidthType.DXA},alignment:AlignmentType.LEFT,indent:{size:COVER_TABLE_WIDTH-claimWidth,type:WidthType.DXA},layout:TableLayoutType.FIXED,columnWidths:[labelWidth,claimWidth-labelWidth],borders:noBorder,
       rows:claim.rows.map(row=>new TableRow({cantSplit:true,children:[claimCell(row[0],labelWidth),claimCell(row[1],claimWidth-labelWidth)]}))
     });
-    const metaTable = new Table({
+    const metaTable = aurora ? new Table({
+      width:{size:COVER_TABLE_WIDTH,type:WidthType.DXA},layout:TableLayoutType.FIXED,columnWidths:[3691,6095],borders:noBorder,
+      rows:window.FastTrackAuroraReport.coverRows(state).map(([label,value])=>new TableRow({cantSplit:true,height:{value:COVER_ROW_HEIGHT,rule:HeightRule.ATLEAST},children:[coverCell(label,{width:3691,bold:true,right:57}),coverCell(value,{width:6095})]}))
+    }) : new Table({
       width:{size:COVER_TABLE_WIDTH,type:WidthType.DXA},layout:TableLayoutType.FIXED,columnWidths:COVER_COLUMNS,borders:noBorder,
       rows:[
         coverRow('COMPANHIA SEGURADORA:',f.insurer),
@@ -327,17 +333,18 @@
       const mapImg = await canvasBytes(state.map.dataUrl,1050,720,{background:'#ffffff'});
       const scale = Math.min(490/mapImg.width,340/mapImg.height,1);
       technical.push(
-        new Paragraph({children:[new ImageRun({data:mapImg.data,type:'png',transformation:{width:Math.max(1,Math.round(mapImg.width*scale)),height:Math.max(1,Math.round(mapImg.height*scale))}})],alignment:AlignmentType.CENTER,spacing:{after:80},keepNext:true,keepLines:true}),
+        new Paragraph({children:[new ImageRun({data:mapImg.data,type:'png',outline:attachmentOutline,transformation:{width:Math.max(1,Math.round(mapImg.width*scale)),height:Math.max(1,Math.round(mapImg.height*scale))}})],alignment:AlignmentType.CENTER,spacing:{after:80},keepNext:true,keepLines:true}),
         caption('Localização da propriedade sinistrada.')
       );
     } else technical.push(para('Imagem de localização não informada.',{alignment:AlignmentType.CENTER}));
     technical.push(heading('2. DESCRIÇÃO DA OCORRÊNCIA'),...narrativeParagraphs(REPORT().effectiveOccurrenceText(state)),heading('3. COBERTURA RECLAMADA'));
 
     const coverageRows=window.FastTrackPolicies.reportRows(state);
+    const coverageBorder=aurora?{...horizontalBorder({bottom:true}),bottom:{style:BorderStyle.SINGLE,color:'000000',size:4}}:horizontalBorder({bottom:true});
     const coverageCells=(values,header=false)=>values.map((value,index)=>tcell(String(value).split('\n'),{
       width:[40,30,30][index],align:index===0?AlignmentType.LEFT:AlignmentType.CENTER,
-      bold:header,keepNext:header && coverageRows.length>0,border:horizontalBorder({bottom:true}),
-      size:22,line:270,margins:{top:100,bottom:100,left:80,right:80}
+      bold:header,keepNext:header && coverageRows.length>0,border:coverageBorder,
+      size:aurora?24:22,line:270,margins:{top:100,bottom:100,left:80,right:80}
     }));
     technical.push(new Table({width:{size:9072,type:WidthType.DXA},layout:TableLayoutType.FIXED,
       columnWidths:[3628,2722,2722],borders:noBorder,rows:[
@@ -372,7 +379,7 @@
           cells.push(new TableCell({
             width:{size:50,type:WidthType.PERCENTAGE},verticalAlign:VerticalAlign.TOP,borders:noBorder,margins:{top:80,bottom:80,left:80,right:80},
             children:[
-              new Paragraph({children:[new ImageRun({data:image.data,type:'png',transformation:{width:Math.max(1,Math.round(image.width*scale)),height:Math.max(1,Math.round(image.height*scale))}})],alignment:AlignmentType.CENTER,spacing:{after:80}}),
+              new Paragraph({children:[new ImageRun({data:image.data,type:'png',outline:attachmentOutline,transformation:{width:Math.max(1,Math.round(image.width*scale)),height:Math.max(1,Math.round(image.height*scale))}})],alignment:AlignmentType.CENTER,spacing:{after:80}}),
               caption(`Figura ${start + r * 2 + c + 1} — ${photo.caption || ''}`)
             ]
           }));
@@ -384,7 +391,7 @@
     }
 
     // Levantamentos documentais e anexos — seção 4.2
-    const documentaryChildren = [subheading('4.2. LAVANTAMENTOS DOCUMENTAIS'),...narrativeParagraphs(f.documentaryNarrative || ''),subheading('IMAGENS E ARQUIVOS')];
+    const documentaryChildren = [subheading('4.2. LAVANTAMENTOS DOCUMENTAIS'),...narrativeParagraphs(f.documentaryNarrative || '')];
     const evidence = Array.isArray(state.causeEvidence) ? state.causeEvidence : [];
     if (!evidence.length) {
       documentaryChildren.push(para('Nenhuma imagem ou arquivo anexado.',{alignment:AlignmentType.LEFT}));
@@ -398,7 +405,7 @@
           const imageCell = new TableCell({
             width:{size:100,type:WidthType.PERCENTAGE},verticalAlign:VerticalAlign.TOP,borders:noBorder,margins:{top:80,bottom:100,left:80,right:80},
             children:[
-              new Paragraph({children:[new ImageRun({data:image.data,type:'png',transformation:{width:Math.max(1,Math.round(image.width*scale)),height:Math.max(1,Math.round(image.height*scale))}})],alignment:AlignmentType.CENTER,spacing:{after:80}}),
+              new Paragraph({children:[new ImageRun({data:image.data,type:'png',outline:attachmentOutline,transformation:{width:Math.max(1,Math.round(image.width*scale)),height:Math.max(1,Math.round(image.height*scale))}})],alignment:AlignmentType.CENTER,spacing:{after:80}}),
               caption(`Evidência ${index + 1} — ${captionText}`)
             ]
           });
@@ -489,7 +496,7 @@
       if(dataUrl){
         const sig=await canvasBytes(dataUrl,1800,1400);
         const scale=Math.min(245.67/sig.width,136.06/sig.height,1);
-        imageChildren.push(new Paragraph({children:[new ImageRun({data:sig.data,type:'png',transformation:{width:Math.max(1,Math.round(sig.width*scale)),height:Math.max(1,Math.round(sig.height*scale))}})],alignment:AlignmentType.CENTER,spacing:{after:0},keepNext:true,keepLines:true}));
+        imageChildren.push(new Paragraph({children:[new ImageRun({data:sig.data,type:'png',outline:attachmentOutline,transformation:{width:Math.max(1,Math.round(sig.width*scale)),height:Math.max(1,Math.round(sig.height*scale))}})],alignment:AlignmentType.CENTER,spacing:{after:0},keepNext:true,keepLines:true}));
       }else imageChildren.push(new Paragraph({children:[run('')],spacing:{after:0},keepNext:true}));
       const frame=new Table({width:{size:100,type:WidthType.PERCENTAGE},borders:noBorder,rows:[new TableRow({height:{value:2041,rule:HeightRule.ATLEAST},cantSplit:true,children:[new TableCell({children:imageChildren,verticalAlign:VerticalAlign.CENTER,borders:noBorder,margins:{top:0,bottom:0,left:0,right:0}})]})]});
       const person=window.FastTrackSignatures.identity(state,role);
