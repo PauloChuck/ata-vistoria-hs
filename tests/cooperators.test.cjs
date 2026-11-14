@@ -1,7 +1,7 @@
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),crypto=require('node:crypto');
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const script=fs.readFileSync(path.join(__dirname,'../fast_track/v06/cooperators-0634.js'),'utf8');
+const script=fs.readFileSync(path.join(__dirname,'../fast_track/v06/cooperators-0635.js'),'utf8');
 function api(){
  class DOMParser {parseFromString(html){return {querySelectorAll:()=>[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>({textContent:m[1]}))};}}
  const ctx=vm.createContext({window:{},document:{getElementById:()=>null},DOMParser,crypto:crypto.webcrypto,TextEncoder,Blob},{codeGeneration:{strings:false,wasm:false}});
