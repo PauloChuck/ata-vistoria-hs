@@ -1,0 +1,213 @@
+name: Verify V0633 public six-base importer
+
+on:
+  push:
+    branches:
+      - verification/v0633-public
+    paths:
+      - .github/workflows/verify-v0633-public.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare browser and document tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.56.1
+          CHROME_PATH="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          if ! command -v libreoffice >/dev/null 2>&1 || ! command -v pdftotext >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y libreoffice-writer poppler-utils
+          fi
+
+      - name: Test published application
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/v0633-public
+          mkdir -p "$OUT"
+          cat > "$OUT/test.js" <<'NODE'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+          const path = require('path');
+
+          const out='/tmp/v0633-public';
+          const url='https://paulochuck.github.io/ata-vistoria-hs/fast_track/v062.html?v=0633-public-final';
+          const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAANklEQVR4nO3PQQ0AIBDAsAP/nuGNAvZoFSzZOjNnyNi1dwfgUQCeBeBZAB4F4FkAHgXgWQAeBeBZ4AG9AAHCPQ58UAAAAASUVORK5CYII=','base64');
+          const assert=(condition,message)=>{if(!condition)throw new Error(message)};
+          const fixture=`<!doctype html><html><body>
+          <script>window.__IMPORTED_SCRIPT_EXECUTED=true;</script>
+          <script>const DATA={
+            aurora:{a:{nome:'JOAO MULTI',renovacao:[{cidade:'CHAPECO',uf:'SC',latitude:'-27,100001',longitude:'-52,600001',aviario:'AV-01',metragem:'1.200 m²',capAloja:18000,vrBenfeitoria:'R$ 1.000.000,00',vrAnimais:'R$ 200.000,00',planilha:'RENOVACAO AVES',situacao:'ATIVO'}],registrosEndosso:[{cidade:'CHAPECO',aviario:'AV-E1',planilha:'END 10',resultado:'INCLUSAO'}],endossos:['END 99 - VERIFICAR ENDOSSO']}},
+            lar:{a:{nome:'JOAO MULTI',inicial:[{cidade:'CASCAVEL',uf:'PR',aviario:'LAR-01',metragem:'1.500 m²',quantidadeAves:24000,valorBenfeitoria:'R$ 1.500.000,00',valorAves:'R$ 300.000,00',planilha:'BASE LAR',situacao:'ATIVO'}],endossos:[{cidade:'TOLEDO',aviario:'LAR-E1',planilha:'END LAR',resultado:'EXCLUSAO'}],trocas:['Troca de titularidade pendente']}},
+            suinos:{a:{nome:'ELIO ANTONIO DA SILVA',renovacao:[{cidade:'JABORA',latitude:'-27,097108',longitude:'-51,864781',qtdeLotacao:490,vrBenfeitoria:'R$ 294.000,00',planilha:'RENOVACAO SUINOS 2026',situacao:'ATIVO'}],registrosEndosso:[{cidade:'JABORA',planilha:'END SUINOS 01',resultado:'AUMENTO DE VR',vrBenfeitoria:'R$ 10.000,00'}],endossos:['VERIFICAR ENDOSSO SUINOS 02']}},
+            jagua:{NOME:{nome:'NOME',municipio:'MUNICIPIO',latitude:'LATITUDE',longitude:'LONGITUDE',aviario:'AVIARIO',planilha:'PLANILHA',situacao:'SITUACAO'},a:{nome:'ANA JAGUA',inicial:[{municipio:'JAGUAPITA',uf:'PR',latitude:'-23,110001',longitude:'-51,530001',aviario:'JG-01',quantidadeAves:17500,valorBenfeitoria:'R$ 900.000,00',valorAves:'R$ 210.000,00',planilha:'BASE JAGUA',situacao:'ATIVO'}],endossos:[{municipio:'JAGUAPITA',aviario:'JG-E1',planilha:'END JAGUA',resultado:'ALTERACAO'}],titularidades:['Troca de titularidade informada']}},
+            matrizes:{a:{nome:'PAULO MATRIZES',renovacao:[{cidade:'XAXIM',uf:'SC',nucleo:'M-01',areaM2:2200,totalAves:32000,vrEstruturas:'R$ 2.000.000,00',vrTotalAves:'R$ 500.000,00',danosAviarios:'R$ 75.000,00',planilha:'RENOVACAO MATRIZES',situacao:'ATIVO'}],endossos:['END MATRIZES SEM DETALHE']}},
+            larPostura:{a:{nome:'JOAO MULTI',iniciais:[{tipo:'Postura',cidade:'MEDIANEIRA',uf:'PR',galpao:'P-01',qtAves:15000,vrTotalEstruturas:'R$ 800.000,00',vrTotalAnimais:'R$ 180.000,00',planilha:'BASE POSTURA',situacao:'ATIVO'},{tipo:'Recria',cidade:'MEDIANEIRA',uf:'PR',galpao:'R-01',maximoAves:10000,vrTotalEstruturas:'R$ 650.000,00',vrTotalAnimais:'R$ 90.000,00',planilha:'BASE RECRIA',situacao:'ATIVO'}],endossos:['END POSTURA SEM DETALHE']}}
+          };</script></body></html>`;
+
+          async function go(page,target){
+            for(let guard=0;guard<12;guard+=1){
+              const current=Number(await page.locator('.screen.active').getAttribute('data-step'));
+              if(current===target)return;
+              const next=current<target?current+1:current-1;
+              const button=page.locator(`.screen.active [data-go="${next}"]`).first();
+              if(await button.count()===0)throw new Error(`Navegação ${current} -> ${next} não encontrada`);
+              await button.click();
+              await page.waitForSelector(`.screen[data-step="${next}"].active`);
+            }
+            throw new Error(`Etapa ${target} não alcançada`);
+          }
+
+          async function download(page,action,target){
+            const pending=page.waitForEvent('download',{timeout:120000});
+            await page.locator(`[data-action="${action}"]`).click();
+            const item=await pending;
+            await item.saveAs(target);
+          }
+
+          (async()=>{
+            const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH,args:['--no-sandbox','--disable-dev-shm-usage']});
+            const page=await browser.newPage({acceptDownloads:true,viewport:{width:1500,height:1100}});
+            const pageErrors=[];const consoleErrors=[];const httpErrors=[];
+            page.on('pageerror',error=>pageErrors.push(String(error)));
+            page.on('console',message=>{const text=message.text();if(message.type()==='error'&&!/favicon/i.test(text)&&!/Failed to load resource:.*404/i.test(text))consoleErrors.push(text)});
+            page.on('response',response=>{if(response.status()>=400&&!/favicon/i.test(response.url()))httpErrors.push({status:response.status(),url:response.url()})});
+            page.on('dialog',dialog=>dialog.accept());
+
+            await page.goto(url,{waitUntil:'networkidle',timeout:120000});
+            await page.waitForSelector('.app-shell',{state:'visible'});
+            await page.waitForFunction(()=>window.FastTrackCooperators?.importerVersion==='0.6.3');
+            await page.locator('[data-action="load-example"]').click();
+            await page.setInputFiles('#cooperatorBaseInput',{name:'CONSULTA DE COOPERADOS.html',mimeType:'text/html',buffer:Buffer.from(fixture)});
+            await page.waitForFunction(()=>window.FastTrackCooperators?.getBase()?.schemaVersion===2);
+
+            const base=await page.evaluate(()=>{
+              const current=window.FastTrackCooperators.getBase();
+              const elio=current.records.find(record=>record.name==='ELIO ANTONIO DA SILVA'&&record.category==='Renovação');
+              return {executed:window.__IMPORTED_SCRIPT_EXECUTED,counts:current.counts,countDetails:current.countDetails,totalDetailed:current.totalDetailedRecords,totalReferences:current.totalReferences,warnings:current.warnings,records:current.records,elio};
+            });
+            assert(base.executed===undefined,'Script do HTML importado foi executado');
+            for(const key of ['aurora','lar','suinos','jagua','matrizes','larPostura'])assert(base.counts[key]>0,`Base sem registros: ${key}`);
+            assert(base.countDetails.jagua.cabecalhosIgnorados>=1,'Cabeçalho Jaguafrangos não foi ignorado');
+            assert(!JSON.stringify(base.records).includes('[object Object]'),'Registro contém [object Object]');
+            assert(base.elio?.municipality==='JABORA','Município de Elio divergente');
+            assert(base.elio.latitude==='-27,097108'&&base.elio.longitude==='-51,864781','Coordenadas de Elio divergentes');
+            assert(String(base.elio.capacity)==='490'&&base.elio.capacityConcept==='Lotação máxima da pocilga'&&base.elio.capacityUnit==='suínos','Lotação de Elio divergente');
+            assert(base.elio.vrBuildings==='R$ 294.000,00'&&base.elio.vrAnimals===''&&base.elio.state===''&&base.elio.area==='','Campos de Elio divergentes ou presumidos');
+            assert(base.elio.category==='Renovação','Origem de Elio divergente');
+
+            await page.fill('#cooperatorSearch','ELIO ANTONIO DA SILVA');
+            await page.locator('[data-action="search-cooperators"]').click();
+            await page.waitForFunction(()=>document.querySelectorAll('.cooperator-result-card').length>=2);
+            const card=page.locator('.cooperator-result-card').filter({hasText:'JABORA'}).filter({hasText:'Renovação'}).filter({hasText:'R$ 294.000,00'});
+            assert(await card.count()===1,'Card de Elio ambíguo ou ausente');
+            const cardText=(await card.innerText()).toLocaleUpperCase('pt-BR');
+            for(const value of ['JABORA','-27,097108','-51,864781','LOTAÇÃO MÁXIMA DA POCILGA','490 SUÍNOS','R$ 294.000,00','NÃO INFORMADO'])assert(cardText.includes(value),`Card sem ${value}`);
+            await card.locator('[data-action="use-cooperator-record"]').click();
+            await page.waitForSelector('.cooperator-selected');
+            assert(await page.inputValue('#claimantName')==='ELIO ANTONIO DA SILVA','Nome não preenchido');
+            assert(await page.inputValue('[data-coop-field="municipality"]')==='JABORA','Município não preenchido');
+            assert(await page.inputValue('[data-coop-field="state"]')==='','UF ausente foi presumida');
+            assert(await page.inputValue('[data-coop-field="vrBuildings"]')==='R$ 294.000,00','VR de benfeitorias não preenchido');
+            assert(await page.inputValue('[data-coop-field="vrAnimals"]')==='','VR de animais ausente foi inventado');
+
+            await page.locator('[data-action="save-draft"]').click();
+            await page.waitForTimeout(700);
+            await page.reload({waitUntil:'networkidle',timeout:120000});
+            await page.waitForFunction(()=>window.FastTrackCooperators?.getBase()?.schemaVersion===2);
+            assert(await page.inputValue('#claimantName')==='ELIO ANTONIO DA SILVA','Seleção não persistiu após recarga');
+            assert(await page.inputValue('[data-coop-field="vrBuildings"]')==='R$ 294.000,00','VR não persistiu após recarga');
+
+            await go(page,2);
+            await page.setInputFiles('#mapInput',{name:'mapa.png',mimeType:'image/png',buffer:png});
+            await page.waitForSelector('#mapEditor:not(.hidden)');
+            await go(page,7);
+            await page.waitForSelector('#reportPreview .report-page');
+            const preview=await page.evaluate(()=>{const host=document.querySelector('#reportPreview');const pages=[...host.querySelectorAll('.report-page')];return{text:host.innerText,pages:pages.length,overflow:pages.map((item,index)=>({page:index+1,delta:item.querySelector('.report-content').scrollHeight-item.querySelector('.report-content').clientHeight}))}});
+            const normalized=preview.text.replace(/\s+/g,' ').toLocaleUpperCase('pt-BR');
+            for(const value of ['DADOS CONFIRMADOS DO LOCAL','ELIO ANTONIO DA SILVA','JABORA','-27,097108 / -51,864781','LOTAÇÃO MÁXIMA DA POCILGA','490 SUÍNOS','VR DE BENFEITORIAS','R$ 294.000,00','VR DE ANIMAIS','NÃO INFORMADO','RENOVAÇÃO'])assert(normalized.includes(value),`Prévia sem ${value}`);
+            assert(preview.overflow.every(item=>item.delta<=2),`Overflow: ${JSON.stringify(preview.overflow)}`);
+            await page.locator('#reportPreview').screenshot({path:path.join(out,'public-preview-v0633.png')});
+            await page.screenshot({path:path.join(out,'public-interface-v0633.png'),fullPage:true});
+
+            const docx=path.join(out,'Relatorio_Fast_Track_V0633_publico.docx');
+            await download(page,'export-word',docx);
+            assert(fs.statSync(docx).size>15000,'DOCX público inválido');
+            await page.evaluate(()=>{window.print=()=>{};document.querySelector('[data-action="export-pdf"]').click()});
+            await page.waitForSelector('#printHost .report-page',{state:'attached'});
+            await page.emulateMedia({media:'print'});
+            const pdf=path.join(out,'Relatorio_Fast_Track_V0633_publico.pdf');
+            await page.pdf({path:pdf,format:'A4',printBackground:true,preferCSSPageSize:true,margin:{top:'0',right:'0',bottom:'0',left:'0'}});
+            assert(fs.statSync(pdf).size>10000,'PDF público inválido');
+
+            if(pageErrors.length||consoleErrors.length||httpErrors.length)throw new Error(JSON.stringify({pageErrors,consoleErrors,httpErrors}));
+            fs.writeFileSync(path.join(out,'public-result.json'),JSON.stringify({url,base,preview,pageErrors,consoleErrors,httpErrors,docx,pdf},null,2));
+            await browser.close();
+          })().catch(error=>{console.error(error);process.exit(1)});
+          NODE
+          NODE_PATH="$PWD/node_modules" node "$OUT/test.js"
+
+      - name: Validate public Word and PDF
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/v0633-public
+          DOCX="$OUT/Relatorio_Fast_Track_V0633_publico.docx"
+          PDF="$OUT/Relatorio_Fast_Track_V0633_publico.pdf"
+          unzip -t "$DOCX"
+          mkdir -p "$OUT/docx" "$OUT/render" "$OUT/lo-profile"
+          unzip -q "$DOCX" -d "$OUT/docx"
+          pdftotext -layout "$PDF" "$OUT/browser.txt"
+          libreoffice -env:UserInstallation="file://$OUT/lo-profile" --headless --convert-to pdf --outdir "$OUT/render" "$DOCX"
+          WORD_PDF=$(find "$OUT/render" -maxdepth 1 -name '*.pdf' -print -quit)
+          test -s "$WORD_PDF"
+          pdftotext -layout "$WORD_PDF" "$OUT/word.txt"
+          pdftoppm -png -r 105 "$WORD_PDF" "$OUT/render/page" >/dev/null 2>&1
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,re
+          out=Path('/tmp/v0633-public')
+          sources={'PDF público':(out/'browser.txt').read_text(encoding='utf-8',errors='ignore'),'Word público':(out/'word.txt').read_text(encoding='utf-8',errors='ignore'),'OOXML':(out/'docx/word/document.xml').read_text(encoding='utf-8',errors='ignore')}
+          required=['DADOS CONFIRMADOS DO LOCAL','ELIO ANTONIO DA SILVA','JABORA','-27,097108 / -51,864781','LOTAÇÃO MÁXIMA DA POCILGA','490 SUÍNOS','VR DE BENFEITORIAS','294.000,00','VR DE ANIMAIS','NÃO INFORMADO','RENOVAÇÃO']
+          def norm(value): return re.sub(r'\s+',' ',value).strip().upper()
+          for label,text in sources.items():
+              current=norm(text)
+              for item in required:
+                  if norm(item) not in current: raise SystemExit(f'{label}: ausente {item}')
+              if '[OBJECT OBJECT]' in current: raise SystemExit(f'{label}: contém [object Object]')
+          result=json.loads((out/'public-result.json').read_text(encoding='utf-8'))
+          pages=list((out/'render').glob('page-*.png'))
+          summary=(
+              f"Aplicação pública V0.6.3 carregada: sim\n"
+              f"Seis bases reconhecidas: sim\n"
+              f"Elio/JABORA recuperado: sim\n"
+              f"Lotação máxima: 490 suínos\n"
+              f"VR de benfeitorias: R$ 294.000,00\n"
+              f"VR de animais não informado: preservado\n"
+              f"Cabeçalho Jaguafrangos ignorado: sim\n"
+              f"Páginas da prévia: {result['preview']['pages']}\n"
+              f"Páginas renderizadas do Word: {len(pages)}\n"
+          )
+          (out/'public-validation-summary.txt').write_text(summary,encoding='utf-8')
+          print(summary)
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fast-track-v0633-public-validation
+          path: /tmp/v0633-public
+          if-no-files-found: warn
