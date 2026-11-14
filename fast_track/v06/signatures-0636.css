@@ -1,0 +1,24 @@
+.report-page.first .claim-identifiers{margin-right:0;font-family:Arial,sans-serif;text-transform:none;font-weight:400}
+.report-page.first .claim-identifiers td{padding:0;white-space:nowrap;overflow-wrap:normal;line-height:1;font-size:inherit;font-weight:400;text-transform:none;vertical-align:top}
+.signature-report-grid{gap:12mm;margin-top:10mm;align-items:start}
+.signature-report{min-width:0;overflow-wrap:anywhere}
+.signature-image-frame{height:36mm;display:flex;align-items:center;justify-content:center;margin-bottom:2mm}
+.signature-report .signature-image-frame img{width:auto;height:auto;max-width:65mm;max-height:36mm;object-fit:contain;margin:0}
+.signature-report .signature-line{font-size:10pt;line-height:1.4}
+.signature-card{min-width:0}
+.signature-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.signature-actions .btn{white-space:normal}
+.signature-profile{border:1px solid var(--line);border-radius:14px;padding:15px;margin:20px 0;background:#f7fbfd}
+.signature-profile>summary{font-weight:700;cursor:pointer;color:var(--primary-dark)}
+.signature-profile-content{margin-top:15px}
+.signature-profile .signature-preview{max-width:560px;height:200px}
+.signature-checkbox{display:flex;gap:10px;align-items:center;margin:15px 0}
+.signature-checkbox input{width:auto}
+.signature-crop-preview{height:260px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);background:#fff;margin:12px 0}
+.signature-crop-preview img{max-width:100%;max-height:100%;object-fit:contain}
+.signature-crop-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px}
+.signature-crop-controls label{font-size:13px;display:block}
+#signatureCanvas{height:auto;aspect-ratio:900/320}
+#signatureCropModal .modal-card{max-height:94vh;overflow:auto}
+[hidden]{display:none!important}
+@media(max-width:620px){.signature-crop-controls{grid-template-columns:1fr}.signature-crop-preview{height:180px}.signature-actions .btn{flex:1 1 auto}}

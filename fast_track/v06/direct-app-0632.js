@@ -919,7 +919,7 @@
       regulatorOpinion:REGULATOR_OPINION_DEFAULT,
       otherInsurance:'nao',bankName:'CRESOL',bankAgency:'2508',bankAccount:'1.801-5',
       noticeDate:'2026-11-05',scheduleDate:'2026-11-06',reportCity:'Blumenau (SC)',reportDate:'2026-11-10',
-      regulatorName:'Paulo R. Schlosser',regulatorCpf:'068.613.739-66'
+      regulatorName:'Regulador Exemplo',regulatorCpf:'000.000.000-00'
     });
     state=createDefaultState();
     state.fields=f;

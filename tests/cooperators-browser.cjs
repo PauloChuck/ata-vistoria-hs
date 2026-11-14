@@ -29,8 +29,26 @@ const server=http.createServer((req,res)=>{
   assert.equal((await backup()).cooperatorSelection,null);
   const id=await page.evaluate(()=>window.FastTrackCooperators.getBase().records.find(r=>r.installationCode==='TEST-180').id);
   await page.locator(`button[data-record-id="${id}"]`).click();
+  const card=page.locator('[data-selected-risk-card]');
+  assert((await card.innerText()).includes('Não informado na base'));
+  assert.equal(await page.locator('.cooperator-adjustments').evaluate(e=>e.open),false);
+  await page.locator('.cooperator-adjustments>summary').click();
   const involved=page.locator('[data-installation-field="involved"]');assert.equal(await involved.isChecked(),false);await involved.check();
   await page.locator('[data-coop-field="localIdentification"]').fill('Local ajustado');await page.locator('[data-coop-field="vrAnimals"]').fill('0');
+  const normalize=s=>s.replace(/\s+/g,' ').trim();
+  const cardText=normalize(await card.innerText());
+  assert(cardText.includes('Local ajustado'));assert(cardText.includes('R$ 0,00'));assert(cardText.includes('R$ 1.000,00'));
+  assert(cardText.includes('Origem deste valor: Ajuste manual do regulador'));
+  for(const width of [1440,768,390,320]) {
+    await page.setViewportSize({width,height:1000});
+    const size=await card.evaluate(e=>({width:e.clientWidth,scroll:e.scrollWidth,body:document.body.scrollWidth,viewport:innerWidth,columns:getComputedStyle(e.querySelector('.risk-card-grid')).gridTemplateColumns}));
+    assert(size.scroll<=size.width+1&&size.body<=size.viewport+1,`overflow at ${width}px`);
+    if(width<=390)assert(!size.columns.includes(' '),'narrow screen uses one column');
+  }
+  await page.setViewportSize({width:1440,height:1000});
+  await page.locator('[data-go="7"]').first().evaluate(e=>e.click());
+  assert.equal(normalize(await page.locator('#reportPreview .risk-card').innerText()),cardText);
+  await page.locator('[data-go="1"]').first().evaluate(e=>e.click());
   const selected=await backup();await importBase(data);const repeated=await backup();
   assert.deepEqual(repeated.cooperatorSelection.confirmed,selected.cooperatorSelection.confirmed);assert.equal(repeated.cooperatorSelection.requiresReselection,false);
   await action('save-draft');await page.reload();await page.waitForFunction(()=>window.FastTrackCooperators?.getBase());
@@ -41,6 +59,6 @@ const server=http.createServer((req,res)=>{
   const reviewed=await backup();assert.equal(reviewed.cooperatorSelection.requiresReselection,true);assert.deepEqual(reviewed.cooperatorSelection.confirmed,selected.cooperatorSelection.confirmed);
   await action('new-process');assert.equal((await backup()).cooperatorSelection,null);assert.equal(await page.evaluate(()=>window.FastTrackCooperators.getBase().totalDetailedRecords),182);
   assert.deepEqual(errors,[]);
-  console.log('PASS: 181 registros acessíveis, seleção explícita, ajustes, reimportação, recarga, backup e novo atendimento.');
+  console.log('PASS: 181 registros acessíveis, ficha em 4 larguras e prévia equivalente, seleção explícita, ajustes, reimportação, recarga, backup e novo atendimento.');
  }finally{await browser.close();server.close();}
 })().catch(error=>{console.error(error);server.close();process.exitCode=1;});

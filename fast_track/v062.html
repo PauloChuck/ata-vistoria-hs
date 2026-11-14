@@ -4,12 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="color-scheme" content="light">
-  <title>Fast Track de Contingência V0.6.3.4 | HS</title>
+  <title>Fast Track de Contingência V0.6.3.6 | HS</title>
   <link rel="stylesheet" href="v06/direct.css?v=0632">
   <link rel="stylesheet" href="v06/direct-layout-0634.css?v=0634">
   <style>
     .header-row{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}.version{border-radius:999px;background:#249ed0;color:#fff;padding:7px 11px;font-size:12px;font-weight:800}.nav-actions{display:flex;justify-content:space-between;gap:10px;margin-top:22px}.inline-field{display:flex;gap:8px;align-items:stretch}.inline-field input{min-width:0}.compact{gap:7px}.asset-list{margin-top:12px}.signature-panels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.wide{max-width:none}.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}.toolbar.compact{margin-top:0}.file-btn{position:relative;overflow:hidden}.file-btn input{position:absolute;inset:0;opacity:0;cursor:pointer}.alert{border-radius:14px;padding:12px 14px;margin:12px 0;line-height:1.45}.alert.warning{background:#fff8e9;color:#785316;border:1px solid #efdcae}.readonly-block{border-left:4px solid #249ed0;padding:9px 13px;background:#f5fafc;margin:15px 0}.readonly-block p{margin:5px 0 0;line-height:1.55}.upload-box{border:2px dashed #9fcddd;border-radius:16px;background:#f5fbfd;padding:22px;text-align:center;display:flex;flex-direction:column;gap:8px;color:#326378}.asset-preview{margin-top:12px;border:1px solid #d7e1e8;border-radius:14px;min-height:160px;background:#fbfcfd;display:flex;align-items:center;justify-content:center;color:#677482;overflow:hidden}.asset-preview img{max-width:100%;max-height:330px}.signed{background:#5656a8;color:#fff}@media(max-width:760px){.header-row,.nav-actions{flex-direction:column}.signature-panels{grid-template-columns:1fr}.nav-actions .btn{width:100%}.inline-field{flex-direction:column}}
   </style>
+<link rel="stylesheet" href="v06/risk-card-0635.css?v=0635">
+<link rel="stylesheet" href="v06/signatures-0636.css?v=0636">
 </head>
 <body>
 <div class="app-shell">
@@ -20,7 +22,7 @@
         <h1>Fast Track de Contingência</h1>
         <p>Regulação simplificada e encerramento em vistoria</p>
       </div>
-      <div class="header-meta"><span class="badge soft" id="caseBadge">Processo não identificado</span><span class="version">V0.6.3.4</span></div>
+      <div class="header-meta"><span class="badge soft" id="caseBadge">Processo não identificado</span><span class="version">V0.6.3.6</span></div>
     </div>
     <div class="progress" id="progress" aria-label="Etapas do formulário"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
   </header>
@@ -141,9 +143,27 @@
       <div class="card">
         <span class="step-kicker">Etapa 6 de 7</span><h2>Assinaturas</h2><p class="helper">O rascunho pode ser emitido sem assinatura. As duas assinaturas são exigidas somente para concluir a versão assinada.</p>
         <div class="signature-grid">
-          <div class="signature-card"><h3>Assinatura do regulador</h3><label class="field required" for="regulatorName">Nome</label><input id="regulatorName" data-field><label class="field required" for="regulatorCpf">CPF</label><input id="regulatorCpf" data-field><div id="regulatorSignaturePreview" class="signature-preview"><span>Sem assinatura registrada</span></div><button class="btn secondary" type="button" data-action="sign-regulator">Assinar como regulador</button></div>
-          <div class="signature-card"><h3>Assinatura do cooperado</h3><div class="readonly-data"><strong id="claimantSignatureName">Cooperado não informado</strong><span id="claimantSignatureCpf">CPF não informado</span></div><div id="claimantSignaturePreview" class="signature-preview"><span>Sem assinatura registrada</span></div><button class="btn secondary" type="button" data-action="sign-claimant">Assinar como cooperado</button></div>
+          <div class="signature-card"><h3>Assinatura do regulador</h3><label class="field required" for="regulatorName">Nome</label><input id="regulatorName" data-field><label class="field required" for="regulatorCpf">CPF</label><input id="regulatorCpf" data-field><div id="regulatorSignaturePreview" class="signature-preview"><span>Sem assinatura registrada</span></div><div class="signature-actions"><label class="btn secondary file-button"><span id="regulatorSignatureUploadLabel">Anexar assinatura</span><input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" data-signature-file="regulator"></label>
+      <button class="btn secondary" type="button" data-signature-action="crop" data-target="regulator" data-signature-role="regulator" hidden>Ajustar enquadramento</button>
+      <button class="btn danger-lite" type="button" data-signature-action="remove" data-target="regulator" data-signature-role="regulator" hidden>Remover assinatura</button>
+      <button id="regulatorSignatureConfirm" class="btn primary" type="button" data-signature-action="confirm" data-target="regulator" hidden>Confirmar assinatura para os dados atuais</button></div><button class="btn secondary" type="button" data-action="sign-regulator">Assinar como regulador</button></div>
+          <div class="signature-card"><h3>Assinatura do cooperado/segurado</h3><div class="readonly-data"><strong id="claimantSignatureName">Cooperado não informado</strong><span id="claimantSignatureCpf">CPF não informado</span></div><div id="claimantSignaturePreview" class="signature-preview"><span>Sem assinatura registrada</span></div><div class="signature-actions"><label class="btn secondary file-button"><span id="claimantSignatureUploadLabel">Anexar assinatura</span><input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" data-signature-file="claimant"></label>
+      <button class="btn secondary" type="button" data-signature-action="crop" data-target="claimant" data-signature-role="claimant" hidden>Ajustar enquadramento</button>
+      <button class="btn danger-lite" type="button" data-signature-action="remove" data-target="claimant" data-signature-role="claimant" hidden>Remover assinatura</button>
+      <button id="claimantSignatureConfirm" class="btn primary" type="button" data-signature-action="confirm" data-target="claimant" hidden>Confirmar assinatura para os dados atuais</button></div><button class="btn secondary" type="button" data-action="sign-claimant">Assinar como cooperado</button></div>
         </div><div id="signatureWarning" class="notice warn hidden"></div>
+        <div id="signatureMessage" class="notice info hidden" role="status" aria-live="polite"></div>
+        <details class="signature-profile" id="regulatorProfilePanel"><summary>Assinatura padrão do regulador</summary><div class="signature-profile-content">
+          <p class="helper">Preferência local: fica disponível somente neste navegador/dispositivo. Cada atendimento conserva sua própria cópia da assinatura; alterar este cadastro não modifica relatórios já salvos.</p>
+          <p id="regulatorProfileStatus" class="helper"></p>
+          <div class="grid2"><div><label class="field" for="profileRegulatorName">Nome completo do regulador</label><input id="profileRegulatorName" autocomplete="name"></div><div><label class="field" for="profileRegulatorCpf">CPF do regulador</label><input id="profileRegulatorCpf" inputmode="numeric" placeholder="000.000.000-00"></div></div>
+          <div id="profileSignaturePreview" class="signature-preview"><span>Nenhuma imagem cadastrada</span></div>
+          <div class="signature-actions"><label class="btn secondary file-button"><span id="profileSignatureUploadLabel">Anexar assinatura padrão</span><input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" data-signature-file="profile"></label><button id="profileCropButton" class="btn secondary" type="button" data-signature-action="crop" data-target="profile" hidden>Ajustar enquadramento</button></div>
+          <label class="signature-checkbox"><input type="checkbox" id="profileRegulatorAuto">Usar esta assinatura automaticamente nos novos relatórios</label>
+          <div class="signature-actions"><button class="btn primary" type="button" data-signature-action="profile-save">Salvar preferência local</button><button id="applyRegulatorProfile" class="btn secondary" type="button" data-signature-action="profile-apply">Aplicar neste atendimento</button><button class="btn danger-lite" type="button" data-signature-action="profile-remove">Remover preferência</button></div>
+          <details class="cooperator-original"><summary>Backup da preferência local</summary><p class="helper">Este arquivo contém dados pessoais e a assinatura. Guarde-o em local privado. Importar carrega os dados para conferência antes de salvar.</p><div class="signature-actions"><button class="btn secondary" type="button" data-signature-action="profile-export">Exportar configuração privada</button><label class="btn secondary file-button">Importar configuração privada<input id="profileImportFile" type="file" accept="application/json,.json"></label></div></details>
+        </div></details>
+
         <div class="nav-actions"><button class="btn secondary" type="button" data-go="5">Voltar</button><button class="btn primary" type="button" data-go="7">Revisar e emitir</button></div>
       </div>
     </section>
@@ -157,19 +177,23 @@
       </div>
     </section>
   </main>
-  <footer class="app-footer"><span id="saveStatus" role="status" aria-live="polite"></span><span>Horizon Servitas — Fast Track V0.6.3.4</span></footer>
+  <footer class="app-footer"><span id="saveStatus" role="status" aria-live="polite"></span><span>Horizon Servitas — Fast Track V0.6.3.6</span></footer>
 </div>
 
 <div id="signatureModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="signatureModalTitle"><div class="modal-card"><h2 id="signatureModalTitle">Assinatura</h2><p class="helper">Assine com mouse, dedo ou caneta.</p><canvas id="signatureCanvas" width="900" height="320"></canvas><div class="actions"><button class="btn secondary" type="button" data-action="clear-signature">Limpar</button><button class="btn secondary" type="button" data-action="cancel-signature">Cancelar</button><button class="btn primary" type="button" data-action="confirm-signature">Confirmar assinatura</button></div></div></div>
+<div id="signatureCropModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="signatureCropTitle"><div class="modal-card"><h2 id="signatureCropTitle">Enquadramento da assinatura</h2><p class="helper">Ajuste somente as margens desejadas. Confira se todos os traços permanecem visíveis. A proporção é preservada e a imagem original pode ser restaurada.</p><div class="signature-crop-preview"><img id="signatureCropPreview" alt="Prévia do enquadramento"></div><div class="signature-crop-controls"><div><label for="signatureCropleft">Margem esquerda: <output data-crop-output="left">0%</output></label><input id="signatureCropleft" type="range" min="0" max="45" step="1" value="0" data-signature-crop></div><div><label for="signatureCropright">Margem direita: <output data-crop-output="right">0%</output></label><input id="signatureCropright" type="range" min="0" max="45" step="1" value="0" data-signature-crop></div><div><label for="signatureCroptop">Margem superior: <output data-crop-output="top">0%</output></label><input id="signatureCroptop" type="range" min="0" max="45" step="1" value="0" data-signature-crop></div><div><label for="signatureCropbottom">Margem inferior: <output data-crop-output="bottom">0%</output></label><input id="signatureCropbottom" type="range" min="0" max="45" step="1" value="0" data-signature-crop></div></div><div class="actions"><button class="btn secondary" type="button" data-signature-action="crop-reset">Restaurar imagem inteira</button><button class="btn secondary" type="button" data-signature-action="crop-cancel">Cancelar</button><button class="btn primary" type="button" data-signature-action="crop-apply">Aplicar enquadramento</button></div></div></div>
 <div id="printHost" aria-hidden="true"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
 <script src="v06/brand-assets.js?v=0633"></script>
 <script src="v06/direct-report.js?v=0633"></script>
-<script src="v06/cooperators-0634.js?v=0634"></script>
-<script src="v06/direct-layout-0632.js?v=0633"></script>
+<script src="v06/cooperators-0635.js?v=0635"></script>
+<script src="v06/risk-card-0635.js?v=0635"></script>
+<script src="v06/signatures-0636.js?v=0636"></script>
+<script src="v06/presentation-0636.js?v=0636"></script>
+<script src="v06/direct-layout-0636.js?v=0636"></script>
 <script src="v06/direct-word.js?v=0633"></script>
-<script src="v06/direct-word-0634.js?v=0634"></script>
-<script src="v06/direct-app-0634.js?v=0634"></script>
+<script src="v06/direct-word-0636.js?v=0636"></script>
+<script src="v06/direct-app-0636.js?v=0636"></script>
 </body>
 </html>
