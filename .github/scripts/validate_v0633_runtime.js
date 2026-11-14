@@ -240,6 +240,7 @@ async function importFixture(page, html, name = 'CONSULTA DE COOPERADOS.html') {
   assert(selection.source.rawRecord.qtdeLotacao===490, 'Registro bruto real não foi preservado.');
   assert(selection.baseVersion.importerVersion==='0.6.3', 'Versão do importador não foi registrada no relatório.');
 
+  await go(page,2);
   await page.setInputFiles('#mapInput',{name:'mapa.png',mimeType:'image/png',buffer:png});
   await page.waitForSelector('#mapEditor:not(.hidden)');
   await go(page,3);
@@ -275,7 +276,12 @@ async function importFixture(page, html, name = 'CONSULTA DE COOPERADOS.html') {
   const docxPath=path.join(out,'Relatorio_Fast_Track_V0633.docx');
   await downloadByAction(page,'export-word',docxPath);
   assert(fs.existsSync(docxPath) && fs.statSync(docxPath).size>15000, 'DOCX não foi gerado.');
-  await page.locator('[data-action="export-pdf"]').click();
+  await page.evaluate(() => {
+    const nativePrint = window.print;
+    window.print = () => {};
+    document.querySelector('[data-action="export-pdf"]').click();
+    window.print = nativePrint;
+  });
   await page.waitForSelector('#printHost .report-page',{state:'attached'});
   await page.emulateMedia({media:'print'});
   const pdfPath=path.join(out,'Relatorio_Fast_Track_V0633.pdf');
