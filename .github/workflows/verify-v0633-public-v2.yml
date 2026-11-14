@@ -1,0 +1,116 @@
+name: Verify V0633 public importer V2
+
+on:
+  push:
+    branches:
+      - verification/v0633-public
+    paths:
+      - .github/workflows/verify-v0633-public-v2.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.56.1
+          CHROME_PATH="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+
+      - name: Validate published application and exports
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/v0633-public-v2
+          mkdir -p "$OUT"
+          cat > "$OUT/test.js" <<'NODE'
+          const { chromium } = require('playwright');
+          const fs=require('fs');
+          const path=require('path');
+          const out='/tmp/v0633-public-v2';
+          const url='https://paulochuck.github.io/ata-vistoria-hs/fast_track/v062.html?v=0633-public-v2';
+          const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAANklEQVR4nO3PQQ0AIBDAsAP/nuGNAvZoFSzZOjNnyNi1dwfgUQCeBeBZAB4F4FkAHgXgWQAeBeBZ4AG9AAHCPQ58UAAAAASUVORK5CYII=','base64');
+          const fixture=`<!doctype html><html><body><script>window.__IMPORTED_SCRIPT_EXECUTED=true;</script><script>const DATA={
+          aurora:{a:{nome:'JOAO MULTI',renovacao:[{cidade:'CHAPECO',aviario:'AV-01',capAloja:18000,vrBenfeitoria:'R$ 1.000.000,00',vrAnimais:'R$ 200.000,00',planilha:'RENOVACAO AVES',situacao:'ATIVO'}],registrosEndosso:[{cidade:'CHAPECO',aviario:'AV-E1',planilha:'END 10',resultado:'INCLUSAO'}],endossos:['END 99 - VERIFICAR ENDOSSO']}},
+          lar:{a:{nome:'JOAO MULTI',inicial:[{cidade:'CASCAVEL',aviario:'LAR-01',quantidadeAves:24000,valorBenfeitoria:'R$ 1.500.000,00',valorAves:'R$ 300.000,00',planilha:'BASE LAR',situacao:'ATIVO'}],endossos:[{cidade:'TOLEDO',aviario:'LAR-E1',planilha:'END LAR',resultado:'EXCLUSAO'}],trocas:['Troca pendente']}},
+          suinos:{a:{nome:'ELIO ANTONIO DA SILVA',renovacao:[{cidade:'JABORA',latitude:'-27,097108',longitude:'-51,864781',qtdeLotacao:490,vrBenfeitoria:'R$ 294.000,00',planilha:'RENOVACAO SUINOS 2026',situacao:'ATIVO'}],registrosEndosso:[{cidade:'JABORA',planilha:'END SUINOS 01',resultado:'AUMENTO DE VR',vrBenfeitoria:'R$ 10.000,00'}],endossos:['VERIFICAR ENDOSSO SUINOS 02']}},
+          jagua:{NOME:{nome:'NOME',municipio:'MUNICIPIO',latitude:'LATITUDE',longitude:'LONGITUDE',aviario:'AVIARIO',planilha:'PLANILHA',situacao:'SITUACAO'},a:{nome:'ANA JAGUA',inicial:[{municipio:'JAGUAPITA',aviario:'JG-01',quantidadeAves:17500,valorBenfeitoria:'R$ 900.000,00',valorAves:'R$ 210.000,00',planilha:'BASE JAGUA',situacao:'ATIVO'}],endossos:[{municipio:'JAGUAPITA',aviario:'JG-E1',planilha:'END JAGUA',resultado:'ALTERACAO'}],titularidades:['Troca informada']}},
+          matrizes:{a:{nome:'PAULO MATRIZES',renovacao:[{cidade:'XAXIM',nucleo:'M-01',totalAves:32000,vrEstruturas:'R$ 2.000.000,00',vrTotalAves:'R$ 500.000,00',danosAviarios:'R$ 75.000,00',planilha:'RENOVACAO MATRIZES',situacao:'ATIVO'}],endossos:['END MATRIZES SEM DETALHE']}},
+          larPostura:{a:{nome:'JOAO MULTI',iniciais:[{tipo:'Postura',cidade:'MEDIANEIRA',galpao:'P-01',qtAves:15000,vrTotalEstruturas:'R$ 800.000,00',vrTotalAnimais:'R$ 180.000,00',planilha:'BASE POSTURA',situacao:'ATIVO'},{tipo:'Recria',cidade:'MEDIANEIRA',galpao:'R-01',maximoAves:10000,vrTotalEstruturas:'R$ 650.000,00',vrTotalAnimais:'R$ 90.000,00',planilha:'BASE RECRIA',situacao:'ATIVO'}],endossos:['END POSTURA SEM DETALHE']}}
+          };</script></body></html>`;
+          const assert=(v,m)=>{if(!v)throw new Error(m)};
+          async function go(page,target){for(let n=0;n<12;n++){const current=Number(await page.locator('.screen.active').getAttribute('data-step'));if(current===target)return;const next=current<target?current+1:current-1;await page.locator(`.screen.active [data-go="${next}"]`).first().click();await page.waitForSelector(`.screen[data-step="${next}"].active`)}throw new Error(`Etapa ${target} não alcançada`)}
+          async function download(page,action,target){const pending=page.waitForEvent('download',{timeout:120000});await page.locator(`[data-action="${action}"]`).click();await (await pending).saveAs(target)}
+          (async()=>{
+            const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH,args:['--no-sandbox','--disable-dev-shm-usage']});
+            const page=await browser.newPage({acceptDownloads:true,viewport:{width:1500,height:1100}});
+            const errors=[];page.on('pageerror',e=>errors.push(String(e)));page.on('dialog',d=>d.accept());
+            await page.goto(url,{waitUntil:'networkidle',timeout:120000});
+            await page.waitForFunction(()=>window.FastTrackCooperators?.importerVersion==='0.6.3');
+            await page.locator('[data-action="load-example"]').click();
+            await page.setInputFiles('#cooperatorBaseInput',{name:'CONSULTA DE COOPERADOS.html',mimeType:'text/html',buffer:Buffer.from(fixture)});
+            await page.waitForFunction(()=>window.FastTrackCooperators?.getBase()?.schemaVersion===2);
+            const base=await page.evaluate(()=>{const b=window.FastTrackCooperators.getBase();return{executed:window.__IMPORTED_SCRIPT_EXECUTED,counts:b.counts,countDetails:b.countDetails,records:b.records,elio:b.records.find(r=>r.name==='ELIO ANTONIO DA SILVA'&&r.category==='Renovação')}});
+            assert(base.executed===undefined,'Script importado executado');
+            for(const k of ['aurora','lar','suinos','jagua','matrizes','larPostura'])assert(base.counts[k]>0,`Base vazia: ${k}`);
+            assert(base.countDetails.jagua.cabecalhosIgnorados>=1,'Cabeçalho Jaguafrangos não ignorado');
+            assert(!JSON.stringify(base.records).includes('[object Object]'),'Objeto convertido em texto');
+            assert(base.elio.municipality==='JABORA'&&base.elio.latitude==='-27,097108'&&base.elio.longitude==='-51,864781','Local de Elio divergente');
+            assert(String(base.elio.capacity)==='490'&&base.elio.capacityUnit==='suínos','Lotação de Elio divergente');
+            assert(base.elio.vrBuildings==='R$ 294.000,00'&&base.elio.vrAnimals===''&&base.elio.state===''&&base.elio.area==='','VRs/dados ausentes divergentes');
+            await page.fill('#cooperatorSearch','ELIO ANTONIO DA SILVA');await page.locator('[data-action="search-cooperators"]').click();
+            const card=page.locator('.cooperator-result-card').filter({hasText:'JABORA'}).filter({hasText:'Renovação'}).filter({hasText:'R$ 294.000,00'});assert(await card.count()===1,'Card Elio ausente/ambíguo');
+            await card.locator('[data-action="use-cooperator-record"]').click();await page.waitForSelector('.cooperator-selected');
+            assert(await page.inputValue('#claimantName')==='ELIO ANTONIO DA SILVA','Nome não aplicado');assert(await page.inputValue('[data-coop-field="vrBuildings"]')==='R$ 294.000,00','VR não aplicado');
+            await page.evaluate(()=>document.querySelector('[data-action="save-draft"]')?.click());await page.waitForTimeout(800);await page.reload({waitUntil:'networkidle',timeout:120000});
+            await page.waitForFunction(()=>window.FastTrackCooperators?.getBase()?.schemaVersion===2);assert(await page.inputValue('#claimantName')==='ELIO ANTONIO DA SILVA','Seleção não persistiu');
+            await go(page,2);await page.setInputFiles('#mapInput',{name:'mapa.png',mimeType:'image/png',buffer:png});await page.waitForSelector('#mapEditor:not(.hidden)');await go(page,7);await page.waitForSelector('#reportPreview .report-page');
+            const preview=await page.evaluate(()=>{const h=document.querySelector('#reportPreview');const p=[...h.querySelectorAll('.report-page')];return{text:h.innerText,pages:p.length,overflow:p.map(x=>x.querySelector('.report-content').scrollHeight-x.querySelector('.report-content').clientHeight)}});const text=preview.text.replace(/\s+/g,' ').toUpperCase();
+            for(const x of ['ELIO ANTONIO DA SILVA','JABORA','-27,097108 / -51,864781','490 SUÍNOS','R$ 294.000,00','VR DE ANIMAIS','NÃO INFORMADO','RENOVAÇÃO'])assert(text.includes(x),`Prévia sem ${x}`);assert(preview.overflow.every(x=>x<=2),'Overflow na prévia');
+            await page.locator('#reportPreview').screenshot({path:path.join(out,'public-preview-v0633.png')});
+            const docx=path.join(out,'Relatorio_Fast_Track_V0633_publico.docx');await download(page,'export-word',docx);assert(fs.statSync(docx).size>15000,'DOCX inválido');
+            await page.evaluate(()=>{window.print=()=>{};document.querySelector('[data-action="export-pdf"]').click()});await page.waitForSelector('#printHost .report-page',{state:'attached'});await page.emulateMedia({media:'print'});const pdf=path.join(out,'Relatorio_Fast_Track_V0633_publico.pdf');await page.pdf({path:pdf,format:'A4',printBackground:true,preferCSSPageSize:true,margin:{top:'0',right:'0',bottom:'0',left:'0'}});assert(fs.statSync(pdf).size>10000,'PDF inválido');
+            assert(errors.length===0,JSON.stringify(errors));fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({url,base,preview,docx,pdf},null,2));await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+          NODE_PATH="$PWD/node_modules" node "$OUT/test.js"
+          DOCX="$OUT/Relatorio_Fast_Track_V0633_publico.docx"
+          PDF="$OUT/Relatorio_Fast_Track_V0633_publico.pdf"
+          unzip -t "$DOCX"
+          mkdir -p "$OUT/docx"
+          unzip -q "$DOCX" -d "$OUT/docx"
+          pdftotext -layout "$PDF" "$OUT/pdf.txt"
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,re
+          out=Path('/tmp/v0633-public-v2')
+          values=[(out/'pdf.txt').read_text(encoding='utf-8',errors='ignore'),(out/'docx/word/document.xml').read_text(encoding='utf-8',errors='ignore')]
+          required=['ELIO ANTONIO DA SILVA','JABORA','-27,097108 / -51,864781','490 SUÍNOS','294.000,00','VR DE ANIMAIS','NÃO INFORMADO','RENOVAÇÃO']
+          norm=lambda v:re.sub(r'\s+',' ',v).upper()
+          for source in values:
+              current=norm(source)
+              for item in required:
+                  if norm(item) not in current: raise SystemExit(f'Ausente na saída: {item}')
+              if '[OBJECT OBJECT]' in current: raise SystemExit('Saída contém [object Object]')
+          result=json.loads((out/'result.json').read_text(encoding='utf-8'))
+          (out/'summary.txt').write_text(f"Aplicação pública V0.6.3: validada\nSeis bases: reconhecidas\nElio/JABORA: validado\nLotação: 490 suínos\nVR benfeitorias: R$ 294.000,00\nVR animais: não informado\nPáginas da prévia: {result['preview']['pages']}\n",encoding='utf-8')
+          print((out/'summary.txt').read_text())
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fast-track-v0633-public-validation-v2
+          path: /tmp/v0633-public-v2
+          if-no-files-found: warn
