@@ -49,16 +49,16 @@ jobs:
           from pathlib import Path
           path=Path('.github/scripts/validate_v0633_runtime.js')
           text=path.read_text(encoding='utf-8')
-          old="""  const elioCardText=await elioCard.innerText();
-          for (const expected of ['JABORA','-27,097108','-51,864781','Lotação máxima da pocilga','490 suínos','R$ 294.000,00','Renovação']) assert(elioCardText.includes(expected), `Card de Elio sem: ${expected}`);
-          assert(elioCardText.includes('Não informado'), 'Campos ausentes de Elio não foram apresentados como Não informado.');"""
-          new="""  const elioCardText=await elioCard.innerText();
-          const elioCardTextNormalized=elioCardText.toLocaleUpperCase('pt-BR');
-          for (const expected of ['JABORA','-27,097108','-51,864781','LOTAÇÃO MÁXIMA DA POCILGA','490 SUÍNOS','R$ 294.000,00','RENOVAÇÃO']) assert(elioCardTextNormalized.includes(expected), `Card de Elio sem: ${expected}`);
-          assert(elioCardTextNormalized.includes('NÃO INFORMADO'), 'Campos ausentes de Elio não foram apresentados como Não informado.');"""
-          if old not in text:
-              raise SystemExit('Trecho de validação do card de Elio não localizado')
-          path.write_text(text.replace(old,new),encoding='utf-8')
+          replacements={
+              "const elioCardText=await elioCard.innerText();": "const elioCardText=await elioCard.innerText();\n  const elioCardTextNormalized=elioCardText.toLocaleUpperCase('pt-BR');",
+              "['JABORA','-27,097108','-51,864781','Lotação máxima da pocilga','490 suínos','R$ 294.000,00','Renovação']) assert(elioCardText.includes(expected)": "['JABORA','-27,097108','-51,864781','LOTAÇÃO MÁXIMA DA POCILGA','490 SUÍNOS','R$ 294.000,00','RENOVAÇÃO']) assert(elioCardTextNormalized.includes(expected)",
+              "assert(elioCardText.includes('Não informado')": "assert(elioCardTextNormalized.includes('NÃO INFORMADO')",
+          }
+          for old,new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'Trecho não localizado: {old}')
+              text=text.replace(old,new,1)
+          path.write_text(text,encoding='utf-8')
           PY
           python3 -m http.server 8000 --bind 127.0.0.1 >"$V0633_OUT/http.log" 2>&1 &
           SERVER_PID=$!
