@@ -14,18 +14,87 @@ permissions:
 jobs:
   apply:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           ref: feature/v0633-six-base-importer
           fetch-depth: 0
 
-      - name: Apply implementation payload
+      - name: Reconstruct and apply implementation payload
         shell: bash
         run: |
           set -euo pipefail
-          cat .github/v0633-payload/part-* | base64 -d > /tmp/v0633-payload.tar.gz
-          tar -xzf /tmp/v0633-payload.tar.gz
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64
+          import gzip
+          import itertools
+          import io
+          import tarfile
+
+          root = Path('.github/v0633-payload')
+          read = lambda name: (root / name).read_text(encoding='utf-8').strip()
+
+          fixed03 = read('fix-03-0') + read('fix-03b-0') + read('fix-03b-1')
+          fixed03a = read('fix-03-0') + read('fix-03-1')
+          fixed06 = read('fix-06-0') + read('fix-06-1')
+          fixed07 = read('fix-07-0') + read('fix-07-1')
+          fixed08 = read('fix-08-0') + read('fix-08-1')
+
+          options = {
+              '03': [('03-final', fixed03), ('03-a', fixed03a), ('03-original', read('part-03'))],
+              '06': [('06-fixed', fixed06), ('06-original', read('part-06'))],
+              '07': [('07-fixed', fixed07), ('07-original', read('part-07'))],
+              '08': [('08-fixed', fixed08), ('08-original', read('part-08'))],
+          }
+          prefix = read('part-00') + read('part-01') + read('part-02')
+          middle = read('part-04') + read('part-05')
+
+          selected = None
+          archive = None
+          errors = []
+          for choice03, choice06, choice07, choice08 in itertools.product(
+              options['03'], options['06'], options['07'], options['08']
+          ):
+              labels = [choice03[0], choice06[0], choice07[0], choice08[0]]
+              encoded = prefix + choice03[1] + middle + choice06[1] + choice07[1] + choice08[1]
+              try:
+                  raw = base64.b64decode(encoded, validate=True)
+                  payload = gzip.decompress(raw)
+                  with tarfile.open(fileobj=io.BytesIO(payload), mode='r:') as tar:
+                      names = tar.getnames()
+                      if not any(name.endswith('cooperators-0632.js') or name.endswith('cooperators-0633.js') for name in names):
+                          raise ValueError('arquivo do importador não encontrado no payload')
+                  selected = labels
+                  archive = raw
+                  break
+              except Exception as exc:
+                  errors.append(f"{labels}: {exc}")
+
+          if archive is None:
+              print('\n'.join(errors))
+              raise SystemExit('Nenhuma combinação de chunks produziu um arquivo tar.gz válido')
+
+          output = Path('/tmp/v0633-payload.tar.gz')
+          output.write_bytes(archive)
+          print('Combinação válida:', ', '.join(selected))
+          with tarfile.open(output, mode='r:gz') as tar:
+              print('Arquivos do payload:')
+              for name in tar.getnames():
+                  print(' -', name)
+              tar.extractall('.')
+          PY
+
+          test -f fast_track/v06/cooperators-0632.js
+          node --check fast_track/v06/cooperators-0632.js
+          if test -f fast_track/v06/direct-app.js; then node --check fast_track/v06/direct-app.js; fi
+          if test -f fast_track/v06/direct-report.js; then node --check fast_track/v06/direct-report.js; fi
+          if test -f fast_track/v06/direct-word.js; then node --check fast_track/v06/direct-word.js; fi
+          grep -q 'ELIO ANTONIO DA SILVA' fast_track/v06/cooperators-0632.js
+          grep -q 'registrosEndosso' fast_track/v06/cooperators-0632.js
+          grep -q 'larPostura' fast_track/v06/cooperators-0632.js
+
           rm -rf .github/v0633-payload .github/workflows/bootstrap-v0633.yml
 
       - name: Commit implementation
