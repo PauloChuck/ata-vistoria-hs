@@ -1,0 +1,17 @@
+.property-composition {margin:20px 0; padding:20px 0; border-top:1px solid #dce5eb}
+.property-composition h3 {margin-top:0}
+.property-composition label {display:block; font-size:13px; line-height:1.5; color:#223e52}
+.property-composition .property-check {display:flex; align-items:center; gap:8px; margin:10px 0}
+.property-composition input[type=checkbox] {width:18px; min-width:18px; height:18px}
+.property-unit {padding:14px 0; border-bottom:1px solid #dce5eb}
+.property-unit-head {display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; font-weight:700}
+.property-unit p,.property-history-row p {margin:5px 0; font-size:13px; overflow-wrap:anywhere}
+.property-count {font-weight:700}
+.property-composition details,.property-search-history {margin-top:14px}
+.property-composition summary,.property-search-history summary {cursor:pointer; color:#23485d; font-weight:600; padding:10px 0}
+.property-history-row {padding:16px; margin:12px 0; background:#f5f8fa; border-radius:8px}
+.property-composition pre {max-height:250px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere}
+.property-composition select {width:100%; min-width:0; max-width:100%}
+.property-composition .grid2>* {min-width:0}
+.property-message {margin-top:12px}
+@media(max-width:600px) {.property-composition .grid2 {grid-template-columns:1fr}.property-history-row {padding:10px}}

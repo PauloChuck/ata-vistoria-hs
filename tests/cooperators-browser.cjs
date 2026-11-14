@@ -29,6 +29,8 @@ const server=http.createServer((req,res)=>{
   assert.equal((await backup()).cooperatorSelection,null);
   const id=await page.evaluate(()=>window.FastTrackCooperators.getBase().records.find(r=>r.installationCode==='TEST-180').id);
   await page.locator(`button[data-record-id="${id}"]`).click();
+  const initial=await backup();initial.cooperatorSelection.composition=null;initial.cooperatorSelection.confirmed=structuredClone(initial.cooperatorSelection.original);
+  await page.locator('#backupInput').setInputFiles({name:'legacy.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(initial))});await page.waitForFunction(()=>document.querySelector('#backupInput').value==='');
   const card=page.locator('[data-selected-risk-card]');
   assert((await card.innerText()).includes('Não informado na base'));
   assert.equal(await page.locator('.cooperator-adjustments').evaluate(e=>e.open),false);
