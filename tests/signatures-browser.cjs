@@ -17,7 +17,14 @@ const norm=s=>s.replace(/\s+/g,' ').trim();
   const action=async name=>page.locator(`[data-action="${name}"]`).first().evaluate(e=>e.click());
   const sig=async(name,target)=>page.locator(`[data-signature-action="${name}"]${target?`[data-target="${target}"]`:''}`).evaluate(e=>e.click());
   const step=async n=>page.locator(`[data-go="${n}"]`).first().evaluate(e=>e.click());
-  const backup=async()=>{const waiting=page.waitForEvent('download');await action('export-backup');const d=await waiting;return JSON.parse(fs.readFileSync(await d.path(),'utf8'));};
+  const backup=async()=>{
+   const previous=Number(await page.locator('.screen.active').getAttribute('data-step'));
+   await step(7);
+   // A real click on the visible control gives Chromium a user gesture for each download.
+   const waiting=page.waitForEvent('download');await page.locator('[data-action="export-backup"]').click();
+   const d=await waiting,result=JSON.parse(fs.readFileSync(await d.path(),'utf8'));
+   await step(previous);return result;
+  };
   const restore=async s=>{await page.locator('#backupInput').setInputFiles({name:'synthetic-case.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(s))});await page.waitForFunction(()=>!document.querySelector('#backupInput').value);};
   const fixture=await page.evaluate(()=>{
    const make=(w,h,type,transparent=false)=>{const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');if(!transparent){x.fillStyle='#fff';x.fillRect(0,0,w,h);}x.strokeStyle='#173e58';x.lineWidth=6;x.beginPath();x.moveTo(w*.12,h*.55);x.bezierCurveTo(w*.25,h*.1,w*.7,h*.85,w*.87,h*.3);x.stroke();x.fillStyle='#173e58';x.font='16px Arial';x.fillText('TESTE',w*.2,h*.7);return c.toDataURL(type);};
