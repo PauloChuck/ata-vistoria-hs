@@ -1,0 +1,98 @@
+name: Verify V0633 public output artifact
+
+on:
+  push:
+    branches:
+      - verification/v0633-public
+    paths:
+      - .github/workflows/verify-v0633-public-artifact.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download outputs generated from the public application
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/v0633-public-v2
+          gh run download 43554372462 --repo PauloChuck/ata-vistoria-hs --name fast-track-v0633-public-validation-v2 --dir /tmp/v0633-public-v2
+          find /tmp/v0633-public-v2 -maxdepth 2 -type f -printf '%p %s bytes\n'
+
+      - name: Validate public DOCX and PDF
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/v0633-public-v2
+          DOCX="$OUT/Relatorio_Fast_Track_V0633_publico.docx"
+          PDF="$OUT/Relatorio_Fast_Track_V0633_publico.pdf"
+          RESULT="$OUT/result.json"
+          test -s "$DOCX"
+          test -s "$PDF"
+          test -s "$RESULT"
+          unzip -t "$DOCX"
+          rm -rf "$OUT/docx-final"
+          mkdir -p "$OUT/docx-final"
+          unzip -q "$DOCX" -d "$OUT/docx-final"
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,re,zipfile
+
+          out=Path('/tmp/v0633-public-v2')
+          result=json.loads((out/'result.json').read_text(encoding='utf-8'))
+          base=result['base']
+          preview=result['preview']
+          assert all(base['counts'][key] > 0 for key in ['aurora','lar','suinos','jagua','matrizes','larPostura'])
+          assert base['countDetails']['jagua']['cabecalhosIgnorados'] >= 1
+          assert base['elio']['municipality'] == 'JABORA'
+          assert base['elio']['latitude'] == '-27,097108'
+          assert base['elio']['longitude'] == '-51,864781'
+          assert str(base['elio']['capacity']) == '490'
+          assert base['elio']['capacityUnit'] == 'suínos'
+          assert base['elio']['vrBuildings'] == 'R$ 294.000,00'
+          assert base['elio']['vrAnimals'] == ''
+          assert base['elio']['state'] == ''
+          assert base['elio']['area'] == ''
+          assert preview['pages'] >= 2
+          assert all(delta <= 2 for delta in preview['overflow'])
+
+          xml=(out/'docx-final/word/document.xml').read_text(encoding='utf-8',errors='ignore')
+          norm=lambda value:re.sub(r'\s+',' ',value).upper()
+          current=norm(xml)
+          required=['ELIO ANTONIO DA SILVA','JABORA','-27,097108 / -51,864781','490 SUÍNOS','294.000,00','VR DE ANIMAIS','NÃO INFORMADO','RENOVAÇÃO']
+          for item in required:
+              if norm(item) not in current:
+                  raise SystemExit(f'OOXML público sem: {item}')
+          if '[OBJECT OBJECT]' in current:
+              raise SystemExit('OOXML público contém [object Object]')
+
+          summary=(
+              'Aplicação pública V0.6.3: validada\n'
+              'Seis bases: reconhecidas\n'
+              'Elio/JABORA: validado\n'
+              'Lotação máxima: 490 suínos\n'
+              'VR de benfeitorias: R$ 294.000,00\n'
+              'VR de animais ausente: preservado\n'
+              'Cabeçalho Jaguafrangos: ignorado\n'
+              f"Páginas da prévia: {preview['pages']}\n"
+              'DOCX e PDF públicos: gerados e íntegros\n'
+          )
+          (out/'public-final-summary.txt').write_text(summary,encoding='utf-8')
+          print(summary)
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fast-track-v0633-public-final-validation
+          path: /tmp/v0633-public-v2
+          if-no-files-found: error
