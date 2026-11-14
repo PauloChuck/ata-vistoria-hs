@@ -2,7 +2,7 @@ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const {test}=require('node:test'),assert=require('node:assert/strict');
 function setup(confirmed={},extra={}) {
   const context=vm.createContext({window:{},document:{getElementById:()=>null}});
-  for(const name of ['cooperators-0635.js','risk-card-0638.js']) vm.runInContext(fs.readFileSync(path.join(__dirname,'../fast_track/v06',name),'utf8'),context);
+  for(const name of ['property-0639.js','cooperators-0639.js','risk-card-0639.js']) vm.runInContext(fs.readFileSync(path.join(__dirname,'../fast_track/v06',name),'utf8'),context);
   const state={cooperatorSelection:{schemaVersion:3,sourceRecordId:'selected',original:{},confirmed:{name:'Pessoa sintética',activity:'Suínos',installations:[],...confirmed},...extra}};
   const card=context.window.FastTrackRiskCard;
   return {state,card,data:card.data(state),html:card.html(state)};
