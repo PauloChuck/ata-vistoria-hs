@@ -274,7 +274,7 @@
       const mapImg = await canvasBytes(state.map.dataUrl,1050,720,{background:'#ffffff'});
       const scale = Math.min(490/mapImg.width,340/mapImg.height,1);
       technical.push(
-        new Paragraph({children:[new ImageRun({data:mapImg.data,type:'png',transformation:{width:Math.max(1,Math.round(mapImg.width*scale)),height:Math.max(1,Math.round(mapImg.height*scale))}})],alignment:AlignmentType.CENTER,spacing:{after:80}}),
+        new Paragraph({children:[new ImageRun({data:mapImg.data,type:'png',transformation:{width:Math.max(1,Math.round(mapImg.width*scale)),height:Math.max(1,Math.round(mapImg.height*scale))}})],alignment:AlignmentType.CENTER,spacing:{after:80},keepNext:true,keepLines:true}),
         caption('Localização da propriedade sinistrada.')
       );
     } else technical.push(para('Imagem de localização não informada.',{alignment:AlignmentType.CENTER}));
@@ -437,7 +437,7 @@
     closing.push(
       heading('9. INFORMAÇÕES COMPLEMENTARES'),
       para('As orientações não representam o reconhecimento prévio de cobertura do sinistro ora reclamado ou de eventual valor a indenizar, os quais dependem da análise das Condições do Seguro contratado, e da devida análise e manifestação da Companhia Seguradora.'),
-      para(`${f.reportCity || ''}, ${REPORT().longDate(f.reportDate)}.`,{alignment:AlignmentType.RIGHT,before:400})
+      para(`${f.reportCity || ''}, ${REPORT().longDate(f.reportDate)}.`,{alignment:AlignmentType.RIGHT,before:400,keepNext:true,keepLines:true})
     );
 
     const signatureCells = [];
