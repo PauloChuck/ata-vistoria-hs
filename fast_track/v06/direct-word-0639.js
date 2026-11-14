@@ -415,14 +415,14 @@
     ]});
     const indemnityDataRows = damages.map((item) => {
       const descriptionParagraphs = [
-        new Paragraph({children:[run([item.description,window.FastTrackPolicies.damageNote(state,item)].filter(Boolean).join(' — '),{size:21})],alignment:AlignmentType.LEFT,spacing:{after:35,line:280},keepLines:true}),
+        new Paragraph({children:[run(item.description,{size:21})],alignment:AlignmentType.LEFT,spacing:{after:35,line:280},keepLines:true}),
         new Paragraph({children:[run(ageValue(item) ? `Idade: ${ageValue(item)}` : 'Idade: não informada',{size:18,color:MUTED})],alignment:AlignmentType.LEFT,spacing:{after:0,line:220},keepLines:true})
       ];
       return new TableRow({cantSplit:true,children:[
         cellFromParagraphs(descriptionParagraphs,{width:49,border:noBorder,margins:{top:95,bottom:95,left:40,right:100}}),
         tcell(quantityUnit(item) || '—',{width:17,border:noBorder,size:20,margins:{top:95,bottom:95,left:40,right:40}}),
-        tcell(REPORT().money(item.claimedTotal),{width:17,align:AlignmentType.RIGHT,border:noBorder,size:20,margins:{top:95,bottom:95,left:40,right:40}}),
-        tcell(item.assessedTotal === '' || item.assessedTotal == null ? 'A INFORMAR' : REPORT().money(item.assessedTotal),{width:17,align:AlignmentType.RIGHT,border:noBorder,size:20,margins:{top:95,bottom:95,left:40,right:40}})
+        tcell(window.FastTrackSettlement.itemMoney(item.claimedTotal),{width:17,align:AlignmentType.RIGHT,border:noBorder,size:20,margins:{top:95,bottom:95,left:40,right:40}}),
+        tcell(window.FastTrackSettlement.itemMoney(item.assessedTotal),{width:17,align:AlignmentType.RIGHT,border:noBorder,size:20,margins:{top:95,bottom:95,left:40,right:40}})
       ]});
     });
     children.push(
@@ -434,13 +434,12 @@
     );
 
     for (const note of calc.pending || []) children.push(...narrativeParagraphs(`Pendência da apuração: ${note}`));
-    if (calc.estimatedNet!=null && calc.net==null) children.push(para(`Estimativa material sujeita às pendências: ${REPORT().money(calc.estimatedNet)}.`));
     const summaryTopBorder = horizontalBorder({top:true});
     const summaryRows = [
-      ['Total de Prejuízos Reclamados',REPORT().money(calc.totalClaimed),false,true],
-      ['Total de Prejuízos Apurados',REPORT().money(calc.totalAssessed),false,false],
+      ['Total de Prejuízos Reclamados',window.FastTrackSettlement.money(calc.totalClaimed),false,true],
+      ['Total de Prejuízos Apurados',window.FastTrackSettlement.money(calc.totalAssessed),false,false],
       ['Franquia contratual',window.FastTrackPolicies.money(calc.deductible),false,false],
-      ['Líquido após conferência',window.FastTrackPolicies.money(calc.net),true,false]
+      ['Prejuízo Indenizável',window.FastTrackPolicies.money(calc.net),true,false]
     ].map(([label,value,highlight,first]) => new TableRow({cantSplit:true,children:[
       tcell(label,{width:72,align:AlignmentType.LEFT,bold:highlight,border:first ? summaryTopBorder : noBorder,size:22,color:highlight ? BLUE : BLACK,margins:{top:first ? 115 : 70,bottom:70,left:0,right:80}}),
       tcell(value,{width:28,align:AlignmentType.RIGHT,bold:true,border:first ? summaryTopBorder : noBorder,size:22,color:highlight ? BLUE : BLACK,margins:{top:first ? 115 : 70,bottom:70,left:80,right:0}})

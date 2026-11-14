@@ -401,7 +401,7 @@
           <button type="button" class="small-btn danger" data-action="remove-damage">Remover</button>
         </div>
       </div>
-      <label class="field required">Nome ou descrição do material danificado</label>
+      <label class="field required">Nome ou descrição do material, item ou serviço</label>
       <input data-damage="description" value="${REPORT().esc(item.description)}">
       <div class="grid3">
         <div><label class="field required">Quantidade</label><input data-damage="quantity" inputmode="decimal" value="${REPORT().esc(item.quantity)}"></div>
@@ -412,7 +412,6 @@
         <div><label class="field required">Valor reclamado total (R$)</label><input data-damage="claimedTotal" type="number" min="0" step="0.01" value="${REPORT().esc(item.claimedTotal)}"></div>
         <div><label class="field">Valor apurado (R$)</label><div class="inline-field"><input data-damage="assessedTotal" type="number" min="0" step="0.01" value="${REPORT().esc(item.assessedTotal)}"><button type="button" class="small-btn" data-action="accept-claimed">Acatar valor reclamado</button></div></div>
       </div>
-      ${POLICIES()?.damageFields?.(item) || ''}
     </div>`;
   }
 
@@ -435,11 +434,12 @@
   function renderFinancialSummary() {
     const calc = REPORT().calculate(state);
     $('financialSummary').innerHTML = `
-      <div class="financial-card"><span>Total reclamado</span><strong>${REPORT().money(calc.totalClaimed)}</strong></div>
-      <div class="financial-card"><span>Prejuízo apurado</span><strong>${REPORT().money(calc.totalAssessed)}</strong></div>
-      <div class="financial-card"><span>Franquia</span><strong>${window.FastTrackPolicies.money(calc.deductible)}</strong></div>
-      <div class="financial-card highlight"><span>Líquido após conferência</span><strong>${window.FastTrackPolicies.money(calc.net)}</strong></div>`;
-    $('policyCalculationPending').innerHTML=(calc.estimatedNet!=null && calc.net==null ? `<p>Estimativa material sujeita às pendências: ${window.FastTrackPolicies.money(calc.estimatedNet)}.</p>` : '') + (calc.pending || []).map(p=>`<p>${REPORT().esc(p)}</p>`).join('');
+      <div class="financial-card"><span>Total de Prejuízos Reclamados</span><strong>${window.FastTrackSettlement.money(calc.totalClaimed)}</strong></div>
+      <div class="financial-card"><span>Total de Prejuízos Apurados</span><strong>${window.FastTrackSettlement.money(calc.totalAssessed)}</strong></div>
+      <div class="financial-card"><span>Franquia contratual</span><strong>${window.FastTrackPolicies.money(calc.deductible)}</strong></div>
+      <div class="financial-card highlight"><span>Prejuízo Indenizável</span><strong>${window.FastTrackPolicies.money(calc.net)}</strong></div>`;
+    $('damageCalculationPending').innerHTML=calc.pending.map(p=>`<p>${REPORT().esc(p)}</p>`).join('');
+    $('damageCalculationPending').classList.toggle('hidden', !calc.pending.length);
   }
 
   async function fileToDataUrl(file) {
@@ -763,9 +763,8 @@
       if (!String(item.quantity).trim()) errors.push(`Item ${n}: informe a quantidade.`);
       if (!String(item.unit).trim()) errors.push(`Item ${n}: informe a unidade.`);
       if (!String(item.age).trim()) errors.push(`Item ${n}: informe a idade.`);
-      if (item.claimedTotal === '' || item.claimedTotal == null) errors.push(`Item ${n}: informe o valor reclamado.`);
-      if (item.assessedTotal === '' || item.assessedTotal == null) errors.push(`Item ${n}: informe ou confirme o valor apurado.`);
     });
+    errors.push(...REPORT().calculate(state).pending);
     if (!state.photos.length) errors.push('Inclua ao menos uma fotografia de vistoria.');
     state.photos.forEach((photo,index) => { if (!String(photo.caption).trim()) errors.push(`Figura ${index+1}: informe a legenda.`); });
     if (f.otherInsurance === 'sim' && !String(f.otherInsuranceDetails).trim()) errors.push('Informe os dados dos outros seguros.');
@@ -797,11 +796,12 @@
       <div class="summary-tile"><span>Fotografias</span><strong>${state.photos.length}</strong></div>
       <div class="summary-tile"><span>Anexos da seção 4.2</span><strong>${state.causeEvidence.length}</strong></div>
       <div class="summary-tile"><span>Local consultado</span><strong>${state.cooperatorSelection ? 'Sim' : 'Não'}</strong></div>
-      <div class="summary-tile"><span>Total reclamado</span><strong>${REPORT().money(calc.totalClaimed)}</strong></div>
-      <div class="summary-tile"><span>Franquia</span><strong>${window.FastTrackPolicies.money(calc.deductible)}</strong></div>
-      <div class="summary-tile"><span>Líquido após conferência</span><strong>${window.FastTrackPolicies.money(calc.net)}</strong></div>`;
-    $('policyCalculationPending').innerHTML=(calc.estimatedNet!=null && calc.net==null ? `<p>Estimativa material sujeita às pendências: ${window.FastTrackPolicies.money(calc.estimatedNet)}.</p>` : '') + (calc.pending || []).map(p=>`<p>${REPORT().esc(p)}</p>`).join('');
-    if (calc.pending?.length) $('reviewAlerts').innerHTML+=`<div class="notice warn"><strong>Pendências da apuração contratual:</strong><ul>${calc.pending.map(p=>`<li>${REPORT().esc(p)}</li>`).join('')}</ul><p>A emissão conserva estas pendências e não representa decisão de amparo.</p></div>`;
+      <div class="summary-tile"><span>Total de Prejuízos Reclamados</span><strong>${window.FastTrackSettlement.money(calc.totalClaimed)}</strong></div>
+      <div class="summary-tile"><span>Total de Prejuízos Apurados</span><strong>${window.FastTrackSettlement.money(calc.totalAssessed)}</strong></div>
+      <div class="summary-tile"><span>Franquia contratual</span><strong>${window.FastTrackPolicies.money(calc.deductible)}</strong></div>
+      <div class="summary-tile"><span>Prejuízo Indenizável</span><strong>${window.FastTrackPolicies.money(calc.net)}</strong></div>`;
+    $('damageCalculationPending').innerHTML=calc.pending.map(p=>`<p>${REPORT().esc(p)}</p>`).join('');
+    $('damageCalculationPending').classList.toggle('hidden', !calc.pending.length);
     $('reportPreview').innerHTML = REPORT().buildHTML(state,{draft:!state.finalizedAt});
   }
 
@@ -1098,7 +1098,7 @@
     }
     const damageCard=target.closest('.damage-card');
     if (damageCard && target.matches('[data-damage]')) {
-      syncDamageCard(damageCard);if(state.contract?.review) state.contract.review.confirmed=false;POLICIES()?.render?.();invalidateSignatures();renderFinancialSummary();scheduleSave();
+      syncDamageCard(damageCard);invalidateSignatures();renderFinancialSummary();scheduleSave();
     }
     const photoCard=target.closest('.photo-card');
     if (photoCard && target.matches('[data-photo-caption]')) {

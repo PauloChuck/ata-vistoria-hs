@@ -23,7 +23,7 @@ Identificações físicas exigem decisão do regulador quando a base não as for
 
 A mesma representação alimenta a ficha no aplicativo, a prévia, o Word e o PDF. Fichas antigas são preservadas no formato anterior até o uso expresso de **Compor instalações desta propriedade**; os dados confirmados anteriores também são conservados. Atualizar a base mantém a composição salva e solicita sua conferência, sem escolher substitutos automaticamente.
 
-Não são alterados danos, fotos, textos, cadastro contratual ou imagens de assinatura. As verificações existentes de assinatura após mudanças no relatório permanecem. Contratos, PDFs, bases reais, configurações e assinaturas pessoais não fazem parte do repositório público.
+A composição da ficha preserva danos, fotos, textos, cadastro contratual e imagens de assinatura. A relação de danos e o cálculo automático seguem o [fluxo simplificado de apuração](apuracao-0639.md), sem alterar os VRs da ficha. As verificações existentes de assinatura após mudanças no relatório permanecem. Contratos, PDFs, bases reais, configurações e assinaturas pessoais não fazem parte do repositório público.
 
 ## Verificação
 
