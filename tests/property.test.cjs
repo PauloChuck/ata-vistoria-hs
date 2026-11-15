@@ -44,7 +44,7 @@ test('reclassificação nunca duplica a fonte nem deixa instalação fantasma; b
 test('ficha usa todas as instalações selecionadas e mantém a marcação de danos independente',()=>{
  const {p,card}=setup(),a=record('a'),b=record('b',{activity:'Suínos',vrAnimals:''}),c=p.create([a,b],'Propriedade Sintética');add(p,c,a,'Galpão A');add(p,c,b,'Pocilga B');c.units[0].affected=true;c.complete=true;
  const state={cooperatorSelection:{schemaVersion:3,confirmed:{name:'Pessoa sintética',activity:'Aves'},composition:c}};
- const d=card.data(state),html=card.html(state);assert.equal(d.groups.filter(g=>g.kind==='installation').length,2);for(const s of ['Galpão A','Pocilga B','Suínos','Não indicada','Subtotal disponível','Propriedade Sintética'])assert(html.includes(s),s);
+ const d=card.data(state),html=card.html(state);assert.equal(d.cards.flatMap(c=>c.blocks.flatMap(b=>b.rows)).length,2);assert(html.includes('SUÍNOS'));assert(!html.includes('Subtotal disponível'));assert(!html.includes('Não indicada'));assert(p.totals(c).fields.vrAnimals.subtotal);
  assert(!html.includes('Não informado na base'));assert.equal(JSON.stringify(state.cooperatorSelection.composition),JSON.stringify(c));
 });
 test('legacy: normalização preserva ajustes, fontes e instalações até migração expressa',()=>{

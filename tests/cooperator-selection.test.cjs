@@ -16,8 +16,8 @@ test('first click replaces personal data while pending VR still exposes known pr
  assert.equal(s.signatures.claimant,null);assert.equal(s.signatureDetails.claimant,null);assert.equal(s.signatures.regulator,original.signatures.regulator);assert.deepEqual(s.signatureDetails.regulator,original.signatureDetails.regulator);
  for(const k of ['caseUid','damages','photos','map','causeEvidence','contract'])assert.deepEqual(s[k],original[k],k);
  for(const k of ['insured','coverageName','insurerClaim','lossDate','regulatorOpinion'])assert.equal(s.fields[k],original.fields[k]);
- const text=card.html(s);for(const value of ['PESSOA BETA SINTÉTICA','Cidade Beta','Local B1','-22','-52','800','6.000','Aves de Corte','Base inicial'])assert(text.includes(value),value);
- assert(text.includes('aguardam identificação'));assert(!text.includes('Local anterior'));assert.equal(s.cooperatorSelection.composition.records.length,1);
+ const text=card.html(s);for(const value of ['PESSOA BETA SINTÉTICA','Cidade Beta','-22','-52','6.000','AVES DE CORTE','BASE INICIAL'])assert(text.includes(value),value);
+ assert(!text.includes('aguardam identificação'));assert(!text.includes('Local anterior'));assert.equal(s.cooperatorSelection.composition.records.length,1);
  assert.deepEqual(clone(a.normalizeSelection(clone(s.cooperatorSelection))),clone(s.cooperatorSelection));
 });
 test('source CPF is tied to selected person; missing or ambiguous CPF cannot reuse former person data',async()=>{

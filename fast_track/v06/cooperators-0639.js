@@ -1419,15 +1419,18 @@
     const c=selection.confirmed, validation=validateSelection(selection), changes=compareSelection(selection);
     const warnings=validation.warnings.length ? `<div class="notice warn"><strong>Conferência necessária:</strong><ul>${validation.warnings.map((warning)=>`<li>${esc(warning)}</li>`).join('')}</ul></div>` : '';
     const errors=validation.errors.filter((error)=>!selection.requiresReselection || !/nova base apresenta/.test(error)).length ? `<div class="notice error"><strong>Pendências da seleção:</strong><ul>${validation.errors.filter((error)=>!selection.requiresReselection || !/nova base apresenta/.test(error)).map((error)=>`<li>${esc(error)}</li>`).join('')}</ul></div>` : '';
-    const adjustmentsOpen=host.querySelector('.cooperator-adjustments')?.open;
+    const sameSelection=host.dataset.selectionId===selection.sourceRecordId;
+    const toolsOpen=sameSelection && host.querySelector('.cooperator-tools')?.open;
+    const adjustmentsOpen=sameSelection && host.querySelector('.cooperator-adjustments')?.open;
+    host.dataset.selectionId=selection.sourceRecordId || '';
+    const toolsStart=`<details class="cooperator-tools" ${toolsOpen?'open':''}><summary>Ajustar dados e instalações</summary>`;
     const original=`<details class="cooperator-original"><summary>Dados originalmente importados e origem</summary><div class="cooperator-original-meta"><strong>${esc(selection.source?.baseLabel || '')}</strong><span>${esc(selection.baseVersion?.versionLabel || '')}</span></div><pre>${esc(JSON.stringify({original:selection.original,source:selection.source,fieldSources:selection.fieldSources,baseVersion:selection.baseVersion,associatedRecordIds:selection.associatedRecordIds},null,2))}</pre></details>`;
     if (selection.composition) {
-      host.innerHTML=`<div class="cooperator-selected"><div class="cooperator-selection-actions"><span class="step-kicker">Ficha da propriedade</span><button class="btn danger-lite" type="button" data-action="clear-cooperator-selection">Remover seleção / iniciar outra propriedade</button></div><div data-selected-risk-card>${window.FastTrackRiskCard?.html(state) || ''}</div>${errors}${warnings}${window.FastTrackPropertyUI.html(selection)}<details class="cooperator-adjustments"><summary>Ajustar identificação do cooperado</summary><div class="grid2">${fieldInput('Nome do cooperado','name',c.name)}${fieldInput('Cooperativa','cooperative',c.cooperative)}</div><div class="grid2">${fieldInput('Município','municipality',c.municipality)}${fieldInput('UF','state',c.state)}</div></details>${original}</div>`;
+      host.innerHTML=`<div class="cooperator-selected"><div data-selected-risk-card>${window.FastTrackRiskCard?.html(state) || ''}</div>${toolsStart}<div class="cooperator-selection-actions"><span class="step-kicker">Ficha da propriedade</span><button class="btn danger-lite" type="button" data-action="clear-cooperator-selection">Remover seleção / iniciar outra propriedade</button></div>${errors}${warnings}${window.FastTrackPropertyUI.html(selection)}<details class="cooperator-adjustments" ${adjustmentsOpen?'open':''}><summary>Ajustar identificação do cooperado</summary><div class="grid2">${fieldInput('Nome do cooperado','name',c.name)}${fieldInput('Cooperativa','cooperative',c.cooperative)}</div><div class="grid2">${fieldInput('Município','municipality',c.municipality)}${fieldInput('UF','state',c.state)}</div></details>${original}</details></div>`;
       return;
     }
-    host.innerHTML=`<div class="cooperator-selected"><p class="notice info">Ficha preservada no formato anterior. Para compor várias instalações, identifique os registros e seus valores aplicáveis.</p><button class="btn secondary" type="button" data-action="compose-property">Compor instalações desta propriedade</button>
+    host.innerHTML=`<div class="cooperator-selected"><div data-selected-risk-card>${window.FastTrackRiskCard?.html(state) || ''}</div>${toolsStart}<p class="notice info">Ficha preservada no formato anterior. Para compor várias instalações, identifique os registros e seus valores aplicáveis.</p><button class="btn secondary" type="button" data-action="compose-property">Compor instalações desta propriedade</button>
       <div class="cooperator-selection-actions"><span class="step-kicker">Local e atividade confirmados pela consulta</span><button class="btn danger-lite" type="button" data-action="clear-cooperator-selection">Remover seleção</button></div>
-      <div data-selected-risk-card>${window.FastTrackRiskCard?.html(state) || ''}</div>
       ${reselectionHtml(selection)}${errors}${warnings}${recoverySuggestionsHtml(selection)}
       <details class="cooperator-adjustments" ${adjustmentsOpen ? 'open' : ''}><summary>Ajustar dados e confirmar instalações</summary>
       <p class="helper">A ficha utiliza os dados confirmados abaixo. A importação original permanece disponível para conferência.</p>
@@ -1446,7 +1449,7 @@
       ${changes.length ? `<div class="notice info">Ajustes registrados em relação à importação: ${esc(changes.join(', '))}.</div>` : ''}
       </details>
       ${original}
-    </div>`;
+    </details></div>`;
   }
 
   function selectionChanged({autofill=true,renderNow=false}={}) {

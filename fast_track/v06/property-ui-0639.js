@@ -30,6 +30,7 @@
       <h3>Instalações da mesma propriedade</h3><p class="helper">Identifique as instalações físicas no histórico. Nome, coordenadas e valores iguais não comprovam que dois lançamentos sejam a mesma instalação. A seleção dos danos é independente.</p>
       ${input('Identificação da propriedade','name',c.name)}
       <p class="property-count" role="status">${t.count} de ${t.totalCount} instalações selecionadas</p><div class="actions"><button type="button" class="small-btn" data-property-action="all">Selecionar todas desta propriedade</button><button type="button" class="small-btn" data-property-action="none">Limpar seleção</button></div>
+      <div class="property-value-summary"><h4>${esc(t.scope)}</h4>${[['vrBuildings','VR de benfeitorias'],['vrAnimals','VR de animais']].map(([key,label])=>`<p><strong>${label}:</strong> ${esc(t.fields[key].display)}</p>${t.fields[key].status?`<p class="helper">${esc(t.fields[key].status)}</p>`:''}`).join('')}</div>
       ${units || '<p class="notice info">Nenhuma instalação física identificada. Classifique os registros no histórico ou cadastre uma instalação.</p>'}
       <label class="property-check"><input type="checkbox" data-property-field="complete" ${c.complete?'checked':''}> Confirmei que a lista contém todas as instalações desta propriedade</label>
       ${t.unresolved?`<p class="notice warn">${t.unresolved} registro(s) aguardam identificação no histórico. Não há total definitivo da propriedade.</p>`:''}

@@ -32,20 +32,23 @@ const server=http.createServer((req,res)=>{
   const initial=await backup();initial.cooperatorSelection.composition=null;initial.cooperatorSelection.confirmed=structuredClone(initial.cooperatorSelection.original);
   await page.locator('#backupInput').setInputFiles({name:'legacy.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(initial))});await page.waitForFunction(()=>document.querySelector('#backupInput').value==='');
   const card=page.locator('[data-selected-risk-card]');
-  assert((await card.innerText()).includes('Não informado na base'));
+  assert((await card.innerText()).includes('CONSULTA DE COOPERADOS'));
+  assert.equal(await page.locator('.cooperator-tools').evaluate(e=>e.open),false);
+  await page.locator('.cooperator-tools>summary').click();
   assert.equal(await page.locator('.cooperator-adjustments').evaluate(e=>e.open),false);
   await page.locator('.cooperator-adjustments>summary').click();
   const involved=page.locator('[data-installation-field="involved"]');assert.equal(await involved.isChecked(),false);await involved.check();
   await page.locator('[data-coop-field="localIdentification"]').fill('Local ajustado');await page.locator('[data-coop-field="vrAnimals"]').fill('0');
   const normalize=s=>s.replace(/\s+/g,' ').trim();
   const cardText=normalize(await card.innerText());
-  assert(cardText.includes('Local ajustado'));assert(cardText.includes('R$ 0,00'));assert(cardText.includes('R$ 1.000,00'));
-  assert(cardText.includes('Origem deste valor: Ajuste manual do regulador'));
+  assert(!cardText.includes('Local ajustado'));assert(!cardText.includes('R$ 0,00'));assert(cardText.includes('R$ 1.000,00'));
+  const edited=await backup();assert.equal(edited.cooperatorSelection.confirmed.localIdentification,'Local ajustado');assert.equal(edited.cooperatorSelection.confirmed.vrAnimals,'0');
+  assert(!cardText.includes('Origem deste valor'));
   for(const width of [1440,768,390,320]) {
     await page.setViewportSize({width,height:1000});
-    const size=await card.evaluate(e=>({width:e.clientWidth,scroll:e.scrollWidth,body:document.body.scrollWidth,viewport:innerWidth,columns:getComputedStyle(e.querySelector('.risk-card-grid')).gridTemplateColumns}));
-    assert(size.scroll<=size.width+1&&size.body<=size.viewport+1,`overflow at ${width}px`);
-    if(width<=390)assert(!size.columns.includes(' '),'narrow screen uses one column');
+    const size=await card.evaluate(e=>({width:e.clientWidth,scroll:e.scrollWidth,body:document.body.scrollWidth,viewport:innerWidth,overflow:getComputedStyle(e).overflowX}));
+    assert(size.body<=size.viewport+1,`body overflow at ${width}px`);
+    if(width<=390)assert(size.scroll>size.width && size.overflow==='auto','narrow screen scrolls the legible table');
   }
   await page.setViewportSize({width:1440,height:1000});
   await page.locator('[data-go="7"]').first().evaluate(e=>e.click());

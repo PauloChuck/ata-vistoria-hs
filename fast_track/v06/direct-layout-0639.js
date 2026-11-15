@@ -292,22 +292,21 @@
         const {local,card} = block;
         if (!card) { paginator.add(local); continue; }
         const view = window.FastTrackRiskCard;
-        const header = view.header(card), groups = card.groups.map(view.groupHtml);
-        const complete = view.wrap(header+groups.join(''));
-        if (paginator.fits(local+complete)) { paginator.add(local+complete); continue; }
-        // A card that fits a page moves as a unit; oversized cards split between groups.
-        paginator.add(local,{keepWithNext:view.wrap(header+(groups[0] || ''))});
-        if (view.fitsOnPage(card)) { paginator.add(complete); continue; }
-        let offset=0, first=true;
-        while (offset < groups.length) {
-          const prefix=first ? header : '';
-          const chunk=count=>view.wrap(prefix+groups.slice(offset,offset+count).join(''),{continuation:!first});
-          if (!paginator.fits(chunk(1)) && !paginator.isEmpty()) paginator.newPage();
-          let count=1;
-          while (offset+count < groups.length && paginator.fits(chunk(count+1))) count++;
-          paginator.add(chunk(count));
-          offset+=count; first=false;
-          if (offset < groups.length) paginator.newPage();
+        const firstCard=card.cards[0];
+        if (!firstCard) {paginator.add(local);continue;}
+        paginator.add(local,{keepWithNext:view.chunkHtml(firstCard,view.entries(firstCard).slice(0,1))});
+        for (const item of card.cards) {
+          const entries=view.entries(item);
+          let offset=0;
+          while (offset<entries.length) {
+            const chunk=count=>view.chunkHtml(item,entries.slice(offset,offset+count));
+            if (!paginator.fits(chunk(1)) && !paginator.isEmpty()) paginator.newPage();
+            let count=1;
+            while (offset+count<entries.length && paginator.fits(chunk(count+1))) count++;
+            paginator.add(chunk(count));
+            offset+=count;
+            if (offset<entries.length) paginator.newPage();
+          }
         }
       }
 
