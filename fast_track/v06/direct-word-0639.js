@@ -138,69 +138,37 @@
       return cellFromParagraphs(paragraphs,{width,align,vertical,border,margins});
     }
 
-    function riskCardTable(card) {
-      const keepCard=window.FastTrackRiskCard.fitsOnPage(card);
-      const ink='172C3B', muted='526675';
-      const p=(value,{size=22,bold=false,color=ink,after=40,before=0,keepNext=false,border}={})=>para(value,{size,bold,color,after,before,line:270,alignment:AlignmentType.LEFT,keepLines:true,keepNext,border});
-      const cell=(children,{span=1,shade=false,accent=false,bottom=false}={})=>new TableCell({
-        children,columnSpan:span,width:{size:span*4536,type:WidthType.DXA},verticalAlign:VerticalAlign.TOP,
-        borders:{...noBorder,left:accent ? {style:BorderStyle.SINGLE,color:BLUE,size:24} : none,bottom:bottom ? {style:BorderStyle.SINGLE,color:BLUE,size:6} : none},
-        margins:{top:shade ? 180 : 70,bottom:shade ? 180 : 100,left:shade ? 220 : 0,right:220},
-        shading:shade ? {fill:'EEF7FC'} : undefined
-      });
-      const fieldParagraphs=(item,{value=false,keepNext=false}={})=>[
-        p(item.label,{size:19,color:muted,keepNext:keepCard}),
-        p(item.value,{size:value ? 26 : 22,bold:true,keepNext:!!item.origin || keepNext}),
-        ...(item.origin ? [p(`Origem deste valor: ${item.origin}`,{size:18,color:muted,before:60,keepNext})] : [])
-      ];
-      const header=[p('IDENTIFICAÇÃO DO RISCO',{size:18,bold:true,color:'466476',after:90,keepNext:true}),p(card.name,{size:36,bold:true,after:70,keepNext:true})];
-      if (card.subtitle) header.push(p(card.subtitle,{color:muted,after:90,keepNext:true}));
-      // Flat tables avoid Word 2010 treating successive nested installation tables
-      // as one unsplittable block and leaving the identification page almost empty.
-      if (card.allowGroupBreaks) {
-        const table=rows=>new Table({width:{size:9072,type:WidthType.DXA},layout:TableLayoutType.FIXED,columnWidths:[4536,4536],borders:noBorder,rows});
-        const row=children=>new TableRow({cantSplit:true,children});
-        const chunks=[table([row([cell(header,{span:2,bottom:true})])])];
-        const paragraphs=(item,{value=false,keepNext=false}={})=>[
-          p(item.label,{size:19,color:muted,keepNext:true}),
-          p(item.value,{size:value?26:22,bold:true,keepNext:!!item.origin || keepNext}),
-          ...(item.origin?[p(`Origem deste valor: ${item.origin}`,{size:18,color:muted,before:60,keepNext})]:[])
-        ];
-        for (const group of card.groups) {
-          if (group.kind==='source') {chunks.push(table([row([cell(group.lines.map(line=>p(line,{size:18,color:muted})),{span:2})])]));continue;}
+    function riskCardTable(model) {
+      const red='BB000B',edge={style:BorderStyle.SINGLE,color:BLACK,size:4},rule={style:BorderStyle.SINGLE,color:'BBBBBB',size:4};
+      const p=(v,o={})=>para(v,{size:18,line:240,after:0,alignment:AlignmentType.LEFT,keepLines:true,...o});
+      const gap=(keepNext=false)=>p('',{size:2,line:20,keepNext});
+      const output=[];
+      for (const card of model.cards) {
+        output.push(p('CONSULTA DE COOPERADOS',{size:20,bold:true,color:red,after:70,keepNext:true}),
+          p([run(card.group,{size:32,bold:true,color:red}),run((card.group && card.activity?' — ':'')+card.activity,{size:32,bold:true})],{after:160,keepNext:true}));
+        const identity=[p(card.name,{size:28,bold:true,after:40,keepNext:true}),p(card.counts,{size:20,keepNext:true})];
+        const headCell=(children,width,shade)=>new TableCell({children,width:{size:width,type:WidthType.DXA},verticalAlign:VerticalAlign.CENTER,borders:{...noBorder,top:{style:BorderStyle.SINGLE,color:red,size:20},left:shade?none:edge,right:shade || !card.origin?edge:none},margins:{top:150,bottom:150,left:150,right:150},shading:{fill:shade?'FFECDD':'FFFFFF'}});
+        output.push(new Table({width:{size:9072,type:WidthType.DXA},layout:TableLayoutType.FIXED,columnWidths:card.origin?[6804,2268]:[9072],borders:noBorder,rows:[new TableRow({cantSplit:true,children:[headCell(identity,card.origin?6804:9072,false),...(card.origin?[headCell([p(card.origin,{size:18,bold:true,color:'932D0A',alignment:AlignmentType.CENTER,keepNext:true})],2268,true)]:[])]})]}),gap(true));
+        for (const block of card.blocks) {
+          const widths=block.widths.map(w=>Math.round(w*9072/100));
+          widths[widths.length-1]+=9072-widths.reduce((a,b)=>a+b,0);
+          const cell=(v,i,{header=false,span=1,title=false,keepNext=false}={})=>new TableCell({
+            children:[p(v,{size:header?17:title?25:18,bold:header||title,color:title?'930C0C':BLACK,alignment:title || block.columns[i]==='NOME'||i===0?AlignmentType.LEFT:AlignmentType.CENTER,keepNext})],
+            columnSpan:span,width:{size:span>1?9072:widths[i],type:WidthType.DXA},verticalAlign:VerticalAlign.CENTER,
+            margins:{top:title?130:90,bottom:title?130:90,left:i===0?150:55,right:55},
+            shading:{fill:header?'EAEAEA':title?'FFF9F6':'FFFFFF'},
+            borders:{...noBorder,left:i===0?edge:none,right:i+span===widths.length?edge:none,bottom:rule}
+          });
           const rows=[];
-          if(group.title)rows.push(row([cell([p(group.title,{size:20,bold:true,color:muted,keepNext:true})],{span:2})]));
-          for(let i=0;i<group.fields.length;i+=2) {
-            const pair=group.fields.slice(i,i+2),keepNext=group.kind==='installation' && i+2<group.fields.length;
-            rows.push(row(pair.map((item,j)=>cell(paragraphs(item,{value:group.kind==='values',keepNext}),{span:pair.length===1?2:1,shade:group.kind==='values',accent:group.kind==='values'&&j===0}))));
-          }
-          chunks.push(table(rows));
+          if(block.title)rows.push(new TableRow({cantSplit:true,tableHeader:true,children:[cell(block.title,0,{span:widths.length,title:true,keepNext:true})]}));
+          rows.push(new TableRow({cantSplit:true,tableHeader:true,children:block.columns.map((v,i)=>cell(v,i,{header:true,keepNext:true}))}));
+          rows.push(...block.rows.map(row=>new TableRow({cantSplit:true,children:row.values.map((v,i)=>cell(v,i))})));
+          output.push(new Table({width:{size:9072,type:WidthType.DXA},layout:TableLayoutType.FIXED,columnWidths:widths,borders:noBorder,rows}),gap());
         }
-        return chunks.flatMap((chunk,index)=>[chunk,...(index<chunks.length-1?[new Paragraph({children:[run('',{size:2})],spacing:{line:20,after:0},keepNext:false})]:[])]);
       }
-      const rows=[new TableRow({cantSplit:true,children:[cell(header,{span:2,bottom:true})]})];
-      card.groups.forEach((group,index)=>{
-        const keepNext=keepCard && index < card.groups.length-1;
-        if (group.kind === 'source') {
-          rows.push(new TableRow({cantSplit:true,children:[cell(group.lines.map((line,i)=>p(line,{size:18,color:muted,keepNext:i<group.lines.length-1})),{span:2})]}));
-        } else if (group.kind === 'installation') {
-          const nestedRows=[];
-          for (let i=0;i<group.fields.length;i+=2) nestedRows.push(new TableRow({cantSplit:true,children:group.fields.slice(i,i+2).map(item=>cell(fieldParagraphs(item,{keepNext:keepCard}),{span:group.fields.length-i===1 ? 2 : 1}))}));
-          const nested=new Table({width:{size:9072,type:WidthType.DXA},layout:TableLayoutType.FIXED,columnWidths:[4536,4536],borders:noBorder,rows:nestedRows});
-          rows.push(new TableRow({cantSplit:true,children:[cell([p(group.title,{size:20,bold:true,color:muted,keepNext:true}),nested,p('',{size:2,after:0,keepNext})],{span:2})]}));
-        } else {
-          rows.push(new TableRow({cantSplit:true,children:group.fields.map((item,i)=>cell(fieldParagraphs(item,{value:group.kind==='values',keepNext}),{span:group.fields.length===1 ? 2 : 1,shade:group.kind==='values',accent:group.kind==='values' && i===0}))}));
-        }
-      });
-      const table=tableRows=>new Table({width:{size:9072,type:WidthType.DXA},layout:TableLayoutType.FIXED,columnWidths:[4536,4536],borders:noBorder,rows:tableRows});
-      if (keepCard) return [table(rows)];
-      // Separate oversized cards into independent groups. Word 2010 may otherwise
-      // move the beginning of a long table to a new page, leaving a large gap.
-      return rows.flatMap((row,index)=>[
-        table([row]),
-        ...(index < rows.length-1 ? [new Paragraph({children:[run('',{size:2})],spacing:{line:20,after:0},keepNext:true})] : [])
-      ]);
+      return output;
     }
+
 
     const CM_TO_PX = 96 / 2.54;
     const LOGO_WIDTH_PX = 6.85 * CM_TO_PX;

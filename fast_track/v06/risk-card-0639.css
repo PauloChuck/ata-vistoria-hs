@@ -1,0 +1,33 @@
+/* One table projection shared by the application, preview and printed PDF. */
+.risk-card{font-family:Arial,sans-serif;font-size:10pt;line-height:1.3;text-align:left;color:#111;background:white;min-width:0;margin:3mm 0 5mm;overflow-wrap:normal;word-break:normal}
+.risk-card-brand{padding:0 3mm 3mm;break-after:avoid}
+.risk-card-kicker{font-size:10pt;font-weight:700;letter-spacing:.06em;color:#bb000b;margin:0 0 1.5mm}
+.risk-card-brand h3{font-size:18pt;line-height:1.2;margin:0;color:#111}
+.risk-card-brand h3 span{color:#bb000b}
+.risk-card-frame{border:1px solid #111;border-top:4px solid #bb000b;border-radius:12px;overflow:hidden;background:white}
+.risk-card-header{display:flex;align-items:center;justify-content:space-between;gap:3mm;padding:4mm 3mm;break-after:avoid}
+.risk-card .risk-card-name{font-size:15pt;line-height:1.2;margin:0 0 1mm;color:#111;font-weight:700}
+.risk-card-counts{margin:0;font-size:10pt}
+.risk-card-origin{font-size:9pt;font-weight:700;color:#932d0a;background:#ffecdf;border-radius:20px;padding:2mm 3mm;text-align:center;max-width:35%}
+.risk-register{table-layout:fixed;border-collapse:collapse;width:100%;margin:0;border:0;font-size:9pt;line-height:1.3}
+.risk-register th,.risk-register td{padding:2mm 1.2mm;text-align:center;vertical-align:middle;border:0;border-bottom:.5px solid #bbb;overflow-wrap:normal;word-break:normal}
+.risk-register th{background:#eaeaea;font-size:8.5pt;line-height:1.2;font-weight:700;color:#111}
+.risk-register .left{text-align:left}
+.risk-register th:first-child,.risk-register td:first-child{padding-left:3mm}
+.risk-register th:last-child,.risk-register td:last-child{padding-right:2mm}
+.risk-register tr{break-inside:avoid;page-break-inside:avoid}
+.risk-register thead{display:table-header-group}
+.risk-register-title{color:#930c0c;background:#fff9f6;font-size:13pt;font-weight:700;margin:0;padding:3mm;break-after:avoid;page-break-after:avoid}
+[data-selected-risk-card]{overflow-x:auto;max-width:100%;background:white;border-radius:12px;margin:14px 0;padding:12px}
+[data-selected-risk-card]>.risk-card{min-width:680px;margin:0 0 12px}
+[data-selected-risk-card] .risk-register{font-size:11pt}
+[data-selected-risk-card] .risk-register th{font-size:10pt}
+[data-selected-risk-card] .risk-card-brand h3{font-size:23pt}
+[data-selected-risk-card] .risk-card-name{font-size:20pt}
+.cooperator-tools,.cooperator-adjustments{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin:14px 0;min-width:0}
+.cooperator-tools>summary,.cooperator-adjustments>summary{cursor:pointer;font-weight:700;color:var(--primary-dark)}
+.cooperator-tools[open]>summary,.cooperator-adjustments[open]>summary{margin-bottom:18px}
+.cooperator-adjustments .grid2,.cooperator-adjustments .grid3{min-width:0}
+.cooperator-selection-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+@media print{.risk-card-frame,.risk-register th,.risk-register-title,.risk-card-origin{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
+@media(max-width:620px){.cooperator-adjustments .grid2,.cooperator-adjustments .grid3{grid-template-columns:1fr}}

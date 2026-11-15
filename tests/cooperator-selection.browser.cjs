@@ -21,7 +21,7 @@ const result={checks:[],exports:[],errors:[],success:false};
  async function verify(id,{cpf,previous=[]}={}){
   const r=record(id),s=await backup();assert.equal(await page.locator('#claimantName').inputValue(),r.name);assert.equal(await page.locator('#claimantCpf').inputValue(),cpf??r.cpf);assert.equal(s.fields.claimantName,r.name);assert.equal(s.fields.claimantCpf,cpf??r.cpf);assert.equal(s.cooperatorSelection.sourceRecordId,r.id);assert.equal(s.cooperatorSelection.confirmed.latitude,r.latitude);assert.equal(s.cooperatorSelection.confirmed.longitude,r.longitude);
   const address=await page.evaluate(r=>FastTrackCooperators.formatRiskAddress(r),r);assert.equal(await page.locator('#riskAddress').inputValue(),address);assert.equal(s.fields.riskAddress,address);assert.equal(s.cooperatorSelection.confirmed.cooperative,r.cooperative);assert.equal(s.fields.affiliatedCooperative,r.cooperative);
-  const card=await page.locator('[data-selected-risk-card]').innerText();assert(card.includes(r.name.toUpperCase()));assert(card.includes(r.municipality));assert(card.includes(r.localIdentification));
+  const card=await page.locator('[data-selected-risk-card]').innerText();assert(card.includes(r.name.toUpperCase()));assert(card.includes(r.municipality));assert(card.includes('CONSULTA DE COOPERADOS'));
   await step(6);assert.equal(await page.locator('#claimantSignatureName').innerText(),r.name);await step(7);const preview=await page.locator('#reportPreview').innerText();assert(preview.includes(r.name.toUpperCase()));assert(preview.includes(address.toUpperCase()));for(const stale of previous)assert(!preview.includes(stale),`stale report value: ${stale}`);
   await step(1);return s;
  }

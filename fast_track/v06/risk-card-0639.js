@@ -1,131 +1,121 @@
 (() => {
   'use strict';
-
-  // Presentation only: selection, parsing and provenance remain with the importer.
-  const clean = value => String(value == null ? '' : value).trim();
-  const esc = value => clean(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-  const absent = 'Não informado na base';
-  const number = value => window.FastTrackCooperators.formatters.number(value);
-  function money(value) {
+  // A read-only projection of explicitly selected sources. Never infer physical identity,
+  // import related candidates, choose an effective version or add monetary values here.
+  const clean = v => String(v == null ? '' : v).trim();
+  const esc = v => clean(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const normal = v => window.FastTrackCooperators.normalizeText(v);
+  const absent = 'Não informado';
+  const upper = v => clean(v).toLocaleUpperCase('pt-BR');
+  function numeric(value, money=false) {
     if (!clean(value)) return absent;
-    const parsed = number(value);
-    return parsed.value != null && !parsed.ambiguous
-      ? new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(parsed.value)
-      : clean(value); // Preserve explicit classifications and ambiguous source text.
+    const p = window.FastTrackCooperators.formatters.number(value);
+    return p.value != null && !p.ambiguous
+      ? new Intl.NumberFormat('pt-BR', money ? {style:'currency',currency:'BRL'} : {maximumFractionDigits:20}).format(p.value)
+      : clean(value);
   }
-  function quantity(value,unit) {
-    if (!clean(value)) return '';
-    const parsed = number(value);
-    const formatted = parsed.value != null && !parsed.ambiguous
-      ? new Intl.NumberFormat('pt-BR',{maximumFractionDigits:10}).format(parsed.value) : clean(value);
-    return window.FastTrackCooperators.formatters.quantity(formatted,unit);
+  function coordinate(value) {
+    const raw=clean(value);
+    // Do not round coordinates or drop trailing precision from the source string.
+    return /^[+-]?\d+(?:[.,]\d+)?$/.test(raw) ? raw.replace('.',',') : raw || absent;
   }
-  function coordinate(value,axis) {
-    if (!clean(value)) return '';
-    const parsed = window.FastTrackCooperators.formatters.coordinate(value,axis);
-    return parsed.valid ? new Intl.NumberFormat('pt-BR',{useGrouping:false,maximumFractionDigits:10}).format(parsed.value) : clean(value);
+  function capacityLabel(r) {
+    if (/suino/.test(normal(r.activity))) return 'QTDE LOTAÇÃO MAX POCILGA';
+    return upper(r.capacityConcept) || 'CAPACIDADE / QUANTIDADE';
   }
-  const field = (label,value) => ({label,value:clean(value)});
-  const pairs = fields => fields.reduce((groups,item,index) => {
-    if (index % 2 === 0) groups.push({kind:'fields',fields:[]});
-    groups[groups.length-1].fields.push(item);
-    return groups;
-  },[]);
-  function data(state) {
-    const selection = window.FastTrackCooperators.normalizeSelection(state?.cooperatorSelection);
-    if (!selection) return null;
-    const c = selection.confirmed;
-    const groups = [];
-    const addPair = fields => groups.push(...pairs(fields.filter(item => item.value)));
-    addPair([
-      field(c.municipality ? (c.state ? 'Município / UF' : 'Município') : 'UF',[c.municipality,c.state].filter(clean).join(' / ')),
-      field('Propriedade / localidade',c.localIdentification)
-    ]);
-    addPair([field('Latitude',coordinate(c.latitude,'lat')),field('Longitude',coordinate(c.longitude,'lng'))]);
-    if (!selection.composition || !selection.composition.units.some(u=>u.selected)) {
-    addPair([
-      field(c.capacityConcept || 'Capacidade / quantidade',quantity(c.capacity,c.capacityUnit)),
-      field('Área',quantity(c.area,c.areaUnit))
-    ]);
-    }
-    if (!selection.composition) {
-    for (const [index,item] of (c.installations || []).filter(item => item.involved).entries()) {
-      const details = [field('Identificação',item.code),field('Tipo',item.type),field('Área',quantity(item.area,item.areaUnit)),field(item.capacityConcept || 'Capacidade / quantidade',quantity(item.capacity,item.capacityUnit))].filter(item => item.value);
-      groups.push({kind:'installation',title:`Instalação ${index+1}`,fields:details.length ? details : [field('Identificação',absent)]});
-    }
-    }
-    const sameName = value => window.FastTrackCooperators.normalizeText(value) === window.FastTrackCooperators.normalizeText(c.name);
-    const documentary = value => clean(value) && !sameName(value) ? clean(value) : '';
-    const values = [['vrBuildings','Valor em risco de benfeitorias'],['vrAnimals','Valor em risco de animais']].map(([key,label]) => {
-      const source = selection.fieldSources?.[key];
-      let origin = '';
-      if (source && (source.type === 'manual' || source.recordId !== selection.sourceRecordId)) {
-        origin = source.type === 'manual' ? 'Ajuste manual do regulador' : [source.baseLabel,source.activity,documentary(source.origin || source.source?.category),documentary(source.reference)].filter(clean).join(' · ');
-        if (!origin) origin = 'Registro complementar confirmado pelo regulador';
-      }
-      return {...field(label,money(c[key])),origin};
-    });
-    if (selection.composition) {
-      const p=window.FastTrackProperty,composition=selection.composition,t=p.totals(composition);
-      for (const [index,u] of composition.units.filter(u=>u.selected).entries()) {
-        const r=p.details(composition,u);
-        const location=[r.localIdentification,r.municipality,r.state].filter(Boolean).join(' · ');
-        const coordinates=[coordinate(r.latitude,'lat'),coordinate(r.longitude,'lng')].filter(Boolean).join(' / ');
-        const dimensions=[r.area?`Área: ${quantity(r.area,r.areaUnit)}`:'',r.capacity?`${r.capacityConcept || 'Capacidade / quantidade'}: ${quantity(r.capacity,r.capacityUnit)}`:''].filter(Boolean).join(' · ');
-        const details=[field('Localização / coordenadas',[location,coordinates].filter(Boolean).join(' · ') || 'Não informado'),field('Área / capacidade',dimensions || 'Não informado'),field('VR de benfeitorias',p.money(p.number(r.vrBuildings))),field('VR de animais',p.money(p.number(r.vrAnimals))),field('Atingida pelo sinistro',u.affected?'Sim':'Não indicada'),field('Valores aplicáveis',p.effective(composition,u)?(u.manual?'Cadastro manual confirmado':[r.category,r.reference].filter(Boolean).join(' · ') || 'Registro escolhido pelo regulador'):'Escolha pendente')];
-        groups.push({kind:'installation',title:`${index+1}. ${u.label} — ${r.activity || 'Atividade não informada'}`,fields:details});
-      }
-      groups.push({kind:'fields',fields:[field('Composição',`${t.count} de ${t.totalCount} instalações selecionadas`),field('Abrangência dos valores',t.scope)]});
-      groups.push({kind:'values',fields:[['vrBuildings','Valor em risco de benfeitorias'],['vrAnimals','Valor em risco de animais']].map(([key,label])=>({...field(label,t.fields[key].display),origin:[t.fields[key].status,t.fields[key].origin].filter(Boolean).join(' ')}))});
-      groups.push({kind:'source',lines:[t.unresolved?`${t.unresolved} registro(s) aguardam identificação. Não há total definitivo da propriedade.`:Object.values(t.fields).some(f=>f.pending)?'Consolidação pendente: escolha os registros com valores aplicáveis.':'Composição identificada expressamente pelo regulador.',...(composition.complete?[]:['Composição parcial ou completude da propriedade ainda não confirmada.'])]});
-    } else groups.push({kind:'values',fields:values});
-    const origin = `Origem do registro: ${documentary(c.sourceCategory) || 'Não informada'}`;
-    const reference = documentary(c.sourceReference);
-    const source = [origin,reference && `Referência: ${reference}`,c.situation && `Situação: ${c.situation}`].filter(Boolean);
-    addPair([field('Empresa / grupo',c.companyGroup || state.fields?.companyGroup),field('Cooperativa afiliada',c.cooperative || state.fields?.affiliatedCooperative)]);
-    const contract=window.FastTrackPolicies?.current(state);
-    if (contract) {
-      const o=contract.data.operacao;
-      addPair([field('Segurado contratante',o.segurado_razao_social),field('Apólice',o.numero_apolice)]);
-      const names=window.FastTrackPolicies.reportRows(state).map(row=>row[0]);
-      const joined=names.join('; ');
-      // Long selections may continue between entries, never as one oversized card row.
-      for (const value of joined.length>600 ? names : [joined]) addPair([field('Cobertura reclamada',value)]);
-    }
-    groups.push({kind:'source',lines:source});
-    const activities=selection.composition ? [...new Set(selection.composition.units.filter(u=>u.selected).map(u=>window.FastTrackProperty.details(selection.composition,u)?.activity).filter(Boolean))] : [];
-    return {
-      allowGroupBreaks:!!selection.composition,
-      name:(clean(c.name) || 'Cooperado não informado').toLocaleUpperCase('pt-BR'),
-      subtitle:[c.cooperative,...(activities.length ? activities : [c.activity])].filter(clean).join(' · '),groups
+  function columnWidths(block) {
+    const ctx=typeof document.createElement==='function' ? document.createElement('canvas').getContext('2d') : null;
+    if (!ctx) return;
+    const width=(value,bold)=>{
+      ctx.font=bold?'bold 8.5pt Arial':'9pt Arial';
+      return Math.max(...clean(value).split(/[ \t\r\n]+/).map(word=>ctx.measureText(word).width));
     };
+    // Reserve the real, unbroken word/number width before distributing spare space.
+    // The same widths go to Word, so long coordinates never rely on rounding to fit.
+    const min=block.columns.map((label,i)=>Math.max(width(label,true),...block.rows.map(r=>width(r.values[i],false)))+(i===0?17:i===block.columns.length-1?14:11));
+    const available=602,spare=Math.max(0,available-min.reduce((a,b)=>a+b,0));
+    const widths=min.map((w,i)=>w+spare*block.widths[i]/100),total=widths.reduce((a,b)=>a+b,0);
+    block.widths=widths.map(w=>w/total*100);
+  }
+  function selectedRecords(s) {
+    if (!s.composition) return [{...s.confirmed,category:s.confirmed.sourceCategory,reference:s.confirmed.sourceReference}];
+    const c=s.composition;
+    const records=c.records.filter(r=>{
+      const a=c.assignments[r.id];
+      // "History only" and property totals are retained in adjustments, outside this card.
+      if (['other','history','total'].includes(a?.kind)) return false;
+      if (r.raw?.totalPropriedade===true || r.raw?.escopoValores==='propriedade') return false;
+      return a?.kind!=='unit' || c.units.some(u=>u.id===a.unitId && u.selected);
+    }).map(r=>{
+      const row={...r};
+      // Identification edits are still available. Aggregate compatibility VRs must never
+      // overwrite the original, per-record building value shown in this register.
+      if (r.id===s.sourceRecordId) for (const key of ['name','municipality','state','latitude','longitude','capacity','capacityUnit','capacityConcept','activity']) {
+        row[key]=s.confirmed[key];
+      }
+      row.name=s.confirmed.name || r.name;
+      return row;
+    });
+    for (const u of c.units.filter(u=>u.selected && u.manual)) records.push({...u.values,name:s.confirmed.name,companyGroup:s.confirmed.companyGroup,cooperative:s.confirmed.cooperative,category:'Cadastro manual'});
+    return records;
+  }
+  function data(state) {
+    const s=window.FastTrackCooperators.normalizeSelection(state?.cooperatorSelection);
+    if (!s) return null;
+    const cards=[];
+    for (const r of selectedRecords(s)) {
+      const group=clean(r.companyGroup || r.cooperative || s.confirmed.companyGroup || s.confirmed.cooperative);
+      const activity=clean(r.activity);
+      const key=JSON.stringify([normal(group),normal(activity)]);
+      let card=cards.find(x=>x.key===key);
+      if (!card) {
+        card={key,group:upper(group),activity:upper(activity),name:upper(s.confirmed.name || r.name),blocks:[],origins:[]};
+        cards.push(card);
+      }
+      const category=normal(r.category)===normal(r.name) ? '' : clean(r.category);
+      const reference=normal(r.reference)===normal(r.name) ? '' : clean(r.reference);
+      const endosso=/endoss/.test(normal(category));
+      const renewal=/renovacao/.test(normal(category));
+      const kind=endosso?'endosso':renewal?'renewal':'initial';
+      const title=endosso ? (/^endosso\b/i.test(reference)?reference:['Endosso',reference].filter(Boolean).join(' ')) : '';
+      const capacity=capacityLabel(r);
+      const blockKey=JSON.stringify([kind,category,reference,capacity]);
+      let block=card.blocks.find(b=>b.key===blockKey);
+      if (!block) {
+        block={key:blockKey,kind,title,columns:[...(endosso?['RESULTADO']:[]),'NOME','MUNICÍPIO','LATITUDE','LONGITUDE',capacity,'VALOR EM RISCO BENFEITORIA'],widths:endosso?[14,16,13,15,15,11,16]:[25,14,15,15,13,18],rows:[]};
+        card.blocks.push(block);
+      }
+      block.rows.push({values:[...(endosso?[clean(r.situation || r.movement) || absent]:[]),upper(r.name || card.name),clean(r.municipality) || absent,coordinate(r.latitude),coordinate(r.longitude),numeric(r.capacity),numeric(r.vrBuildings,true)]});
+      if (category && !card.origins.includes(category)) card.origins.push(category);
+    }
+    for (const card of cards) {
+      card.blocks.forEach(columnWidths);
+      card.blocks.sort((a,b)=>(a.kind==='endosso')-(b.kind==='endosso'));
+      const count=kind=>card.blocks.filter(b=>b.kind===kind).reduce((n,b)=>n+b.rows.length,0);
+      card.counts=[['renewal','na Renovação'],['initial','no cadastro inicial'],['endosso','de endosso']].map(([kind,label])=>{const n=count(kind);return n?`${n} ${n===1?'registro':'registros'} ${label}`:'';}).filter(Boolean).join(' · ');
+      card.origin=card.origins.map(upper).join(' / ');
+    }
+    return {cards};
   }
   function header(card) {
-    return `<header class="risk-card-header"><div class="risk-card-kicker">IDENTIFICAÇÃO DO RISCO</div><h3 class="risk-card-name">${esc(card.name)}</h3>${card.subtitle ? `<p class="risk-card-subtitle">${esc(card.subtitle)}</p>` : ''}</header>`;
+    return `<div class="risk-card-brand"><div class="risk-card-kicker">CONSULTA DE COOPERADOS</div>${card.group || card.activity?`<h3><span>${esc(card.group)}</span>${card.group && card.activity?' — ':''}${esc(card.activity)}</h3>`:''}</div>`;
   }
-  function groupHtml(group) {
-    if (group.kind === 'source') return `<footer class="risk-card-source">${group.lines.map(line => `<p>${esc(line)}</p>`).join('')}</footer>`;
-    const fields = group.fields.map(item => `<div class="risk-card-field"><dt>${esc(item.label)}</dt><dd>${esc(item.value)}</dd>${item.origin ? `<p class="risk-card-value-origin">Origem deste valor: ${esc(item.origin)}</p>` : ''}</div>`).join('');
-    return `<section class="risk-card-group risk-card-${group.kind}">${group.title ? `<h4>${esc(group.title)}</h4>` : ''}<dl class="risk-card-grid">${fields}</dl></section>`;
+  function identity(card) {
+    return `<header class="risk-card-header"><div><h4 class="risk-card-name">${esc(card.name)}</h4><p class="risk-card-counts">${esc(card.counts)}</p></div>${card.origin?`<span class="risk-card-origin">${esc(card.origin)}</span>`:''}</header>`;
   }
-  function wrap(contents,{continuation=false}={}) {
-    return `<article class="risk-card${continuation ? ' risk-card-continuation' : ''}" aria-label="Ficha de risco">${contents}</article>`;
+  function blockHtml(block,rows=block.rows) {
+    return `<section class="risk-register-block">${block.title?`<h4 class="risk-register-title">${esc(block.title)}</h4>`:''}<table class="risk-register"><colgroup>${block.widths.map(w=>`<col style="width:${w}%">`).join('')}</colgroup><thead><tr>${block.columns.map((c,i)=>`<th scope="col" class="${c==='NOME'||i===0?'left':''}">${esc(c)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.values.map((v,i)=>`<td class="${block.columns[i]==='NOME'||i===0?'left':''}">${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></section>`;
   }
-  const html = state => { const card = data(state); return card ? wrap(header(card)+card.groups.map(groupHtml).join('')) : ''; };
-
-  // Measure at the report's useful width. Word uses the same keep-together decision;
-  // long cards may split only between the corresponding unsplittable table rows.
-  function fitsOnPage(card) {
-    // Composition cards may use the space after the section introduction instead of
-    // moving every installation to the next page. Individual groups remain intact.
-    if (card.allowGroupBreaks) return false;
-    const host = document.createElement('div');
-    host.style.cssText = 'position:fixed;left:-10000px;top:0;width:160mm;visibility:hidden;pointer-events:none';
-    host.innerHTML = wrap(header(card)+card.groups.map(groupHtml).join(''));
-    document.body.appendChild(host);
-    const fits = host.getBoundingClientRect().height <= 236 * 96 / 25.4;
-    host.remove();
-    return fits;
+  const entries = card => card.blocks.flatMap(block=>block.rows.map(row=>({block,row})));
+  function chunkHtml(card,items=entries(card)) {
+    const blocks=[];
+    for (const item of items) {
+      let b=blocks[blocks.length-1];
+      if (!b || b.block!==item.block) {b={block:item.block,rows:[]};blocks.push(b);}
+      b.rows.push(item.row);
+    }
+    return `<article class="risk-card" aria-label="Consulta de cooperados">${header(card)}<div class="risk-card-frame">${identity(card)}${blocks.map(b=>blockHtml(b.block,b.rows)).join('')}</div></article>`;
   }
-  window.FastTrackRiskCard = {data,html,header,groupHtml,wrap,fitsOnPage};
+  const html=state=>data(state)?.cards.map(c=>chunkHtml(c)).join('') || '';
+  window.FastTrackRiskCard={data,html,entries,chunkHtml};
 })();
