@@ -341,15 +341,17 @@
 
     const coverageRows=window.FastTrackPolicies.reportRows(state);
     const coverageBorder=aurora?{...horizontalBorder({bottom:true}),bottom:{style:BorderStyle.SINGLE,color:'000000',size:4}}:horizontalBorder({bottom:true});
-    const coverageCells=(values,header=false)=>values.map((value,index)=>tcell(String(value).split('\n'),{
+    const coverageCells=(values,header=false,keepNext=header && coverageRows.length>0)=>values.map((value,index)=>tcell(String(value).split('\n'),{
       width:[40,30,30][index],align:index===0?AlignmentType.LEFT:AlignmentType.CENTER,
-      bold:header,keepNext:header && coverageRows.length>0,border:coverageBorder,
+      bold:header,keepNext,border:coverageBorder,
       size:aurora?24:22,line:270,margins:{top:100,bottom:100,left:80,right:80}
     }));
     technical.push(new Table({width:{size:9072,type:WidthType.DXA},layout:TableLayoutType.FIXED,
       columnWidths:[3628,2722,2722],borders:noBorder,rows:[
         new TableRow({tableHeader:true,cantSplit:true,children:coverageCells(['Cobertura','Limite de Indenização','Franquia'],true)}),
-        ...coverageRows.map(row=>new TableRow({cantSplit:true,children:coverageCells(row)}))
+        // Anchor the first two entries together as well: some Word-compatible readers
+        // otherwise strand the repeated header and clip the first entry at a page boundary.
+        ...coverageRows.map((row,index)=>new TableRow({cantSplit:true,children:coverageCells(row,false,index===0 && coverageRows.length>1)}))
       ]}));
 
     technical.push(heading('4. APURAÇÕES DA REGULAÇÃO'),subheading('4.1. LEVANTAMENTOS EM VISTORIA'),...narrativeParagraphs(REPORT().effectiveInspectionText(state)),subheading('RELAÇÃO DE DANOS:'));
