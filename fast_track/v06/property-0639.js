@@ -101,6 +101,7 @@
   function sync(selection) {
     if(!selection?.composition)return selection;
     const c=selection.composition=normalize(selection.composition),t=totals(c);
+    selection.confirmed ||= {};
     selection.confirmed.localIdentification=c.name;
     // Scalar compatibility values are populated only when the applicable result is unambiguous.
     for(const key of ['vrBuildings','vrAnimals'])selection.confirmed[key]=!t.fields[key].subtotal && t.fields[key].amount!=null ? String(t.fields[key].amount) : '';

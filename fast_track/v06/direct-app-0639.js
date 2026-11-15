@@ -710,16 +710,10 @@
     scheduleSave();
   }
 
-  function handleCooperatorSelectionChanged(selection,{autofill = false,metadataOnly = false} = {}) {
-    state.cooperatorSelection = COOPERATORS()?.normalizeSelection?.(selection) || null;
-    if (autofill && state.cooperatorSelection?.confirmed) {
-      const confirmed = state.cooperatorSelection.confirmed;
-      if (String(confirmed.name || '').trim()) state.fields.claimantName = confirmed.name;
-      const address = COOPERATORS()?.formatRiskAddress?.(confirmed) || '';
-      state.fields.riskAddress = address;
-      if ($('claimantName')) $('claimantName').value = state.fields.claimantName || '';
-      if ($('riskAddress')) $('riskAddress').value = state.fields.riskAddress || '';
-    }
+  function handleCooperatorSelectionChanged(selection,{autofill = false,metadataOnly = false,replaceSelection = false} = {}) {
+    COOPERATORS().applySelection(state,selection,{autofill,replaceSelection});
+    // Update every affected input before updateDerived reads the visible form back into state.
+    if (autofill) for (const id of ['claimantName','claimantCpf','riskAddress','companyGroup','affiliatedCooperative']) if ($(id)) $(id).value=state.fields[id] || '';
     if (!metadataOnly) invalidateSignatures();
     updateDerived(); scheduleSave();
   }

@@ -36,7 +36,7 @@
       ${totalRecords.length?`<details class="property-totals"><summary>Usar totais consolidados da propriedade</summary><p class="helper">Um total consolidado substitui a soma das instalações. Só se aplica à composição completa, após resolver os registros pendentes.</p><div class="grid2">${[['vrBuildings','VR de benfeitorias'],['vrAnimals','VR de animais']].map(([key,label])=>`<label>${label}<select data-property-total="${key}">${option('','Somar instalações distintas',c.totals[key])}${totalRecords.map(r=>option(r.id,`${ref(r)} — ${P().money(P().number(r[key]))}`,c.totals[key])).join('')}</select></label>`).join('')}</div></details>`:''}
       <details class="property-manual"><summary>Cadastrar instalação física manualmente</summary><p class="helper">Confirme que é uma instalação distinta da mesma propriedade. Campos vazios permanecem não informados.</p><div class="grid2">${input('Identificação da instalação','label')}${P().fields.map(k=>input(({activity:'Atividade',municipality:'Município',state:'UF',localIdentification:'Localização',latitude:'Latitude',longitude:'Longitude',area:'Área',areaUnit:'Unidade da área',capacity:'Capacidade / quantidade',capacityUnit:'Unidade da capacidade',capacityConcept:'Descrição da quantidade',vrBuildings:'VR de benfeitorias',vrAnimals:'VR de animais'})[k],k)).join('')}</div><button type="button" class="small-btn" data-property-action="manual">Adicionar instalação à propriedade</button></details>
       <details class="property-history" open><summary>Histórico do cadastro (${c.records.length} registros preservados)</summary><p class="helper">Renovações, endossos e repetições não são instalações adicionais. Indique o destino de cada lançamento. A associação mantém todos os dados originais.</p>${P().groups(c).map(rs=>`<details class="property-history-group" ${rs.length===1?'open':''}><summary>${esc(ref(rs[0]))} — ${rs.length} registro(s)${rs.length>1?' com conteúdo idêntico; identidade física não confirmada':''}</summary>${rs.length>1?'<label class="property-check"><input type="checkbox" data-property-repetitions> Aplicar minha associação a estas repetições, confirmando o mesmo destino físico</label>':''}${rs.map(r=>historyRow(c,r)).join('')}</details>`).join('')}</details>
-      <p class="helper">Para acrescentar outra atividade, pesquise seu registro e adicione-o ao histórico. A inclusão na propriedade exige confirmação expressa. Para outra propriedade, remova esta seleção antes de iniciar uma nova ficha.</p>
+      <p class="helper">Para acrescentar instalações ou outra atividade à mesma propriedade, use “Acrescentar instalação à mesma propriedade” no resultado da pesquisa. Para trocar o cooperado ou o local, use “Utilizar dados deste local”; os demais dados do atendimento são preservados.</p>
       ${selection.requiresReselection?'<button type="button" class="small-btn" data-property-action="confirm-snapshot">Conferi a composição preservada e seus valores após a atualização da base</button>':''}
       <p class="property-message notice hidden" role="status"></p></section>`;
   }
@@ -60,7 +60,7 @@
           P().manual(c,values.label,values);
         } else if(action==='remove-manual'){c.units=c.units.filter(u=>u.id!==button.closest('[data-property-unit]').dataset.propertyUnit);c.complete=false;}
         else if(action==='confirm-snapshot'){s.requiresReselection=false;s.reimportReview={...s.reimportReview,confirmedAt:new Date().toISOString()};s.warnings=s.warnings.filter(w=>!/nova leitura|nova base|reimporta/i.test(w));}
-        P().sync(s);changed({autofill:true,renderNow:true});
+        P().sync(s);changed({autofill:false,renderNow:true});
       } catch(error) { const message=document.querySelector('.property-message');message.textContent=error.message;message.className='property-message notice error'; }
     });
     document.addEventListener('change',e=>{
@@ -69,7 +69,8 @@
       if(el.dataset.propertyField)c[el.dataset.propertyField]=el.type==='checkbox'?el.checked:el.value;
       else if(el.dataset.propertyUnitField){const u=c.units.find(x=>x.id===el.closest('[data-property-unit]').dataset.propertyUnit);u[el.dataset.propertyUnitField]=el.type==='checkbox'?el.checked:el.value;}
       else if(el.dataset.propertyTotal)c.totals[el.dataset.propertyTotal]=el.value;else return;
-      P().sync(s);changed({autofill:true,renderNow:true});
+      // Classifying installations and editing their values must not undo personal edits.
+      P().sync(s);changed({autofill:el.dataset.propertyField==='name'?'location':false,renderNow:true});
     });
   }
   window.FastTrackPropertyUI={html,init};

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const IMPORTER_VERSION = '0.6.3.4';
+  const IMPORTER_VERSION = '0.6.3.9';
   const NORMALIZED_SCHEMA_VERSION = 3;
   const SELECTION_SCHEMA_VERSION = 3;
   const DB_NAME = 'HSFastTrackCooperators';
@@ -47,6 +47,11 @@
 
   const FIELD_ALIASES = {
     name:['nome','nome completo','razao social','razão social','produtor','cooperado','integrado','nome produtor','nome integrado'],
+    cpf:['cpf','cpf cooperado','cpf produtor','cpf integrado'],
+    personId:['codigo cooperado','código cooperado','id cooperado','codigo produtor','matricula cooperado'],
+    companyGroup:['empresa grupo','empresa','grupo','grupo empresarial'],
+    cooperative:['cooperativa','cooperativa afiliada','afiliada'],
+    activity:['atividade','atividade do local','atividade da propriedade'],
     municipality:['cidade','municipio','município','municipio uf','município uf'],
     state:['uf','estado'],
     local:['local','localidade','linha','endereco','endereço','propriedade','identificacao local','identificação local','local de risco'],
@@ -475,6 +480,20 @@
     return Object.fromEntries(Object.keys(FIELD_ALIASES).map((name)=>[name,findMappedField(record,name)]));
   }
 
+  function personFields(raw,parent,baseKey) {
+    const values={},origins={};
+    for (const key of ['cpf','personId','companyGroup','cooperative']) {
+      const direct=findMappedField(raw,key),inParent=findMappedField(parent,key);
+      const field=direct.key || direct.ambiguous ? direct : inParent;
+      values[key]=primitiveText(field.value);
+      if (field.key) origins[key]={scope:field===direct?'record':'cooperator',field:field.key,value:values[key]};
+    }
+    // The source base identifies a group, never an affiliated cooperative or a CPF.
+    values.companyGroup ||= BASE_DEFINITIONS[baseKey]?.cooperative || '';
+    if (!/^\d{11}$/.test(values.cpf.replace(/\D/g,''))) values.cpf='';
+    return {...values,personFields:origins};
+  }
+
   function findStructuralEntry(record,target) {
     const wanted = normalizeKey(target);
     return Object.entries(record || {}).find(([key])=>normalizeKey(key) === wanted) || null;
@@ -667,6 +686,8 @@
 
   function activityFor(baseKey,raw,cooperatorRaw) {
     const def = BASE_DEFINITIONS[baseKey];
+    const explicit=findMappedField(raw,'activity');
+    if (hasPrimitiveValue(explicit.value)) return primitiveText(explicit.value);
     if (baseKey !== 'larPostura') return def.activity;
     const direct = findMappedField(raw,'activityType');
     const parent = findMappedField(cooperatorRaw,'activityType');
@@ -740,11 +761,13 @@
       sourceField:mapped.vrAnimals.key || '',canUseAs:'',requiresEquivalenceConfirmation:false
     });
     if (vrDifference) warnings.push(historicalExit ? 'Valores de saída/exclusão preservados como movimentação histórica, sem preencher o VR atual.' : 'O valor deste endosso representa movimentação de VR e não foi tratado como valor total atual.');
+    const name=primitiveText(mapped.name.value) || descriptor.cooperatorName;
+    const person=personFields(raw,normalizeText(name)===normalizeText(descriptor.cooperatorName) ? descriptor.cooperatorRaw : {},baseKey);
     const record = {
-      id:recordId,recordType:'detail',baseKey,baseLabel:def.label,cooperative:def.cooperative,
+      id:recordId,recordType:'detail',baseKey,baseLabel:def.label,...person,
       activity:activityFor(baseKey,raw,descriptor.cooperatorRaw),cooperatorKey:String(descriptor.cooperatorKey),
       cooperatorPath:clone(descriptor.cooperatorPath || []),listName:descriptor.listName,listIndex:descriptor.listIndex,
-      path:recordPath,recordIndex:index,name:primitiveText(mapped.name.value) || descriptor.cooperatorName,
+      path:recordPath,recordIndex:index,name,
       municipality:primitiveText(mapped.municipality.value),state:primitiveText(mapped.state.value),
       localIdentification:primitiveText(mapped.local.value),latitude,longitude,
       installationCode:primitiveText(mapped.installationCode.value),area:primitiveText(mapped.area.value),
@@ -768,7 +791,7 @@
     const def = BASE_DEFINITIONS[baseKey];
     const id = stableId(`${digest}:${baseKey}:${descriptor.cooperatorKey}:${descriptor.listName}:reference:${descriptor.path.join('/')}:${index}:${descriptor.text}`);
     const record = {
-      id,recordType:'reference',baseKey,baseLabel:def.label,cooperative:def.cooperative,
+      id,recordType:'reference',baseKey,baseLabel:def.label,...personFields(descriptor.raw,descriptor.cooperatorRaw,baseKey),
       activity:activityFor(baseKey,{},descriptor.cooperatorRaw),cooperatorKey:String(descriptor.cooperatorKey),
       cooperatorPath:clone(descriptor.cooperatorPath || []),listName:descriptor.listName,listIndex:descriptor.listIndex,
       path:clone(descriptor.path),recordIndex:index,name:descriptor.cooperatorName,
@@ -961,18 +984,33 @@
     return Boolean(base && base.schemaVersion >= NORMALIZED_SCHEMA_VERSION && base.importerVersion === IMPORTER_VERSION && Array.isArray(base.records));
   }
 
+  // Upgrade the local index only. Saved case snapshots are not silently rewritten.
+  async function compatibleBase(base) {
+    if (validBase(base)) return base;
+    if (!base || base.schemaVersion < NORMALIZED_SCHEMA_VERSION || !Array.isArray(base.records)) return null;
+    let upgraded;
+    if (base.sourceHtml) {
+      upgraded=await buildBase(base.sourceHtml,{name:base.fileName,size:base.sizeBytes});
+      upgraded.loadedAt=base.loadedAt;upgraded.fileLastModified=base.fileLastModified;
+    } else {
+      upgraded=clone(base);upgraded.importerVersion=IMPORTER_VERSION;
+      upgraded.records=upgraded.records.map(r=>r.recordType==='detail' ? {...r,...personFields(r.raw,{},r.baseKey),activity:activityFor(r.baseKey,r.raw,{})} : r);
+    }
+    return upgraded;
+  }
+
   async function loadBase() {
     staleBaseDetected = false;
     try {
       const current = await dbGet(KEY);
-      if (validBase(current)) return current;
+      const compatible=await compatibleBase(current);if (compatible) return compatible;
       if (current) staleBaseDetected = true;
       const legacy = await dbGet(LEGACY_KEY);
       if (legacy) staleBaseDetected = true;
     } catch {}
     try {
       const current = JSON.parse(localStorage.getItem(FALLBACK_KEY) || 'null');
-      if (validBase(current)) return current;
+      const compatible=await compatibleBase(current);if (compatible) return compatible;
       if (current) staleBaseDetected = true;
       if (localStorage.getItem(LEGACY_FALLBACK_KEY)) staleBaseDetected = true;
     } catch {}
@@ -989,7 +1027,8 @@
 
   function sourceDescriptor(record) {
     return {
-      recordId:record.id,baseKey:record.baseKey,baseLabel:record.baseLabel,cooperative:record.cooperative,
+      recordId:record.id,baseKey:record.baseKey,baseLabel:record.baseLabel,companyGroup:record.companyGroup,cooperative:record.cooperative,
+      personId:record.personId,personFields:clone(record.personFields || {}),
       activity:record.activity,cooperatorKey:record.cooperatorKey,listName:record.listName,
       cooperatorPath:clone(record.cooperatorPath || []),path:clone(record.path || []),listIndex:record.listIndex,
       baseSha256:loadedBase?.sha256 || '',
@@ -1011,7 +1050,7 @@
   function relatedSnapshot(record) {
     return {
       id:record.id,recordType:record.recordType,baseKey:record.baseKey,baseLabel:record.baseLabel,
-      cooperative:record.cooperative,activity:record.activity,cooperatorKey:record.cooperatorKey,
+      companyGroup:record.companyGroup,cooperative:record.cooperative,cpf:record.cpf,personId:record.personId,activity:record.activity,cooperatorKey:record.cooperatorKey,
       name:record.name,municipality:record.municipality,state:record.state,localIdentification:record.localIdentification,
       latitude:record.latitude,longitude:record.longitude,installationCode:record.installationCode,
       area:record.area,areaUnit:record.areaUnit,capacity:record.capacity,capacityUnit:record.capacityUnit,capacityConcept:record.capacityConcept,
@@ -1031,7 +1070,7 @@
 
   function selectionFromRecord(record) {
     const confirmed = {
-      name:record.name,cooperative:record.cooperative,activity:record.activity,
+      name:record.name,cpf:record.cpf,personId:record.personId,companyGroup:record.companyGroup,cooperative:record.cooperative,activity:record.activity,
       municipality:record.municipality,state:record.state,localIdentification:record.localIdentification,
       latitude:record.latitude,longitude:record.longitude,area:record.area,areaUnit:record.areaUnit,
       capacity:record.capacity,capacityUnit:record.capacityUnit,capacityConcept:record.capacityConcept,
@@ -1052,6 +1091,47 @@
       associatedRecordIds:[],relatedCandidates:relatedRecordsFor(record),recoverySuggestions:[],
       reimportReview:null,requiresReselection:false,warnings:clone(record.warnings || [])
     };
+  }
+
+  // Names alone cannot establish identity across source groups or properties.
+  function personRelation(previous,next,fields={}) {
+    if (!previous || !next) return 'unknown';
+    const a=previous.confirmed || {},b=next.confirmed || {},sa=previous.source || {},sb=next.source || {};
+    const digits=v=>primitiveText(v).replace(/\D/g,'');
+    const cpfA=digits(a.cpf || (normalizeText(fields.claimantName)===normalizeText(a.name) ? fields.claimantCpf : '')),cpfB=digits(b.cpf);
+    if (cpfA.length===11 && cpfB.length===11) return cpfA===cpfB?'same':'different';
+    if (normalizeText(a.name)!==normalizeText(b.name)) return 'different';
+    if (previous.sourceRecordId && previous.sourceRecordId===next.sourceRecordId) return 'same';
+    if (sa.baseKey && sa.baseKey===sb.baseKey && sa.cooperatorKey!=null && String(sa.cooperatorKey)===String(sb.cooperatorKey)
+      && sa.baseSha256 && sa.baseSha256===sb.baseSha256 && JSON.stringify(sa.cooperatorPath || [])===JSON.stringify(sb.cooperatorPath || [])) return 'same';
+    if (a.personId && b.personId && a.companyGroup && a.companyGroup===b.companyGroup) return a.personId===b.personId?'same':'different';
+    return 'unknown';
+  }
+
+  function applySelection(state,selection,{autofill=false,replaceSelection=false}={}) {
+    const previous=state.cooperatorSelection,next=normalizeSelection(selection);
+    const relation=personRelation(previous,next,state.fields);
+    state.cooperatorSelection=next;
+    if (autofill && next?.confirmed) {
+      const c=next.confirmed;
+      if (replaceSelection) {
+        if (relation!=='same') {
+          state.signatures ||= {};state.signatureDetails ||= {};
+          state.signatures.claimant=null;state.signatureDetails.claimant=null;state.finalizedAt=null;
+        }
+        state.fields.claimantCpf=c.cpf || (relation==='same' ? state.fields.claimantCpf || '' : '');
+      }
+      state.fields.riskAddress=formatRiskAddress(c);
+      if (autofill!=='location') Object.assign(state.fields,{claimantName:c.name,companyGroup:c.companyGroup,affiliatedCooperative:c.cooperative});
+    }
+    return next;
+  }
+
+  function localSelection(record) {
+    const selection=selectionFromRecord(record);
+    // Other records remain available in the search/related snapshot, outside this property's composition.
+    selection.composition=window.FastTrackProperty.create([relatedSnapshot(record)],record.localIdentification);
+    return window.FastTrackProperty.sync(selection);
   }
 
   function normalizeInstallation(item,index=0) {
@@ -1077,7 +1157,8 @@
     if (!selection || typeof selection !== 'object') return null;
     const confirmed = selection.confirmed || {};
     const normalizedConfirmed = {
-      name:primitiveText(confirmed.name),cooperative:primitiveText(confirmed.cooperative || selection.source?.cooperative),
+      name:primitiveText(confirmed.name),cooperative:primitiveText(hasOwn(confirmed,'cooperative') ? confirmed.cooperative : selection.source?.cooperative),
+      cpf:primitiveText(confirmed.cpf),personId:primitiveText(confirmed.personId),companyGroup:primitiveText(confirmed.companyGroup),
       activity:primitiveText(confirmed.activity || selection.source?.activity),municipality:primitiveText(confirmed.municipality),
       state:primitiveText(confirmed.state),localIdentification:primitiveText(confirmed.localIdentification),
       latitude:primitiveText(confirmed.latitude),longitude:primitiveText(confirmed.longitude),area:primitiveText(confirmed.area),
@@ -1111,7 +1192,7 @@
   function compareSelection(selection) {
     if (!selection) return [];
     const original=selection.original || {}, confirmed=selection.confirmed || {};
-    const labels={name:'Nome',cooperative:'Cooperativa',activity:'Atividade',municipality:'Município',state:'UF',localIdentification:'Identificação do local',latitude:'Latitude',longitude:'Longitude',area:'Área/metragem',capacity:'Capacidade/quantidade',vrBuildings:'VR de benfeitorias',vrAnimals:'VR de animais',sourceCategory:'Origem',sourceReference:'Referência',situation:'Situação'};
+    const labels={name:'Nome',cpf:'CPF',companyGroup:'Empresa / grupo',cooperative:'Cooperativa',activity:'Atividade',municipality:'Município',state:'UF',localIdentification:'Identificação do local',latitude:'Latitude',longitude:'Longitude',area:'Área/metragem',capacity:'Capacidade/quantidade',vrBuildings:'VR de benfeitorias',vrAnimals:'VR de animais',sourceCategory:'Origem',sourceReference:'Referência',situation:'Situação'};
     const changes=[];
     for (const [key,label] of Object.entries(labels)) if (primitiveText(original[key]) !== primitiveText(confirmed[key])) changes.push(label);
     if (JSON.stringify(original.installations || []) !== JSON.stringify(confirmed.installations || [])) changes.push('Instalações envolvidas');
@@ -1215,9 +1296,9 @@
     const cooperative=$('cooperatorCooperativeFilter'), activity=$('cooperatorActivityFilter');
     if (!cooperative || !activity) return;
     const previousCooperative=cooperative.value, previousActivity=activity.value;
-    const cooperatives=[...new Set((loadedBase?.records || []).map((record)=>record.cooperative).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+    const cooperatives=[...new Set((loadedBase?.records || []).map((record)=>record.companyGroup).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
     const activities=[...new Set((loadedBase?.records || []).map((record)=>record.activity).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
-    cooperative.innerHTML='<option value="">Todas as cooperativas</option>'+cooperatives.map((value)=>`<option value="${attr(value)}">${esc(value)}</option>`).join('');
+    cooperative.innerHTML='<option value="">Todas as empresas / grupos</option>'+cooperatives.map((value)=>`<option value="${attr(value)}">${esc(value)}</option>`).join('');
     activity.innerHTML='<option value="">Todas as atividades</option>'+activities.map((value)=>`<option value="${attr(value)}">${esc(value)}</option>`).join('');
     cooperative.value=cooperatives.includes(previousCooperative) ? previousCooperative : '';
     activity.value=activities.includes(previousActivity) ? previousActivity : '';
@@ -1227,14 +1308,17 @@
     const coordinates=[record.latitude,record.longitude].filter(Boolean).join(' / ') || 'Não informado';
     const badges=[record.baseLabel,record.activity,record.recordType === 'reference' ? 'Referência sem detalhamento' : record.recordType === 'notice' ? 'Cadastro sem detalhe de local' : '',record.situation].filter(Boolean).map((value)=>`<span class="cooperator-badge">${esc(value)}</span>`).join('');
     const warning=record.warnings.length ? `<div class="cooperator-result-warning">${esc(record.warnings[0])}${record.warnings.length > 1 ? `<details><summary>Mais ${record.warnings.length - 1} aviso(s)</summary><ul>${record.warnings.slice(1).map(w=>`<li>${esc(w)}</li>`).join('')}</ul></details>` : ''}</div>` : '';
+    const selection=controller?.getState()?.cooperatorSelection;
+    const addition=record.recordType==='detail' && selection?.composition ? `<button class="btn secondary" type="button" data-action="add-record-to-property" data-add-record-id="${attr(record.id)}">Acrescentar instalação à mesma propriedade</button>` : '';
     const button=record.recordType === 'detail'
-      ? `<button class="btn primary" type="button" data-action="use-cooperator-record" data-record-id="${attr(record.id)}">Adicionar registro à ficha</button>`
+      ? `<div class="cooperator-selection-actions"><button class="btn primary" type="button" data-action="use-cooperator-record" data-record-id="${attr(record.id)}">Utilizar dados deste local</button>${addition}</div>`
       : '<button class="btn secondary" type="button" disabled title="Este cadastro não contém dados suficientes para selecionar um local">Sem detalhe de local</button>';
     const localLabel=record.localIdentification || (record.recordType === 'detail' ? 'Registro do local' : 'Não informado');
     return `<article class="cooperator-result-card ${record.recordType === 'reference' ? 'cooperator-reference-card' : ''}" data-record-id="${attr(record.id)}">
       <div class="cooperator-result-head"><div><h4>${esc(record.name || 'Nome não informado')}</h4><div class="cooperator-badges">${badges}</div></div>${button}</div>
       <div class="cooperator-result-grid">
-        <div><span>Cooperativa</span><strong>${esc(record.cooperative || 'Não informado')}</strong></div>
+        <div><span>Empresa / grupo</span><strong>${esc(record.companyGroup || 'Não informado')}</strong></div>
+        <div><span>Cooperativa afiliada</span><strong>${esc(record.cooperative || 'Não informado')}</strong></div>
         <div><span>Atividade</span><strong>${esc(record.activity || 'Não informado')}</strong></div>
         <div><span>Município</span><strong>${esc(record.municipality || 'Não informado')}</strong></div>
         <div><span>Local / propriedade</span><strong>${esc(localLabel)}</strong></div>
@@ -1260,7 +1344,7 @@
     const cooperative=$('cooperatorCooperativeFilter')?.value || '', activity=$('cooperatorActivityFilter')?.value || '';
     const searchKey=JSON.stringify([query,cooperative,activity]);
     if (searchKey !== lastSearchKey) { resultLimit=MAX_RESULTS; lastSearchKey=searchKey; }
-    searchResults=loadedBase.records.filter((record)=>record.searchName.includes(query) && (!cooperative || record.cooperative === cooperative) && (!activity || record.activity === activity));
+    searchResults=loadedBase.records.filter((record)=>record.searchName.includes(query) && (!cooperative || record.companyGroup === cooperative) && (!activity || record.activity === activity));
     searchResults.sort((a,b)=>{
       if (a.recordType !== b.recordType) return a.recordType === 'detail' ? -1 : 1;
       return [a.baseLabel,a.activity,a.municipality,a.installationCode,a.reference].join('|').localeCompare([b.baseLabel,b.activity,b.municipality,b.installationCode,b.reference].join('|'),'pt-BR');
@@ -1448,21 +1532,23 @@
   function selectRecord(id) {
     const record=loadedBase?.records?.find((entry)=>entry.id === id && entry.recordType === 'detail');
     if (!record) return;
-    const state=controller.getState();
-    if (state.cooperatorSelection) {
-      if (!state.cooperatorSelection.composition) {
-        controller.status('A ficha anterior foi preservada. Use “Compor instalações desta propriedade” antes de acrescentar registros.','warn');
-        return;
-      }
-      window.FastTrackProperty.add(state.cooperatorSelection.composition,[relatedSnapshot(record)]);
-    } else {
-      state.cooperatorSelection=selectionFromRecord(record);
-      state.cooperatorSelection.composition=window.FastTrackProperty.create([relatedSnapshot(record),...relatedRecordsFor(record)],record.localIdentification);
-    }
-    window.FastTrackProperty.sync(state.cooperatorSelection);
-    controller.onSelectionChanged(state.cooperatorSelection,{autofill:true});
-    renderSelection();
+    controller.onSelectionChanged(localSelection(record),{autofill:true,replaceSelection:true});
+    renderSelection();renderResults();
     $('cooperatorSelectedPanel')?.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+
+  function addRecordToProperty(id) {
+    const record=loadedBase?.records?.find(r=>r.id===id && r.recordType==='detail');
+    const state=controller.getState(),selection=state.cooperatorSelection;
+    if (!record || !selection?.composition) return;
+    const relation=personRelation(selection,selectionFromRecord(record),state.fields);
+    if (relation==='different') { controller.status('Este registro identifica outro cooperado. Use “Utilizar dados deste local” para substituir a seleção.','warn');return; }
+    if (selection.composition.records.some(r=>r.id===record.id)) { controller.status('Este registro já está no histórico desta ficha.','info');return; }
+    const property=selection.composition.name || formatRiskAddress(selection.confirmed) || 'a propriedade atual';
+    if (!confirm(`${relation==='unknown'?'A fonte não comprova que se trata da mesma pessoa. ':''}Confirma que o registro de ${record.name}, em ${formatRiskAddress(record) || 'local não informado'}, pertence ao mesmo cooperado e à propriedade “${property}”? A identificação da instalação e a escolha dos valores continuam no histórico.`)) return;
+    window.FastTrackProperty.add(selection.composition,[relatedSnapshot(record)]);
+    selection.associatedRecordIds=[...new Set([...selection.associatedRecordIds,record.id])];
+    selectionChanged({autofill:false,renderNow:true});renderResults();
   }
 
   function relatedRecord(selection,id) {
@@ -1536,6 +1622,7 @@
         if ($('cooperatorActivityFilter')) $('cooperatorActivityFilter').value='';
         searchResults=[]; renderResults();
       } else if (action === 'use-cooperator-record') selectRecord(button.dataset.recordId || button.closest('[data-record-id]')?.dataset.recordId);
+      else if (action === 'add-record-to-property') addRecordToProperty(button.dataset.addRecordId);
       else if (action === 'compose-property') {
         const selection=controller.getState().cooperatorSelection;
         if (!selection || selection.composition) return;
@@ -1571,7 +1658,7 @@
         if (!selection) return;
         selection.confirmed[field.dataset.coopField]=field.value;
         if (['vrBuildings','vrAnimals'].includes(field.dataset.coopField)) selection.fieldSources[field.dataset.coopField]={type:'manual',field:field.dataset.coopField,recordId:null,baseKey:selection.source?.baseKey,baseLabel:selection.source?.baseLabel,activity:selection.confirmed.activity,origin:'Ajuste manual do regulador',reference:''};
-        selectionChanged({autofill:['name','municipality','state','localIdentification'].includes(field.dataset.coopField)});
+        selectionChanged({autofill:['name','cooperative','municipality','state','localIdentification'].includes(field.dataset.coopField)});
         return;
       }
       const extraField=event.target.closest('[data-extra-field]');
@@ -1607,9 +1694,9 @@
 
   window.FastTrackCooperators = {
     init,render,buildBase,parseDataFromHtml,normalizeText,normalizeSelection,validateSelection,
-    reportData,reportHtml,formatRiskAddress,getBase:()=>loadedBase,definitions:clone(BASE_DEFINITIONS),
+    reportData,reportHtml,formatRiskAddress,applySelection,getBase:()=>loadedBase,definitions:clone(BASE_DEFINITIONS),
     importerVersion:IMPORTER_VERSION,schemaVersion:NORMALIZED_SCHEMA_VERSION,
     formatters:{number:parseLocaleNumber,coordinate:parseCoordinateNumber,quantity:valueWithUnit},
-    _test:{adaptBase,discoverCooperators,flattenDetailedValues,flattenReferenceValues,isJaguaHeader,mappedFields,parseLocaleNumber,parseCoordinateNumber}
+    _test:{adaptBase,discoverCooperators,flattenDetailedValues,flattenReferenceValues,isJaguaHeader,mappedFields,parseLocaleNumber,parseCoordinateNumber,personRelation,personFields,localSelection,compatibleBase}
   };
 })();

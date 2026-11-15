@@ -41,12 +41,14 @@
       field(c.municipality ? (c.state ? 'Município / UF' : 'Município') : 'UF',[c.municipality,c.state].filter(clean).join(' / ')),
       field('Propriedade / localidade',c.localIdentification)
     ]);
-    if (!selection.composition) {
     addPair([field('Latitude',coordinate(c.latitude,'lat')),field('Longitude',coordinate(c.longitude,'lng'))]);
+    if (!selection.composition || !selection.composition.units.some(u=>u.selected)) {
     addPair([
       field(c.capacityConcept || 'Capacidade / quantidade',quantity(c.capacity,c.capacityUnit)),
       field('Área',quantity(c.area,c.areaUnit))
     ]);
+    }
+    if (!selection.composition) {
     for (const [index,item] of (c.installations || []).filter(item => item.involved).entries()) {
       const details = [field('Identificação',item.code),field('Tipo',item.type),field('Área',quantity(item.area,item.areaUnit)),field(item.capacityConcept || 'Capacidade / quantidade',quantity(item.capacity,item.capacityUnit))].filter(item => item.value);
       groups.push({kind:'installation',title:`Instalação ${index+1}`,fields:details.length ? details : [field('Identificação',absent)]});
@@ -80,21 +82,22 @@
     const origin = `Origem do registro: ${documentary(c.sourceCategory) || 'Não informada'}`;
     const reference = documentary(c.sourceReference);
     const source = [origin,reference && `Referência: ${reference}`,c.situation && `Situação: ${c.situation}`].filter(Boolean);
+    addPair([field('Empresa / grupo',c.companyGroup || state.fields?.companyGroup),field('Cooperativa afiliada',c.cooperative || state.fields?.affiliatedCooperative)]);
     const contract=window.FastTrackPolicies?.current(state);
     if (contract) {
       const o=contract.data.operacao;
-      addPair([field('Empresa / grupo',o.empresa_grupo_exibicao),field('Cooperativa afiliada',state.fields.affiliatedCooperative || o.cooperativa_afiliada || '')]);
       addPair([field('Segurado contratante',o.segurado_razao_social),field('Apólice',o.numero_apolice)]);
       const names=window.FastTrackPolicies.reportRows(state).map(row=>row[0]);
       const joined=names.join('; ');
       // Long selections may continue between entries, never as one oversized card row.
       for (const value of joined.length>600 ? names : [joined]) addPair([field('Cobertura reclamada',value)]);
     }
-    if (!selection.composition) groups.push({kind:'source',lines:source});
+    groups.push({kind:'source',lines:source});
+    const activities=selection.composition ? [...new Set(selection.composition.units.filter(u=>u.selected).map(u=>window.FastTrackProperty.details(selection.composition,u)?.activity).filter(Boolean))] : [];
     return {
       allowGroupBreaks:!!selection.composition,
       name:(clean(c.name) || 'Cooperado não informado').toLocaleUpperCase('pt-BR'),
-      subtitle:[c.cooperative,...(selection.composition ? [...new Set(selection.composition.units.filter(u=>u.selected).map(u=>window.FastTrackProperty.details(selection.composition,u)?.activity).filter(Boolean))] : [c.activity])].filter(clean).join(' · '),groups
+      subtitle:[c.cooperative,...(activities.length ? activities : [c.activity])].filter(clean).join(' · '),groups
     };
   }
   function header(card) {
