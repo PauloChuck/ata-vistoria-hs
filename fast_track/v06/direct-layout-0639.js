@@ -235,10 +235,10 @@
     return {add,push,newPage,fits,isEmpty,addRecordList,addList,addTextSection,finish,destroy};
   }
 
-  function photoRowContent(items, start) {
-    const cells = items.map((photo,index) => `<div class="photo-cell-report">
-      <div class="report-image-frame"><img src="${attr(photo.dataUrl)}" alt=""></div>
-      <p class="doc-caption">Figura ${start + index + 1} — ${esc(photo.caption || '')}</p>
+  function photoRowContent(row) {
+    const cells = row.cells.map(({photo,lines}) => `<div class="photo-cell-report">
+      <div class="report-image-frame" style="height:${row.imageMm}mm"><img src="${attr(photo.dataUrl)}" alt=""></div>
+      <p class="doc-caption">${esc(lines.join('\n'))}</p>
     </div>`).join('');
     return `<div class="photo-row-report">${cells}</div>`;
   }
@@ -324,30 +324,11 @@
       });
 
       if (photos.length) {
-        let shownOnPage = 0;
-        let started = false;
-        for (let start = 0; start < photos.length; start += 2) {
-          const slice = photos.slice(start,start + 2);
-          const row = photoRowContent(slice,start);
-          if (!started) {
-            const heading = '<div class="doc-section">REGISTRO FOTOGRÁFICO</div>';
-            if (!paginator.fits(heading + row) && !paginator.isEmpty()) paginator.newPage();
-            paginator.push(heading);
-            started = true;
-          }
-          if (shownOnPage + slice.length > 4) {
-            paginator.newPage();
-            paginator.push('<div class="doc-section">REGISTRO FOTOGRÁFICO — CONTINUAÇÃO</div>');
-            shownOnPage = 0;
-          }
-          if (!paginator.fits(row)) {
-            paginator.newPage();
-            paginator.push('<div class="doc-section">REGISTRO FOTOGRÁFICO — CONTINUAÇÃO</div>');
-            shownOnPage = 0;
-          }
-          paginator.push(row);
-          shownOnPage += slice.length;
+        for (const page of window.FastTrackReportRefinements.photoPages(photos)) {
+          paginator.newPage();
+          paginator.push(`<div class="survey-photo-page">${page.first ? '<div class="doc-section">REGISTRO FOTOGRÁFICO</div>' : ''}${page.rows.map(photoRowContent).join('')}</div>`);
         }
+        paginator.newPage();
       }
 
       paginator.addTextSection('<div class="doc-subsection">4.2. LAVANTAMENTOS DOCUMENTAIS</div>',f.documentaryNarrative || '','<div class="doc-subsection">4.2. LAVANTAMENTOS DOCUMENTAIS — CONTINUAÇÃO</div>');

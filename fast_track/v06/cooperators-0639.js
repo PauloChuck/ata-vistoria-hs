@@ -1612,6 +1612,10 @@
     $('cooperatorSearch')?.addEventListener('keydown',(event)=>{ if (event.key === 'Enter') { event.preventDefault(); renderResults(); } });
     $('cooperatorCooperativeFilter')?.addEventListener('change',()=>renderResults());
     $('cooperatorActivityFilter')?.addEventListener('change',()=>renderResults());
+    for (const id of ['cooperatorCooperativeFilter','cooperatorActivityFilter']) $(id)?.addEventListener('change',()=>{
+      try { sessionStorage.setItem('hsFastTrackSearchFilters',JSON.stringify(['cooperatorCooperativeFilter','cooperatorActivityFilter'].map(key=>$(key)?.value || ''))); } catch {}
+    });
+    window.addEventListener('pageshow',clearSearch);
 
     document.addEventListener('click',(event)=>{
       const button=event.target.closest('[data-action]');
@@ -1623,6 +1627,7 @@
         if ($('cooperatorSearch')) $('cooperatorSearch').value='';
         if ($('cooperatorCooperativeFilter')) $('cooperatorCooperativeFilter').value='';
         if ($('cooperatorActivityFilter')) $('cooperatorActivityFilter').value='';
+        try { sessionStorage.removeItem('hsFastTrackSearchFilters'); } catch {}
         searchResults=[]; renderResults();
       } else if (action === 'use-cooperator-record') selectRecord(button.dataset.recordId || button.closest('[data-record-id]')?.dataset.recordId);
       else if (action === 'add-record-to-property') addRecordToProperty(button.dataset.addRecordId);
@@ -1690,7 +1695,18 @@
     if (initialized) { controller=nextController || controller; render(); return; }
     controller=nextController;
     loadedBase=await loadBase();
+    clearSearch();
     bindEvents(); window.FastTrackPropertyUI.init(controller,selectionChanged); initialized=true; render();
+    try {
+      const filters=JSON.parse(sessionStorage.getItem('hsFastTrackSearchFilters') || '[]');
+      ['cooperatorCooperativeFilter','cooperatorActivityFilter'].forEach((id,index)=>{ if ($(id) && Array.from($(id).options).some(option=>option.value===filters[index])) $(id).value=filters[index]; });
+    } catch {}
+  }
+
+  function clearSearch() {
+    if ($('cooperatorSearch')) $('cooperatorSearch').value='';
+    searchResults=[]; lastSearchKey=''; resultLimit=MAX_RESULTS;
+    renderResults();
   }
 
   function render() { renderBaseStatus(); renderFilters(); renderResults(); renderSelection(); }
