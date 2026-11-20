@@ -13,7 +13,7 @@
   const SIGNATURES = () => window.FastTrackSignatures;
   const PROFILE_KEY = 'regulator-profile-v1';
   const DOCUMENTARY_DEFAULT = 'O temporal que atingiu a região foi amplamente divulgado na imprensa devido aos danos provocados. Anexamos matéria jornalística ao processo para ilustrar os registros existentes.';
-  const REGULATOR_OPINION_DEFAULT = 'Análise de cobertura pendente de conclusão pelo regulador.';
+  const REGULATOR_OPINION_DEFAULT = window.FastTrackReportRefinements.opinion;
   const $ = (id) => document.getElementById(id);
   const qsa = (selector, root = document) => Array.from(root.querySelectorAll(selector));
   const uid = (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -58,9 +58,9 @@
         insurerClaim:'',hsClaim:'',insurer:'',insured:'',companyGroup:'',affiliatedCooperative:'',insuredCnpj:'',lossTime:'',
         claimantName:'',claimantCpf:'',riskAddress:'',policyNumber:'',productName:'',
         broker:'ALPER CONSULTORIA E CORRETORA DE SEGUROS S/A',lossDate:'',
-        coverageName:'',inspectionDate:'2026-11-10',
+        coverageName:'',inspectionDate:'',
         occurrenceNarrative:REPORT().occurrenceText(''),occurrenceNarrativeMode:'default',occurrenceNarrativeDate:'',
-        inspectionNarrative:REPORT().inspectionText('2026-11-10'),inspectionNarrativeMode:'default',inspectionNarrativeDate:'2026-11-10',
+        inspectionNarrative:REPORT().inspectionText(''),inspectionNarrativeMode:'default',inspectionNarrativeDate:'',
         mapFit:'contain',mapPosX:'50',mapPosY:'50',noDocuments:false,
         documentaryNarrative:DOCUMENTARY_DEFAULT,
         regulatorOpinion:REGULATOR_OPINION_DEFAULT,
@@ -153,6 +153,7 @@
   function handleOfficialDateChange(kind) {
     const config = narrativeConfig(kind);
     if (state.fields[config.mode] !== 'custom') syncNarrativeDefault(kind,true);
+    else if (kind === 'inspection') window.FastTrackReportRefinements.syncInspection(state.fields);
     renderNarrativeControl(kind,true);
   }
 
@@ -175,7 +176,13 @@
     const replacement = REPORT().longDate(official);
     let updated = current;
     const previous = REPORT().longDate(fields[config.baseline]);
-    if (previous && current.toLocaleLowerCase('pt-BR').includes(previous.toLocaleLowerCase('pt-BR'))) {
+    if (kind === 'inspection') {
+      updated = window.FastTrackReportRefinements.inspectionText(fields);
+      if (updated === current) {
+        alert('Não foi possível identificar com segurança a data mencionada no texto. Faça a correção manualmente.');
+        return;
+      }
+    } else if (previous && current.toLocaleLowerCase('pt-BR').includes(previous.toLocaleLowerCase('pt-BR'))) {
       const index = current.toLocaleLowerCase('pt-BR').indexOf(previous.toLocaleLowerCase('pt-BR'));
       updated = current.slice(0,index) + replacement + current.slice(index + previous.length);
     } else {
@@ -305,6 +312,7 @@
       if (!el) return;
       state.fields[id] = el.type === 'checkbox' ? el.checked : el.value;
     });
+    window.FastTrackReportRefinements.syncInspection(state.fields);
   }
 
   function applyStateToDom() {
@@ -867,8 +875,9 @@
     const fields = {...base.fields,...incomingFields};
     normalizeNarrativeFields(fields,incomingFields,'occurrence');
     normalizeNarrativeFields(fields,incomingFields,'inspection');
+    window.FastTrackReportRefinements.syncInspection(fields);
     if (!String(fields.documentaryNarrative || '').trim()) fields.documentaryNarrative = DOCUMENTARY_DEFAULT;
-    if (!String(fields.regulatorOpinion || '').trim()) fields.regulatorOpinion = REGULATOR_OPINION_DEFAULT;
+    fields.regulatorOpinion = window.FastTrackReportRefinements.normalizeOpinion(fields.regulatorOpinion);
     return SIGNATURES().ensure({
       ...base,
       ...data,

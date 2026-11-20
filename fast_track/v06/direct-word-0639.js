@@ -334,31 +334,36 @@
     } else technical.push(para('Nenhum item cadastrado.',{alignment:AlignmentType.LEFT}));
     children.push(...technical);
 
-    // Fotografias — até quatro por página, mantendo imagem e legenda juntas
+    // Fotografias — três pares, com o mesmo orçamento de legendas da prévia.
     const photos = (state.photos || []).filter((photo) => photo.dataUrl);
-    for (let start = 0; start < photos.length; start += 4) {
-      const slice = photos.slice(start,start + 4);
+    for (const page of window.FastTrackReportRefinements.photoPages(photos)) {
       const rows = [];
-      for (let r = 0; r < 2; r += 1) {
+      for (const row of page.rows) {
         const cells = [];
         for (let c = 0; c < 2; c += 1) {
-          const photo = slice[r * 2 + c];
-          if (!photo) { cells.push(tcell('',{width:50,border:noBorder})); continue; }
+          if(c) cells.push(new TableCell({children:[new Paragraph({spacing:{after:0}})],width:{size:568,type:WidthType.DXA},borders:noBorder,margins:{top:0,bottom:0,left:0,right:0}}));
+          const entry = row.cells[c];
+          if (!entry) { cells.push(new TableCell({children:[new Paragraph({spacing:{after:0}})],width:{size:4252,type:WidthType.DXA},borders:noBorder})); continue; }
+          const {photo,lines} = entry;
           const image = await canvasBytes(photo.dataUrl,1000,850,{background:'#ffffff'});
-          const scale = Math.min(260/image.width,220/image.height,1);
+          const scale = Math.min(75*96/25.4/image.width,row.imageMm*96/25.4/image.height,1);
           cells.push(new TableCell({
-            width:{size:50,type:WidthType.PERCENTAGE},verticalAlign:VerticalAlign.TOP,borders:noBorder,margins:{top:80,bottom:80,left:80,right:80},
+            width:{size:4252,type:WidthType.DXA},verticalAlign:VerticalAlign.TOP,borders:noBorder,margins:{top:0,bottom:284,left:0,right:0},
             children:[
-              new Paragraph({children:[new ImageRun({data:image.data,type:'png',outline:attachmentOutline,transformation:{width:Math.max(1,Math.round(image.width*scale)),height:Math.max(1,Math.round(image.height*scale))}})],alignment:AlignmentType.CENTER,spacing:{after:80}}),
-              caption(`Figura ${start + r * 2 + c + 1} — ${photo.caption || ''}`)
+              new Paragraph({children:[new ImageRun({data:image.data,type:'png',outline:attachmentOutline,transformation:{width:Math.max(1,Math.floor(image.width*scale)),height:Math.max(1,Math.floor(image.height*scale))}})],alignment:AlignmentType.CENTER,spacing:{after:113},keepNext:true,keepLines:true}),
+              new Paragraph({children:lines.map((line,index)=>run(line,{size:20,color:CAPTION_BLUE,break:index ? 1 : undefined})),alignment:AlignmentType.CENTER,spacing:{line:240,after:0},keepLines:true})
             ]
           }));
         }
         rows.push(new TableRow({cantSplit:true,children:cells}));
       }
-      if (start) children.push(pageBreak());
-      children.push(heading(start ? 'REGISTRO FOTOGRÁFICO — CONTINUAÇÃO' : 'REGISTRO FOTOGRÁFICO'),new Table({width:{size:100,type:WidthType.PERCENTAGE},borders:noBorder,rows}));
+      // A break inside the paragraph after a table creates a blank page in Word 2010.
+      // Start the next paragraph on a new page instead, without a trailing break run.
+      if(page.first) children.push(new Paragraph({children:[run('REGISTRO FOTOGRÁFICO',{font:'Arial Black',size:28,bold:true})],pageBreakBefore:true,spacing:{before:0,after:300,line:360},keepNext:true,keepLines:true}));
+      else children.push(new Paragraph({pageBreakBefore:true,spacing:{before:0,after:0,line:1},keepNext:true}));
+      children.push(new Table({width:{size:9072,type:WidthType.DXA},layout:TableLayoutType.FIXED,columnWidths:[4252,568,4252],borders:noBorder,rows}));
     }
+    if(photos.length) children.push(new Paragraph({pageBreakBefore:true,spacing:{before:0,after:0,line:1},keepNext:true}));
 
     // Levantamentos documentais e anexos — seção 4.2
     const documentaryChildren = [subheading('4.2. LAVANTAMENTOS DOCUMENTAIS'),...narrativeParagraphs(f.documentaryNarrative || '')];
@@ -466,7 +471,7 @@
       if(dataUrl){
         const sig=await canvasBytes(dataUrl,1800,1400);
         const scale=Math.min(245.67/sig.width,136.06/sig.height,1);
-        imageChildren.push(new Paragraph({children:[new ImageRun({data:sig.data,type:'png',outline:attachmentOutline,transformation:{width:Math.max(1,Math.round(sig.width*scale)),height:Math.max(1,Math.round(sig.height*scale))}})],alignment:AlignmentType.CENTER,spacing:{after:0},keepNext:true,keepLines:true}));
+        imageChildren.push(new Paragraph({children:[new ImageRun({data:sig.data,type:'png',transformation:{width:Math.max(1,Math.round(sig.width*scale)),height:Math.max(1,Math.round(sig.height*scale))}})],alignment:AlignmentType.CENTER,spacing:{after:0},keepNext:true,keepLines:true}));
       }else imageChildren.push(new Paragraph({children:[run('')],spacing:{after:0},keepNext:true}));
       const frame=new Table({width:{size:100,type:WidthType.PERCENTAGE},borders:noBorder,rows:[new TableRow({height:{value:2041,rule:HeightRule.ATLEAST},cantSplit:true,children:[new TableCell({children:imageChildren,verticalAlign:VerticalAlign.CENTER,borders:noBorder,margins:{top:0,bottom:0,left:0,right:0}})]})]});
       const person=window.FastTrackSignatures.identity(state,role);
