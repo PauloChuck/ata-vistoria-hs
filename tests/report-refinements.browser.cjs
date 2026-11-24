@@ -56,11 +56,12 @@ const result={checks:[],exports:[],errors:[],success:false};
    const variant=structuredClone(s);variant.fields.regulatorOpinion=old;variant.finalizedAt='2026-11-20T12:00:00Z';await restore(variant);const migrated=await backup();assert.equal(migrated.fields.regulatorOpinion,old==='Parecer personalizado preservado.'?old:opinion);assert.equal(migrated.finalizedAt,variant.finalizedAt);assert.deepEqual(migrated.contract,variant.contract);assert.deepEqual(migrated.damages,variant.damages);
   }
   result.checks.push('Exact opinion default on new/empty/old-default cases; custom opinion and completion state preserved');
-  for(const count of [1,6,7,12,13]){
+  for(const count of [1,4,6,7,12,13]){
    const sample=structuredClone(s);sample.photos=s.photos.slice(0,count);await restore(sample);await step(7);
    await page.waitForFunction(()=>[...document.querySelectorAll('#reportPreview img')].every(i=>i.complete&&i.naturalWidth));
    const report=await page.locator('#reportPreview').innerText();assert(!report.includes('REGISTRO FOTOGRÁFICO — CONTINUAÇÃO'));assert.equal(report.split('REGISTRO FOTOGRÁFICO').length-1,1);assert(report.includes(expected));assert(report.includes('Data da realização da vistoria\n01/12/2026'));assert(report.includes('Parecer personalizado preservado.'));
-   const groups=await page.locator('#reportPreview .survey-photo-page').evaluateAll(ps=>ps.map(p=>p.querySelectorAll('img').length));assert.deepEqual(groups,Array.from({length:Math.ceil(count/6)},(_,i)=>Math.min(6,count-i*6)));
+   const groups=await page.locator('#reportPreview .survey-photo-page').evaluateAll(ps=>ps.map(p=>p.querySelectorAll('img').length));assert.equal(groups.reduce((a,b)=>a+b,0),count);assert(groups.every(n=>n>=1&&n<=6));
+   assert(report.includes('4.2 LEVANTAMENTOS DOCUMENTAIS'));assert(!report.includes('LAVANTAMENTOS'));assert(!report.includes('IMAGENS E ARQUIVOS'));
    assert(await page.locator('#reportPreview .report-content').evaluateAll(cs=>cs.every(c=>c.scrollHeight<=c.clientHeight+1&&c.scrollWidth<=c.clientWidth+1)),'page overflow');
    const images=await page.locator('#reportPreview .report-content img').evaluateAll(is=>is.map(i=>({signature:!!i.closest('.signature-image-frame'),outline:getComputedStyle(i).outlineStyle,ratio:i.getBoundingClientRect().width/i.getBoundingClientRect().height,natural:i.naturalWidth/i.naturalHeight})));
    assert(images.every(i=>i.outline===(i.signature?'none':'solid')&&Math.abs(i.ratio-i.natural)<0.02));
@@ -70,6 +71,6 @@ const result={checks:[],exports:[],errors:[],success:false};
    if(count===13){for(const [i,p] of (await page.locator('#reportPreview .report-page').all()).entries())await p.screenshot({path:path.join(out,`preview-page-${i+1}.png`)});fs.writeFileSync(path.join(out,'synthetic.json'),JSON.stringify(await backup(),null,2));}
    result.exports.push({count,groups,tag});
   }
-  result.checks.push('1/6/7/12/13 photos, portrait images, long captions, two columns/three rows, no continuation title or empty frames; Word/PDF generated','Only signatures are unframed; all other images remain outlined; evidence/map stay outside the photo grid');assert.deepEqual(result.errors,[]);result.success=true;
+  result.checks.push('1/4/6/7/12/13 photos, portrait images, long captions, at most two columns/three rows, no continuation title or empty frames; Word/PDF generated','Only signatures are unframed; all other images remain outlined; evidence/map stay outside the photo grid');assert.deepEqual(result.errors,[]);result.success=true;
  }catch(e){result.failure=String(e);await page.screenshot({path:path.join(out,'failure.png'),fullPage:true}).catch(()=>{});throw e;}finally{fs.writeFileSync(path.join(out,'results.json'),JSON.stringify(result,null,2));await browser.close();server.close();console.log(JSON.stringify(result,null,2));}
 })().catch(e=>{console.error(e);server.close();process.exitCode=1;});

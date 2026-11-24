@@ -296,7 +296,6 @@
 
     // Conteúdo técnico inicial
     const technical = [heading('1. LOCAL DO SINISTRO'),para('Trata-se de propriedade rural destinada a engorda de animais (matérias-primas) do segurado.')];
-    if (riskCard) technical.push(...riskCardTable(riskCard));
     if (state.map?.dataUrl) {
       const mapImg = await canvasBytes(state.map.dataUrl,1050,720,{background:'#ffffff'});
       const scale = Math.min(490/mapImg.width,340/mapImg.height,1);
@@ -304,7 +303,8 @@
         new Paragraph({children:[new ImageRun({data:mapImg.data,type:'png',outline:attachmentOutline,transformation:{width:Math.max(1,Math.round(mapImg.width*scale)),height:Math.max(1,Math.round(mapImg.height*scale))}})],alignment:AlignmentType.CENTER,spacing:{after:80},keepNext:true,keepLines:true}),
         caption('Localização da propriedade sinistrada.')
       );
-    } else technical.push(para('Imagem de localização não informada.',{alignment:AlignmentType.CENTER}));
+    }
+    if (riskCard) technical.push(...riskCardTable(riskCard));
     technical.push(heading('2. DESCRIÇÃO DA OCORRÊNCIA'),...narrativeParagraphs(REPORT().effectiveOccurrenceText(state)),heading('3. COBERTURA RECLAMADA'));
 
     const coverageRows=window.FastTrackPolicies.reportRows(state);
@@ -334,11 +334,12 @@
     } else technical.push(para('Nenhum item cadastrado.',{alignment:AlignmentType.LEFT}));
     children.push(...technical);
 
-    // Fotografias — três pares, com o mesmo orçamento de legendas da prévia.
+    // Complete pairs flow naturally after the damage list and before section 4.2.
+    // Shared 70 mm minimum geometry prevents a fourth pair on an institutional page.
     const photos = (state.photos || []).filter((photo) => photo.dataUrl);
-    for (const page of window.FastTrackReportRefinements.photoPages(photos)) {
+    if (photos.length) {
       const rows = [];
-      for (const row of page.rows) {
+      for (const row of window.FastTrackReportRefinements.photoRows(photos)) {
         const cells = [];
         for (let c = 0; c < 2; c += 1) {
           if(c) cells.push(new TableCell({children:[new Paragraph({spacing:{after:0}})],width:{size:568,type:WidthType.DXA},borders:noBorder,margins:{top:0,bottom:0,left:0,right:0}}));
@@ -347,26 +348,26 @@
           const {photo,lines} = entry;
           const image = await canvasBytes(photo.dataUrl,1000,850,{background:'#ffffff'});
           const scale = Math.min(75*96/25.4/image.width,row.imageMm*96/25.4/image.height,1);
+          const imageFrame=new Table({width:{size:4252,type:WidthType.DXA},layout:TableLayoutType.FIXED,columnWidths:[4252],borders:noBorder,rows:[new TableRow({cantSplit:true,height:{value:Math.round(row.imageMm*1440/25.4),rule:HeightRule.ATLEAST},children:[new TableCell({
+            verticalAlign:VerticalAlign.CENTER,borders:noBorder,margins:{top:0,bottom:0,left:0,right:0},
+            children:[new Paragraph({children:[new ImageRun({data:image.data,type:'png',outline:attachmentOutline,transformation:{width:Math.max(1,Math.floor(image.width*scale)),height:Math.max(1,Math.floor(image.height*scale))}})],alignment:AlignmentType.CENTER,spacing:{before:0,after:0,line:240},keepLines:true})]
+          })]})]});
           cells.push(new TableCell({
             width:{size:4252,type:WidthType.DXA},verticalAlign:VerticalAlign.TOP,borders:noBorder,margins:{top:0,bottom:284,left:0,right:0},
             children:[
-              new Paragraph({children:[new ImageRun({data:image.data,type:'png',outline:attachmentOutline,transformation:{width:Math.max(1,Math.floor(image.width*scale)),height:Math.max(1,Math.floor(image.height*scale))}})],alignment:AlignmentType.CENTER,spacing:{after:113},keepNext:true,keepLines:true}),
-              new Paragraph({children:lines.map((line,index)=>run(line,{size:20,color:CAPTION_BLUE,break:index ? 1 : undefined})),alignment:AlignmentType.CENTER,spacing:{line:240,after:0},keepLines:true})
+              imageFrame,
+              new Paragraph({children:lines.map((line,index)=>run(line,{size:20,color:CAPTION_BLUE,break:index ? 1 : undefined})),alignment:AlignmentType.CENTER,spacing:{before:113,line:240,after:0},keepLines:true})
             ]
           }));
         }
         rows.push(new TableRow({cantSplit:true,children:cells}));
       }
-      // A break inside the paragraph after a table creates a blank page in Word 2010.
-      // Start the next paragraph on a new page instead, without a trailing break run.
-      if(page.first) children.push(new Paragraph({children:[run('REGISTRO FOTOGRÁFICO',{font:'Arial Black',size:28,bold:true})],pageBreakBefore:true,spacing:{before:0,after:300,line:360},keepNext:true,keepLines:true}));
-      else children.push(new Paragraph({pageBreakBefore:true,spacing:{before:0,after:0,line:1},keepNext:true}));
+      children.push(new Paragraph({children:[run('REGISTRO FOTOGRÁFICO',{font:'Arial Black',size:28,bold:true})],spacing:{before:150,after:300,line:360},keepNext:true,keepLines:true}));
       children.push(new Table({width:{size:9072,type:WidthType.DXA},layout:TableLayoutType.FIXED,columnWidths:[4252,568,4252],borders:noBorder,rows}));
     }
-    if(photos.length) children.push(new Paragraph({pageBreakBefore:true,spacing:{before:0,after:0,line:1},keepNext:true}));
 
     // Levantamentos documentais e anexos — seção 4.2
-    const documentaryChildren = [subheading('4.2. LAVANTAMENTOS DOCUMENTAIS'),...narrativeParagraphs(f.documentaryNarrative || '')];
+    const documentaryChildren = [subheading('4.2 LEVANTAMENTOS DOCUMENTAIS'),...(compact(f.documentaryNarrative) ? narrativeParagraphs(f.documentaryNarrative) : [])];
     const evidence = Array.isArray(state.causeEvidence) ? state.causeEvidence : [];
     if (!evidence.length) {
       documentaryChildren.push(para('Nenhuma imagem ou arquivo anexado.',{alignment:AlignmentType.LEFT}));
@@ -431,9 +432,11 @@
       ['Franquia contratual',window.FastTrackPolicies.money(calc.deductible),false,false],
       ['Prejuízo Indenizável',window.FastTrackPolicies.money(calc.net),true,false]
     ].map(([label,value,highlight,first]) => new TableRow({cantSplit:true,children:[
-      tcell(label,{width:72,align:AlignmentType.LEFT,bold:highlight,border:first ? summaryTopBorder : noBorder,size:22,color:highlight ? BLUE : BLACK,margins:{top:first ? 115 : 70,bottom:70,left:0,right:80}}),
-      tcell(value,{width:28,align:AlignmentType.RIGHT,bold:true,border:first ? summaryTopBorder : noBorder,size:22,color:highlight ? BLUE : BLACK,margins:{top:first ? 115 : 70,bottom:70,left:80,right:0}})
+      tcell(label,{width:72,keepNext:!highlight,align:AlignmentType.LEFT,bold:highlight,border:first ? summaryTopBorder : noBorder,size:22,color:highlight ? BLUE : BLACK,margins:{top:first ? 115 : 70,bottom:70,left:0,right:80}}),
+      tcell(value,{width:28,keepNext:!highlight,align:AlignmentType.RIGHT,bold:true,border:first ? summaryTopBorder : noBorder,size:22,color:highlight ? BLUE : BLACK,margins:{top:first ? 115 : 70,bottom:70,left:80,right:0}})
     ]}));
+    // Separate adjacent tables so Word does not repeat the damage header above totals.
+    children.push(new Paragraph({spacing:{before:0,after:0,line:1},keepNext:true}));
     children.push(new Table({width:{size:9072,type:WidthType.DXA},layout:TableLayoutType.FIXED,columnWidths:[6532,2540],borders:noBorder,rows:summaryRows}));
 
     // Encerramento

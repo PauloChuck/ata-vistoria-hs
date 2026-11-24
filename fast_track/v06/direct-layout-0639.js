@@ -37,14 +37,14 @@
       <div class="doc-section">1. LOCAL DO SINISTRO</div>
       <p class="doc-text">Trata-se de propriedade rural destinada a engorda de animais (matérias-primas) do segurado.</p>
       `;
-    const mapBlock = `
-      <div class="map-report">${map.dataUrl ? `<img src="${attr(map.dataUrl)}" style="object-fit:${map.fit || 'contain'};object-position:${Number(map.posX ?? 50)}% ${Number(map.posY ?? 50)}%">` : '<span>Imagem de localização não informada.</span>'}</div>
-      <p class="doc-caption">Localização da propriedade sinistrada.</p>`;
+    const mapBlock = map.dataUrl ? `
+      <div class="map-report"><img src="${attr(map.dataUrl)}" style="object-fit:${map.fit || 'contain'};object-position:${Number(map.posX ?? 50)}% ${Number(map.posY ?? 50)}%"></div>
+      <p class="doc-caption">Localização da propriedade sinistrada.</p>` : '';
     const occurrence = `
       <div class="doc-section">2. DESCRIÇÃO DA OCORRÊNCIA</div>
       <p class="doc-text">${esc(effectiveOccurrenceText(state))}</p>`;
     const coverage = {policy:true,rows:window.FastTrackPolicies.reportRows(state)};
-    return [{local,card},mapBlock,occurrence,coverage];
+    return [local,mapBlock,{card},occurrence,coverage];
   }
 
   function surveyRow(item) {
@@ -289,12 +289,11 @@
           continue;
         }
         if (typeof block === 'string') { paginator.add(block); continue; }
-        const {local,card} = block;
-        if (!card) { paginator.add(local); continue; }
+        const {card} = block;
+        if (!card) continue;
         const view = window.FastTrackRiskCard;
         const firstCard=card.cards[0];
-        if (!firstCard) {paginator.add(local);continue;}
-        paginator.add(local,{keepWithNext:view.chunkHtml(firstCard,view.entries(firstCard).slice(0,1))});
+        if (!firstCard) continue;
         for (const item of card.cards) {
           const entries=view.entries(item);
           let offset=0;
@@ -324,17 +323,22 @@
       });
 
       if (photos.length) {
-        for (const page of window.FastTrackReportRefinements.photoPages(photos)) {
-          paginator.newPage();
-          paginator.push(`<div class="survey-photo-page">${page.first ? '<div class="doc-section">REGISTRO FOTOGRÁFICO</div>' : ''}${page.rows.map(photoRowContent).join('')}</div>`);
+        const rows=window.FastTrackReportRefinements.photoRows(photos);
+        let offset=0;
+        while (offset<rows.length) {
+          const chunk=count=>`<div class="survey-photo-page">${offset===0 ? '<div class="doc-section">REGISTRO FOTOGRÁFICO</div>' : ''}${rows.slice(offset,offset+count).map(photoRowContent).join('')}</div>`;
+          if (!paginator.fits(chunk(1)) && !paginator.isEmpty()) paginator.newPage();
+          let count=1;
+          while (count<3 && offset+count<rows.length && paginator.fits(chunk(count+1))) count++;
+          paginator.add(chunk(count));
+          offset+=count;
+          if (offset<rows.length) paginator.newPage();
         }
-        paginator.newPage();
       }
 
-      paginator.addTextSection('<div class="doc-subsection">4.2. LAVANTAMENTOS DOCUMENTAIS</div>',f.documentaryNarrative || '','<div class="doc-subsection">4.2. LAVANTAMENTOS DOCUMENTAIS — CONTINUAÇÃO</div>');
-
+      const documentaryRows=[];
       if (!evidence.length) {
-        paginator.add('<p class="doc-text">Nenhuma imagem ou arquivo anexado.</p>');
+        documentaryRows.push('<p class="doc-text">Nenhuma imagem ou arquivo anexado.</p>');
       } else {
         const indexedEvidence = evidence.map((item,index) => ({item,index}));
         let offset = 0;
@@ -351,12 +355,19 @@
             row = evidenceFileRowContent(entry);
             offset += 1;
           }
-          if (!paginator.fits(row) && !paginator.isEmpty()) {
-            paginator.newPage();
-            paginator.push('<div class="doc-subsection">4.2. LAVANTAMENTOS DOCUMENTAIS — CONTINUAÇÃO</div>');
-          }
-          paginator.push(row);
+          documentaryRows.push(row);
         }
+      }
+      const documentaryHeading='<div class="doc-subsection">4.2 LEVANTAMENTOS DOCUMENTAIS</div>';
+      const documentaryContinuation='<div class="doc-subsection">4.2 LEVANTAMENTOS DOCUMENTAIS — CONTINUAÇÃO</div>';
+      if (clean(f.documentaryNarrative)) paginator.addTextSection(documentaryHeading,f.documentaryNarrative,documentaryContinuation);
+      else paginator.add(documentaryHeading,{keepWithNext:documentaryRows[0]});
+      for (const row of documentaryRows) {
+        if (!paginator.fits(row) && !paginator.isEmpty()) {
+          paginator.newPage();
+          paginator.push(documentaryContinuation);
+        }
+        paginator.push(row);
       }
 
       paginator.addTextSection('<div class="doc-section">5. PARECER DO REGULADOR</div>',f.regulatorOpinion || '','<div class="doc-section">5. PARECER DO REGULADOR — CONTINUAÇÃO</div>');

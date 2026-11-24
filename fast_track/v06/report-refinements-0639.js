@@ -35,9 +35,10 @@
   }
   report.effectiveInspectionText = state => inspectionText(state?.fields || {});
 
-  // The same line wrapping and space budget is used by the preview, print and Word.
-  // Captions stay at 10 pt; long captions use image space rather than smaller type.
-  function photoPages(photos) {
+  // Shared figure geometry; each renderer flows complete pairs into its remaining
+  // page space. A normal pair uses 70 mm, so three fit on a full institutional
+  // page and a fourth never does. Captions stay at 10 pt and images at least 32 mm.
+  function photoRows(photos) {
     const context = document.createElement('canvas').getContext('2d');
     context.font = '10pt Arial';
     const width = 75 * 96 / 25.4;
@@ -57,18 +58,11 @@
     const rows = [];
     for (let start=0; start<entries.length; start+=2) {
       const cells=entries.slice(start,start+2);
-      rows.push({cells,captionMm:Math.max(...cells.map(cell=>cell.lines.length))*12*25.4/72+2});
+      const captionMm=Math.max(...cells.map(cell=>cell.lines.length))*12*25.4/72+2;
+      const imageMm=Math.max(32,Math.min(60,70-captionMm-5));
+      rows.push({cells,captionMm,imageMm});
     }
-    const pages=[];
-    while (rows.length) {
-      const budget=pages.length ? 224 : 210;
-      let count=Math.min(3,rows.length);
-      const room=n=>(budget-rows.slice(0,n).reduce((sum,row)=>sum+row.captionMm+5,0))/n;
-      while(count>1 && room(count)<24) count--;
-      const imageMm=Math.max(12,Math.min(60,room(count)));
-      pages.push({first:pages.length===0,rows:rows.splice(0,count).map(row=>({...row,imageMm}))});
-    }
-    return pages;
+    return rows;
   }
-  window.FastTrackReportRefinements = {opinion,normalizeOpinion,inspectionText,syncInspection,photoPages};
+  window.FastTrackReportRefinements = {opinion,normalizeOpinion,inspectionText,syncInspection,photoRows};
 })();
