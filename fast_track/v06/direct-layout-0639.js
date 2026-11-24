@@ -37,14 +37,14 @@
       <div class="doc-section">1. LOCAL DO SINISTRO</div>
       <p class="doc-text">Trata-se de propriedade rural destinada a engorda de animais (matérias-primas) do segurado.</p>
       `;
-    const mapBlock = `
-      <div class="map-report">${map.dataUrl ? `<img src="${attr(map.dataUrl)}" style="object-fit:${map.fit || 'contain'};object-position:${Number(map.posX ?? 50)}% ${Number(map.posY ?? 50)}%">` : '<span>Imagem de localização não informada.</span>'}</div>
-      <p class="doc-caption">Localização da propriedade sinistrada.</p>`;
+    const mapBlock = map.dataUrl ? `
+      <div class="map-report"><img src="${attr(map.dataUrl)}" style="object-fit:${map.fit || 'contain'};object-position:${Number(map.posX ?? 50)}% ${Number(map.posY ?? 50)}%"></div>
+      <p class="doc-caption">Localização da propriedade sinistrada.</p>` : '';
     const occurrence = `
       <div class="doc-section">2. DESCRIÇÃO DA OCORRÊNCIA</div>
       <p class="doc-text">${esc(effectiveOccurrenceText(state))}</p>`;
     const coverage = {policy:true,rows:window.FastTrackPolicies.reportRows(state)};
-    return [{local,card},mapBlock,occurrence,coverage];
+    return [local,mapBlock,{card},occurrence,coverage];
   }
 
   function surveyRow(item) {
@@ -235,10 +235,10 @@
     return {add,push,newPage,fits,isEmpty,addRecordList,addList,addTextSection,finish,destroy};
   }
 
-  function photoRowContent(items, start) {
-    const cells = items.map((photo,index) => `<div class="photo-cell-report">
-      <div class="report-image-frame"><img src="${attr(photo.dataUrl)}" alt=""></div>
-      <p class="doc-caption">Figura ${start + index + 1} — ${esc(photo.caption || '')}</p>
+  function photoRowContent(row) {
+    const cells = row.cells.map(({photo,lines}) => `<div class="photo-cell-report">
+      <div class="report-image-frame" style="height:${row.imageMm}mm"><img src="${attr(photo.dataUrl)}" alt=""></div>
+      <p class="doc-caption">${esc(lines.join('\n'))}</p>
     </div>`).join('');
     return `<div class="photo-row-report">${cells}</div>`;
   }
@@ -289,12 +289,11 @@
           continue;
         }
         if (typeof block === 'string') { paginator.add(block); continue; }
-        const {local,card} = block;
-        if (!card) { paginator.add(local); continue; }
+        const {card} = block;
+        if (!card) continue;
         const view = window.FastTrackRiskCard;
         const firstCard=card.cards[0];
-        if (!firstCard) {paginator.add(local);continue;}
-        paginator.add(local,{keepWithNext:view.chunkHtml(firstCard,view.entries(firstCard).slice(0,1))});
+        if (!firstCard) continue;
         for (const item of card.cards) {
           const entries=view.entries(item);
           let offset=0;
@@ -324,36 +323,22 @@
       });
 
       if (photos.length) {
-        let shownOnPage = 0;
-        let started = false;
-        for (let start = 0; start < photos.length; start += 2) {
-          const slice = photos.slice(start,start + 2);
-          const row = photoRowContent(slice,start);
-          if (!started) {
-            const heading = '<div class="doc-section">REGISTRO FOTOGRÁFICO</div>';
-            if (!paginator.fits(heading + row) && !paginator.isEmpty()) paginator.newPage();
-            paginator.push(heading);
-            started = true;
-          }
-          if (shownOnPage + slice.length > 4) {
-            paginator.newPage();
-            paginator.push('<div class="doc-section">REGISTRO FOTOGRÁFICO — CONTINUAÇÃO</div>');
-            shownOnPage = 0;
-          }
-          if (!paginator.fits(row)) {
-            paginator.newPage();
-            paginator.push('<div class="doc-section">REGISTRO FOTOGRÁFICO — CONTINUAÇÃO</div>');
-            shownOnPage = 0;
-          }
-          paginator.push(row);
-          shownOnPage += slice.length;
+        const rows=window.FastTrackReportRefinements.photoRows(photos);
+        let offset=0;
+        while (offset<rows.length) {
+          const chunk=count=>`<div class="survey-photo-page">${offset===0 ? '<div class="doc-section">REGISTRO FOTOGRÁFICO</div>' : ''}${rows.slice(offset,offset+count).map(photoRowContent).join('')}</div>`;
+          if (!paginator.fits(chunk(1)) && !paginator.isEmpty()) paginator.newPage();
+          let count=1;
+          while (count<3 && offset+count<rows.length && paginator.fits(chunk(count+1))) count++;
+          paginator.add(chunk(count));
+          offset+=count;
+          if (offset<rows.length) paginator.newPage();
         }
       }
 
-      paginator.addTextSection('<div class="doc-subsection">4.2. LAVANTAMENTOS DOCUMENTAIS</div>',f.documentaryNarrative || '','<div class="doc-subsection">4.2. LAVANTAMENTOS DOCUMENTAIS — CONTINUAÇÃO</div>');
-
+      const documentaryRows=[];
       if (!evidence.length) {
-        paginator.add('<p class="doc-text">Nenhuma imagem ou arquivo anexado.</p>');
+        documentaryRows.push('<p class="doc-text">Nenhuma imagem ou arquivo anexado.</p>');
       } else {
         const indexedEvidence = evidence.map((item,index) => ({item,index}));
         let offset = 0;
@@ -370,12 +355,19 @@
             row = evidenceFileRowContent(entry);
             offset += 1;
           }
-          if (!paginator.fits(row) && !paginator.isEmpty()) {
-            paginator.newPage();
-            paginator.push('<div class="doc-subsection">4.2. LAVANTAMENTOS DOCUMENTAIS — CONTINUAÇÃO</div>');
-          }
-          paginator.push(row);
+          documentaryRows.push(row);
         }
+      }
+      const documentaryHeading='<div class="doc-subsection">4.2 LEVANTAMENTOS DOCUMENTAIS</div>';
+      const documentaryContinuation='<div class="doc-subsection">4.2 LEVANTAMENTOS DOCUMENTAIS — CONTINUAÇÃO</div>';
+      if (clean(f.documentaryNarrative)) paginator.addTextSection(documentaryHeading,f.documentaryNarrative,documentaryContinuation);
+      else paginator.add(documentaryHeading,{keepWithNext:documentaryRows[0]});
+      for (const row of documentaryRows) {
+        if (!paginator.fits(row) && !paginator.isEmpty()) {
+          paginator.newPage();
+          paginator.push(documentaryContinuation);
+        }
+        paginator.push(row);
       }
 
       paginator.addTextSection('<div class="doc-section">5. PARECER DO REGULADOR</div>',f.regulatorOpinion || '','<div class="doc-section">5. PARECER DO REGULADOR — CONTINUAÇÃO</div>');

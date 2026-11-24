@@ -1,5 +1,13 @@
 # Validação da consulta de cooperados
 
+## Revisão 0639.6 — preenchimento e relatórios
+
+Execute `node --test tests/*.test.cjs` para todas as regressões unitárias. O fluxo `node tests/report-refinements.browser.cjs` usa Playwright, `FT_BROWSER` (Chromium/Edge), `FT_DOCX_LIB` (docx 8.5.0) e `FT_OUT` obrigatoriamente fora do repositório. Ele valida limpeza exclusiva da pesquisa, filtros e atendimento preservados, data da vistoria em narrativa personalizada e cronologia, migração do parecer sem alterar conclusão, backups e exportações com 1/4/6/7/12/13 fotos, incluindo verticais e legendas longas. Confere bordas, proporções, agrupamento e ausência de transbordamento na prévia.
+
+Execute também `node tests/report-flow.browser.cjs` com as mesmas variáveis. O fluxo confere as quatro combinações de mapa/quadro, 48 registros/endossos, 1/4/6/7/12/13 fotos, início em página parcialmente ocupada, seis fotos em páginas completas, legendas extensas e tópico documental com/sem narrativa. Exporta os casos e verifica salvamento/reabertura sem perda dos dados.
+
+Conferir também os arquivos no Word: até três pares por página, continuação sem título, foto junto da legenda, início da galeria e do tópico 4.2 no espaço disponível, ausência de páginas vazias e assinaturas sem contorno. Conferir o título exato “4.2 LEVANTAMENTOS DOCUMENTAIS”, o mapa antes do quadro completo e os totais juntos. Word e PDF podem distribuir os pares e as seções por páginas diferentes. Detalhes em `docs/relatorio-refinamentos-0639.md`.
+
 Os testes versionados usam exclusivamente dados sintéticos. O HTML real, os backups de atendimentos e as exportações de validação devem ficar fora do repositório.
 
 Execute as regressões de importação, ausência/zero, origens, referências, avisos, instalações, coordenadas e restauração:
