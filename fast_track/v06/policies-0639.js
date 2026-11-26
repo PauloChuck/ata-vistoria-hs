@@ -34,8 +34,8 @@
       for (const [k,vv] of Object.entries(obj || {})) {
         if (['__proto__','prototype','constructor'].includes(k)) throw Error('Chave de cadastro inválida.');
         if (vv && typeof vv === 'object') numbers(vv);
-        else if (vv != null && (k.endsWith('_brl') || ['percentual','dias','periodo_indenitario_meses'].includes(k))) {
-          if (typeof vv !== 'number' || !Number.isFinite(vv) || vv < 0 || (k==='percentual' && vv>100)) throw Error(`Valor contratual inválido em ${k}. Use número não negativo ou deixe pendente.`);
+        else if (vv != null && (k.endsWith('_brl') || ['percentual','limite_percentual_lmi_cobertura','dias','periodo_indenitario_meses'].includes(k))) {
+          if (typeof vv !== 'number' || !Number.isFinite(vv) || vv < 0 || (['percentual','limite_percentual_lmi_cobertura'].includes(k) && vv>100)) throw Error(`Valor contratual inválido em ${k}. Use número não negativo ou deixe pendente.`);
         }
       }
     }
@@ -93,6 +93,8 @@
     const data=validate(version.data);
     clearAutomatic(state);
     const o=data.operacao,values={companyGroup:o.empresa_grupo_exibicao,affiliatedCooperative:o.cooperativa_afiliada || '',insured:o.segurado_razao_social,insuredCnpj:o.segurado_cnpj,insurer:o.seguradora_lider,policyNumber:o.numero_apolice,productName:o.produto || '',coverageName:''};
+    // Older registries did not define a report broker: retain their existing behavior.
+    if (typeof o.corretora_relatorio==='string' && text(o.corretora_relatorio)) values.broker=text(o.corretora_relatorio);
     Object.assign(state.fields,values);
     state.policyInsuredKey=insuredKey(data);
     state.contract={schemaVersion:2,id:version.id,versionId:version.versionId,savedAt:version.savedAt,appliedAt:new Date().toISOString(),selection:{mode:'case_choice',source,insuredKey:state.policyInsuredKey},data,documents:(version.pdfs || []).map(p=>({documentId:p.documentId,name:p.name,sha256:p.sha256})),coverageIds:[],sublimitIds:[],autoFields:copy(values),manualFields:{},review:{},cause:''};
@@ -152,7 +154,11 @@
   function reportLimit(c) {
     const entries=[];
     const add=(label,value)=>{if (amount(value)!=null) entries.push(`${label}: ${money(value)}`);};
-    add('LMI',c.lmi_brl);
+    const percent=amount(c.limite_percentual_lmi_cobertura);
+    if (percent!=null) {
+      entries.push(`Até ${percent.toLocaleString('pt-BR')}% do LMI de cada cobertura`);
+      add('Teto',c.lmi_brl);
+    } else add('LMI',c.lmi_brl);
     add('Por evento',c.sublimite_por_evento_brl);
     add('Por evento ou unidade/local',c.limite_evento_ou_teto_unidade_brl);
     add('Por evento',c.limites?.por_evento_brl);
