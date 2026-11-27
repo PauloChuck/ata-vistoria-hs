@@ -719,9 +719,14 @@
   }
 
   function handleCooperatorSelectionChanged(selection,{autofill = false,metadataOnly = false,replaceSelection = false} = {}) {
+    if (replaceSelection && !metadataOnly) syncFieldsFromDom();
+    const contractGroup=state.contract ? {companyGroup:state.fields.companyGroup,affiliatedCooperative:state.fields.affiliatedCooperative} : null;
     COOPERATORS().applySelection(state,selection,{autofill,replaceSelection});
+    const associated=replaceSelection && !metadataOnly && selection ? POLICIES()?.associateLocal?.() : null;
+    if (associated?.status==='kept' && contractGroup) Object.assign(state.fields,contractGroup);
     // Update every affected input before updateDerived reads the visible form back into state.
     if (autofill) for (const id of ['claimantName','claimantCpf','riskAddress','companyGroup','affiliatedCooperative']) if ($(id)) $(id).value=state.fields[id] || '';
+    if (associated) for (const id of ['insured','insuredCnpj','companyGroup','affiliatedCooperative','insurer','policyNumber','productName','broker','coverageName']) if ($(id)) $(id).value=state.fields[id] || '';
     if (!metadataOnly) invalidateSignatures();
     updateDerived(); scheduleSave();
   }

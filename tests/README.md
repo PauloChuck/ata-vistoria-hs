@@ -1,5 +1,9 @@
 # Validação da consulta de cooperados
 
+## Revisão 0639.9 — associação após selecionar o local
+
+`node tests/local-policy.browser.cjs` confere a associação por base/atividade/vigência, ausência e multiplicidade de contratos, escolha manual, versão salva, instalações, VRs e quatro exportações Word/PDF. Use `FT_BROWSER`, `FT_DOCX_LIB` e `FT_OUT` fora do repositório. A seleção principal substitui contratos incompatíveis; pesquisar ou adicionar instalações não aplica apólices. Detalhes em `docs/local-policy-0639-9.md`.
+
 ## Revisão 0639.8 — contratos privados e corretora
 
 `node tests/policy-broker.browser.cjs` valida preenchimento opcional da corretora, alternância entre contratos, nove coberturas, quatro sublimites, limites percentuais com teto, franquias condicionadas, seleções explícitas e backups. Exporta quatro cenários em Word/PDF. Use `FT_BROWSER`, `FT_DOCX_LIB` e `FT_OUT` fora do repositório. O teste usa dados fictícios por padrão; os parâmetros privados opcionais e o procedimento de importação estão em `docs/cadastro-corretora-0639-8.md`.
