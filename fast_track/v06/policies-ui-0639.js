@@ -25,11 +25,14 @@
   function blank() {
     return {formato:'cadastro_contratual_de_referencia',versao_formato:1,operacao:{id:P.uid(),empresa_grupo_exibicao:'',cooperativa_afiliada:'',segurado_razao_social:'',segurado_cnpj:'',seguradora_lider:'',numero_apolice:'',produto:'',vigencia:{inicio_data_escrita:'',inicio_hora_escrita:'24:00',fim_data_escrita:'',fim_hora_escrita:'24:00',fuso:'Horário local do risco'}},documentos:[],coberturas:[],sublimites:[],endossos:[],pendencias_documentais:[],vinculos_propostos_consulta:[],clausulas_administrativas:[]};
   }
-  const operationFields=[['empresa_grupo_exibicao','Empresa / grupo'],['cooperativa_afiliada','Cooperativa afiliada (quando aplicável)'],['segurado_razao_social','Segurado contratante'],['segurado_cnpj','CNPJ do segurado'],['seguradora_lider','Seguradora líder'],['numero_apolice','Número da apólice'],['produto','Produto']];
+  const operationFields=[['empresa_grupo_exibicao','Empresa / grupo'],['cooperativa_afiliada','Cooperativa afiliada (quando aplicável)'],['segurado_razao_social','Segurado contratante'],['segurado_cnpj','CNPJ do segurado'],['seguradora_lider','Seguradora líder'],['numero_apolice','Número da apólice'],['produto','Produto'],['corretora_relatorio','Corretora para o relatório (opcional)']];
   function readDraft() {
     if (!draft) return;
     const o=draft.data.operacao;
-    for (const [k] of operationFields) o[k]=$(`po_${k}`).value.trim();
+    for (const [k] of operationFields) {
+      const value=$(`po_${k}`).value.trim();
+      if (k!=='corretora_relatorio' || value || Object.hasOwn(o,k)) o[k]=value;
+    }
     for (const k of ['inicio_data_escrita','inicio_hora_escrita','fim_data_escrita','fim_hora_escrita']) o.vigencia[k]=$(`pv_${k}`).value;
     draft.data.vinculos_propostos_consulta=$('policyBases').value.split('\n').filter(s=>s.trim()).map(s=>{const [chave_base,atividade,secao_contratual]=s.split('|').map(x=>x.trim());return {chave_base,atividade,secao_contratual};});
     draft.data.coberturas.forEach((c,i)=>{

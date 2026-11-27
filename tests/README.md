@@ -1,5 +1,9 @@
 # Validação da consulta de cooperados
 
+## Revisão 0639.8 — contratos privados e corretora
+
+`node tests/policy-broker.browser.cjs` valida preenchimento opcional da corretora, alternância entre contratos, nove coberturas, quatro sublimites, limites percentuais com teto, franquias condicionadas, seleções explícitas e backups. Exporta quatro cenários em Word/PDF. Use `FT_BROWSER`, `FT_DOCX_LIB` e `FT_OUT` fora do repositório. O teste usa dados fictícios por padrão; os parâmetros privados opcionais e o procedimento de importação estão em `docs/cadastro-corretora-0639-8.md`.
+
 ## Revisão 0639.6 — preenchimento e relatórios
 
 Execute `node --test tests/*.test.cjs` para todas as regressões unitárias. O fluxo `node tests/report-refinements.browser.cjs` usa Playwright, `FT_BROWSER` (Chromium/Edge), `FT_DOCX_LIB` (docx 8.5.0) e `FT_OUT` obrigatoriamente fora do repositório. Ele valida limpeza exclusiva da pesquisa, filtros e atendimento preservados, data da vistoria em narrativa personalizada e cronologia, migração do parecer sem alterar conclusão, backups e exportações com 1/4/6/7/12/13 fotos, incluindo verticais e legendas longas. Confere bordas, proporções, agrupamento e ausência de transbordamento na prévia.
