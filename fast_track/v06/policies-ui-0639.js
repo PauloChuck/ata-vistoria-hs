@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const P=window.FastTrackPolicies, esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])), $=id=>document.getElementById(id);
-  let hooks,registry=P.emptyRegistry(),draft=null,caseRenderKey='',busy=false;
+  let hooks,registry=P.emptyRegistry(),draft=null,caseRenderKey='',busy=false,localMatch=null;
   const field=(id,label,value='',type='text')=>`<div><label class="field" for="${id}">${esc(label)}</label><input id="${id}" type="${type}" value="${esc(value)}"${type==='number'?' min="0" step="0.01"':''}></div>`;
   const option=(value,label,sel)=>`<option value="${esc(value)}"${value===sel?' selected':''}>${esc(label)}</option>`;
   const label=v=>`${v.data.operacao.empresa_grupo_exibicao} · ${v.data.operacao.numero_apolice} · ${v.data.operacao.seguradora_lider}`;
@@ -53,17 +53,35 @@
     if (!hooks) return;
     const opened=Array.from(document.querySelectorAll('#policyCase details[open]')).map(d=>d.querySelector('summary')?.textContent);
     const s=state(),c=current(s),all=P.activeVersions(registry);
+    if (localMatch && (localMatch.selection!==s.cooperatorSelection || localMatch.lossDate!==s.fields.lossDate || localMatch.lossTime!==s.fields.lossTime)) { localMatch=null;force=true; }
+    const match=localMatch?.result;
     const selectedKey=c?P.insuredKey(c.data):s.policyInsuredKey || '';
-    const key=JSON.stringify([s.caseUid,c,selectedKey,registry.active,s.cooperatorSelection?.confirmed]);
+    const key=JSON.stringify([s.caseUid,c,selectedKey,registry.active,s.cooperatorSelection?.confirmed,s.fields.lossDate,s.fields.lossTime]);
     if (!force && key===caseRenderKey) return;caseRenderKey=key;
     const people=P.insureds(registry),choices=selectedKey?P.forInsured(registry,selectedKey):all;
     if(c&&!people.some(p=>p.key===selectedKey))people.push({key:selectedKey,name:c.data.operacao.segurado_razao_social,group:c.data.operacao.empresa_grupo_exibicao});
     const selectedVersion=c?.versionId || '';
     const contractLabel=v=>`${v.data.operacao.numero_apolice} · ${v.data.operacao.seguradora_lider} · ${v.data.operacao.vigencia.inicio_data_escrita} a ${v.data.operacao.vigencia.fim_data_escrita}`;
-    const msg=c?`Dados da apólice preenchidos. Escolha a cobertura e continue o atendimento.${registry.active[c.id]&&registry.active[c.id]!==c.versionId?' Existe atualização no cadastro; este atendimento conserva a versão anterior.':''}`:selectedKey&&choices.length>1?'Este segurado possui mais de uma apólice. Escolha o contrato abaixo.':'Selecione o segurado/empresa ou escolha diretamente uma apólice. Os dados serão preenchidos ao selecionar.';
+    let msg=c?`Dados da apólice preenchidos. Escolha a cobertura e continue o atendimento.${registry.active[c.id]&&registry.active[c.id]!==c.versionId?' Existe atualização no cadastro; este atendimento conserva a versão anterior.':''}`:selectedKey&&choices.length>1?'Este segurado possui mais de uma apólice. Escolha o contrato abaixo.':'Selecione o segurado/empresa ou escolha diretamente uma apólice. Os dados serão preenchidos ao selecionar.';
+    if (match) {
+      if (match.status==='applied') msg='Apólice preenchida pela base e atividade do local selecionado. Escolha as coberturas; a seleção manual continua disponível.';
+      else if (match.status==='kept') msg=`A apólice deste atendimento continua compatível; sua versão e coberturas foram preservadas.${match.candidates.length>1?' Há outras apólices compatíveis disponíveis para escolha.':''}`;
+      else if (match.reason==='invalid_date') msg='Confira a data/hora do sinistro para relacionar a vigência, ou selecione a apólice manualmente.';
+      else if (match.reason==='needs_time') msg='A compatibilidade de vigência depende da hora do sinistro. Confira a vigência e escolha a apólice abaixo; a seleção manual continua disponível.';
+      else if (match.status==='choice') msg=match.candidates.length===1?'Há uma apólice compatível com o local. Selecione-a abaixo.':`Há ${match.candidates.length} apólices compatíveis com a base, atividade e data informadas. Escolha uma abaixo.`;
+      else msg=match.reason==='outside'?'Nenhuma apólice vinculada ao local está vigente na data informada. Importe o cadastro correspondente ou selecione a apólice manualmente.':'Não há apólice cadastrada compatível com a base e atividade deste local. Importe o cadastro correspondente ou selecione a apólice manualmente.';
+    }
+    if (c) {
+      const validity=P.validityAtLoss(c.data,s.fields);
+      if (validity==='outside') msg+=' A vigência cadastrada não abrange a data/hora informada. Confira a apólice escolhida.';
+      if (validity==='needs_time') msg+=' A vigência depende da hora do sinistro nesta data. Confira a apólice escolhida.';
+    }
+    const choiceLabel=v=>`${selectedKey?'':v.data.operacao.segurado_razao_social+' · '}${contractLabel(v)}`;
+    const suggested=match?.candidates.filter(v=>!selectedKey || P.insuredKey(v.data)===selectedKey) || [];
+    const choiceHTML=suggested.length?`<optgroup label="Compatíveis com o local selecionado">${suggested.map(v=>option(v.versionId,choiceLabel(v),selectedVersion)).join('')}</optgroup><optgroup label="Outras apólices — escolha manual">${choices.filter(v=>!suggested.some(x=>x.id===v.id)).map(v=>option(v.versionId,choiceLabel(v),selectedVersion)).join('')}</optgroup>`:choices.map(v=>option(v.versionId,choiceLabel(v),selectedVersion)).join('');
     $('policyCase').innerHTML=`<h3>Contrato do atendimento</h3><p class="notice info">${esc(msg)}</p>
       <label class="field" for="policyInsuredChoice">Segurado / empresa</label><select id="policyInsuredChoice">${option('','Todos os segurados — escolher diretamente a apólice',selectedKey)}${people.map(p=>option(p.key,[p.name,p.group].filter(Boolean).join(' · '),selectedKey)).join('')}</select>
-      <label class="field" for="policyChoice">Apólice</label><select id="policyChoice">${option('','Selecione uma apólice',selectedVersion)}${choices.map(v=>option(v.versionId,`${selectedKey?'':v.data.operacao.segurado_razao_social+' · '}${contractLabel(v)}`,selectedVersion)).join('')}${c&&!choices.some(v=>v.versionId===c.versionId)?option(c.versionId,`${contractLabel(c)} — versão preservada neste atendimento`,c.versionId):''}</select>
+      <label class="field" for="policyChoice">Apólice</label><select id="policyChoice">${option('','Selecione uma apólice',selectedVersion)}${choiceHTML}${c&&![...choices,...suggested].some(v=>v.versionId===c.versionId)?option(c.versionId,`${contractLabel(c)} — versão preservada neste atendimento`,c.versionId):''}</select>
       ${c?`<h4>Cobertura reclamada</h4><div id="policyCoverageChoices">${c.data.coberturas.map(cov=>`<label class="policy-check"><input type="checkbox" data-policy-coverage="${esc(cov.id)}"${c.coverageIds.includes(cov.id)?' checked':''}>${esc(cov.nome_sugerido_seletor || cov.nome_contratual)}</label>`).join('')}</div>${c.data.sublimites.length?`<h4>Sublimites reclamados (opcional)</h4><div id="policySublimitChoices">${c.data.sublimites.map(sub=>`<label class="policy-check"><input type="checkbox" data-policy-sublimit="${esc(sub.id)}"${(c.sublimitIds || []).includes(sub.id)?' checked':''}>${esc(P.displayName(sub))}</label>`).join('')}</div>`:''}${field('policyCause','Causa do dano — informada pelo regulador',c.cause)}<details><summary>Coberturas que irão para o relatório</summary>${reportHTML(s)}</details>`:''}`;
     $('policyCoverageSummary').innerHTML=reportHTML(s);
     for (const d of document.querySelectorAll('#policyCase details')) if (opened.includes(d.querySelector('summary')?.textContent)) d.open=true;
@@ -82,7 +100,14 @@
     }
     return changed;
   }
-  async function persist(next) { await hooks.saveRegistry(next);registry=next;renderLibrary(); }
+  async function persist(next) {
+    await hooks.saveRegistry(next);registry=next;renderLibrary();
+    // Refresh choices only; importing a registry must never apply a contract to the case.
+    if (localMatch?.selection===state().cooperatorSelection) {
+      const result=P.localPolicies(state(),registry);
+      localMatch.result={...result,status:current(state())?'kept':result.candidates.length?'choice':'missing'};
+    }
+  }
   async function attachPDF(file) {
     if (!draft || !file) return;
     if (file.size>40*1024*1024) throw Error('PDF acima de 40 MB. Divida o documento preservando as referências.');
@@ -137,8 +162,9 @@
           await persist(merged);reconcile();changed();notify('Backup restaurado e PDFs conferidos. Versões ativas existentes e versões dos atendimentos foram preservadas.');
         }
         if (el.id==='policyPdfInput') await attachPDF(el.files?.[0]);
-        if (el.id==='policyInsuredChoice') { P.selectInsured(state(),registry,el.value);changed(); }
+        if (el.id==='policyInsuredChoice') { localMatch=null;P.selectInsured(state(),registry,el.value);changed(); }
         if (el.id==='policyChoice') {
+          localMatch=null;
           if (!el.value) { const key=state().policyInsuredKey;P.clearAutomatic(state());state().policyInsuredKey=key; }
           else if (el.value!==current(state())?.versionId) { const selected=version(el.value);if (!selected) throw Error('Apólice não encontrada no cadastro.');P.apply(state(),selected); }
           changed();
@@ -150,5 +176,11 @@
       finally { if (el.type==='file') el.value=''; }
     });
   }
-  window.FastTrackPolicyUI={init,reconcile,render:renderCase,rowsHTML,getRegistry:()=>P.copy(registry)};
+  function associateLocal() {
+    const result=P.associateLocal(state(),registry);
+    localMatch={selection:state().cooperatorSelection,lossDate:state().fields.lossDate,lossTime:state().fields.lossTime,result};
+    caseRenderKey='';
+    return result;
+  }
+  window.FastTrackPolicyUI={init,reconcile,render:renderCase,rowsHTML,getRegistry:()=>P.copy(registry),associateLocal};
 })();

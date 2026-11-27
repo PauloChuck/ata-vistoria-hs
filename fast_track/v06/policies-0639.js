@@ -107,7 +107,74 @@
     if (list.length) Object.assign(state.fields,{insured:list[0].data.operacao.segurado_razao_social,insuredCnpj:list[0].data.operacao.segurado_cnpj});
     return null;
   }
-  // Property/date edits and registry updates never replace the case's chosen version.
+
+  // Match the declared source base and activity, never the person's name or insurer.
+  const matchText = v => text(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').replace(/\s+/g,' ');
+  function localIdentity(selection) {
+    const source=selection?.source || {}, c=selection?.confirmed || {};
+    return {baseKey:matchText(source.baseKey),activity:matchText(source.activity || c.activity),
+      group:text(source.companyGroup || c.companyGroup),cooperative:text(source.cooperative || c.cooperative)};
+  }
+  function matchesLocal(data,selection) {
+    const local=localIdentity(selection);
+    if (!local.baseKey || !local.activity || !selection?.confirmed) return false;
+    const activity=v=>{
+      const n=matchText(v);
+      return local.baseKey==='larpostura' ? ({'aves de postura':'postura','aves de recria':'recria','aves recria':'recria'}[n] || n) : n;
+    };
+    const declared=(data.vinculos_propostos_consulta || []).filter(v=>matchText(v?.chave_base)===local.baseKey)
+      .flatMap(v=>local.baseKey==='larpostura' && activity(v.atividade)==='postura e recria' ? ['postura','recria'] : [activity(v.atividade)]);
+    const wanted=activity(local.activity);
+    // A combined/unspecified record is compatible only if both activities are declared.
+    return local.baseKey==='larpostura' && wanted==='postura e recria'
+      ? ['postura','recria'].every(v=>declared.includes(v))
+      : declared.includes(wanted);
+  }
+  function validityAtLoss(data,fields) {
+    if (!text(fields.lossDate)) return 'valid';
+    if (!date(fields.lossDate)) return 'invalid_date';
+    const v=data.operacao.vigencia,start=stamp(v.inicio_data_escrita,v.inicio_hora_escrita),end=stamp(v.fim_data_escrita,v.fim_hora_escrita);
+    if (text(fields.lossTime)) {
+      const when=stamp(fields.lossDate,fields.lossTime);
+      return !Number.isFinite(when) ? 'invalid_date' : when>=start && when<end ? 'valid' : 'outside';
+    }
+    const day=stamp(fields.lossDate,'00:00'),next=day+86400000;
+    if (start<=day && end>=next) return 'valid';
+    return start<next && end>day ? 'needs_time' : 'outside';
+  }
+  function localPolicies(state,registry) {
+    const versions=activeVersions(registry), c=current(state);
+    // A saved version remains the reference when it still fits the selected local/date.
+    if (c && matchesLocal(c.data,state.cooperatorSelection) && validityAtLoss(c.data,state.fields)==='valid') {
+      const i=versions.findIndex(v=>v.id===c.id);
+      if (i<0) versions.push(c);else versions[i]=c;
+    }
+    const linked=versions.filter(v=>matchesLocal(v.data,state.cooperatorSelection));
+    const candidates=linked.filter(v=>['valid','needs_time'].includes(validityAtLoss(v.data,state.fields)));
+    const reason=linked.some(v=>validityAtLoss(v.data,state.fields)==='invalid_date') ? 'invalid_date'
+      : candidates.some(v=>validityAtLoss(v.data,state.fields)==='needs_time') ? 'needs_time'
+      : !candidates.length && linked.length ? 'outside' : !linked.length ? 'unlinked' : '';
+    return {candidates,reason,local:localIdentity(state.cooperatorSelection)};
+  }
+  // Called only after the explicit primary-local action, never from reconcile/render.
+  function associateLocal(state,registry) {
+    const result=localPolicies(state,registry),c=current(state);
+    if (c && result.candidates.some(v=>v.versionId===c.versionId) && validityAtLoss(c.data,state.fields)==='valid') {
+      state.policyInsuredKey=insuredKey(c.data);
+      return {...result,status:'kept'};
+    }
+    if (result.candidates.length===1 && !result.reason) {
+      // A new automatically associated contract must not inherit another contract's broker.
+      state.fields.broker='';
+      apply(state,result.candidates[0],{source:'confirmed_local'});
+      return {...result,status:'applied'};
+    }
+    clearAutomatic(state);state.fields.broker='';
+    const local=state.cooperatorSelection?.confirmed || {};
+    Object.assign(state.fields,{companyGroup:text(local.companyGroup || result.local.group),affiliatedCooperative:text(local.cooperative || result.local.cooperative)});
+    return {...result,status:result.candidates.length?'choice':'missing'};
+  }
+  // Ordinary property/date edits and registry updates never replace the chosen version.
   const reconcile = () => false;
   function chooseCoverages(state,ids) {
     const c=current(state); if (!c) throw Error('Selecione uma apólice.');
@@ -191,7 +258,7 @@
     return window.FastTrackAuroraReport?.matches(state) ? rows.filter((row,i)=>rows.findIndex(r=>JSON.stringify(r)===JSON.stringify(row))===i) : rows;
   }
   const calculate = state => window.FastTrackSettlement.calculate(state);
-  const api={copy,uid,amount,money,date,stamp,validate,emptyRegistry,restore,activeVersions,saveVersion,insuredKey,insureds,forInsured,selectInsured,current,selected,selectedSublimits,displayName,apply,reconcile,clearAutomatic,chooseCoverages,chooseSublimits,normalizeSnapshot,limits,deductibleText,sourceText,reportLimit,reportDeductible,reportRows,calculate};
+  const api={copy,uid,amount,money,date,stamp,validate,emptyRegistry,restore,activeVersions,saveVersion,insuredKey,insureds,forInsured,selectInsured,current,selected,selectedSublimits,displayName,apply,reconcile,clearAutomatic,chooseCoverages,chooseSublimits,normalizeSnapshot,limits,deductibleText,sourceText,reportLimit,reportDeductible,reportRows,calculate,localIdentity,matchesLocal,validityAtLoss,localPolicies,associateLocal};
   window.FastTrackPolicies=api;
   if (window.FastTrackV06Report) window.FastTrackV06Report.calculate=calculate;
 })();

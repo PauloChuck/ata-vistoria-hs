@@ -34,7 +34,11 @@ const result={checks:[],errors:[],exports:[],success:false};
   await page.locator(`[data-property-unit="${ua}"] [data-property-unit-field="selected"]`).uncheck();t=await totals();assert.equal(t.scope,'VR das instalações selecionadas');assert.equal(t.fields.vrBuildings.amount,200000);await page.locator('[data-property-action="all"]').click();assert.equal((await totals()).count,2);
   await page.locator('[data-property-action="none"]').click();assert.equal((await totals()).count,0);assert.equal((await totals()).fields.vrBuildings.amount,null);await page.locator('[data-property-action="all"]').click();
   result.checks.push('Additive selection, select-all/clear/count, distinct property excluded, six historic repeats counted once, explicit applicable version, damages independent');
-  const composed=await backup();for(const key of ['damages','photos','map'])assert.deepEqual(composed[key],baseCase[key]);assert.equal(composed.fields.insured,baseCase.fields.insured);assert.equal(composed.fields.coverageName,baseCase.fields.coverageName);
+  const selected=await backup();for(const key of ['damages','photos','map'])assert.deepEqual(selected[key],baseCase[key]);
+  // No matching registry: primary selection clears stale contractual fields, while manual entry stays available.
+  for(const key of ['insured','insurer','policyNumber','coverageName','broker'])assert.equal(selected.fields[key],'');
+  for(const key of ['insured','insurer','policyNumber','productName','coverageName','broker']){await page.locator('#'+key).fill(baseCase.fields[key]||'');await page.locator('#'+key).press('Tab');}
+  const composed=await backup();assert.equal(composed.contract,null);assert.equal(composed.fields.insured,baseCase.fields.insured);
   await action('save-draft');await page.reload();await page.waitForFunction(()=>FastTrackCooperators.getBase());assert.deepEqual((await backup()).cooperatorSelection.composition,composed.cooperatorSelection.composition);await restore(composed);assert.deepEqual((await backup()).cooperatorSelection.composition,composed.cooperatorSelection.composition);
   result.checks.push('Reload and backup preserve original records, applicable sources, membership and damage flags; other case fields preserved');
   if(process.env.FT_EXPORTS)await exportCase('duas-instalacoes');
